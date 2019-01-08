@@ -20,7 +20,20 @@
   <PropertyGroup>
     <RestoreSources>
       $(RestoreSources);
-      https://dotnet.myget.org/F/roslyn/api/v3/index.json;
+      https://dotnet.myget.org/F/roslyn/api/v3/index.json
     </RestoreSources>
   </PropertyGroup>
+
+  <Target Name="_DownloadOptimizationData">
+    <PropertyGroup>
+      <_DropAppPath>$(NuGetPackageRoot)drop.app\$(DropAppVersion)\lib\net45\drop.exe</_DropAppPath>
+    </PropertyGroup>
+
+    <Exec Command='"$(_DropAppPath)" list '
+          ConsoleToMSBuild="true"
+          Condition="'$(_RunIbcMerge)' == 'true'">
+      <Output TaskParameter="ConsoleOutput" PropertyName="IbcMergeOutput" />
+    </Exec>
+  </Target>
+
 </Project>

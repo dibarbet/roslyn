@@ -41,10 +41,14 @@ jobs:
       dropName: $(VisualStudio.DropName) 
       feedSource: 'https://devdiv-test.pkgs.visualstudio.com/_packaging/MicroBuildToolset/nuget/v3/index.json'
 
-  - task: NuGetRestore@1
+  - task: NuGetCommand@2
+    displayName: Restore internal tools
     inputs:
-      solution: 'eng\internal\Toolset.csproj'
-      feed: '8f470c7e-ac49-4afe-a6ee-cf784e438b93'
+      command: restore
+      feedsToUse: config
+      restoreSolution: 'eng\internal\Toolset.csproj'
+      nugetConfigPath: 'eng\internal\NuGet.config'
+      restoreDirectory: '$(UserProfile)\.nuget\packages'
 
   - script: eng\cibuild.cmd
               -configuration $(BuildConfiguration)

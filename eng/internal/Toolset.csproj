@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.DotNet.IBCMerge" Version="$(MicrosoftDotNetIBCMergeVersion)" />
+    <PackageReference Include="Drop.App" Version="$(DropAppVersion)" ExcludeAssets="all" />
   </ItemGroup>
 </Project>
