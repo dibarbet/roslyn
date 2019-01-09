@@ -8,9 +8,7 @@ $ErrorActionPreference="Stop"
 
 $VSSetupDir = Join-Path $ArtifactsDir "VSSetup\$configuration"
 $PackagesDir = Join-Path $ArtifactsDir "packages\$configuration"
-
-# Use a very short name for the directory to mitigate long path issues.
-$IbcOptimizationDataDir = if ($ci) { Join-Path $ToolsDir "OD" } else { "" }
+$IbcOptimizationDataDir = if ($ci) { Join-Path $ToolsDir "OptimizationData" } else { "" }
 
 $binaryLog = if (Test-Path variable:binaryLog) { $binaryLog } else { $false }
 $nodeReuse = if (Test-Path variable:nodeReuse) { $nodeReuse } else { $false }

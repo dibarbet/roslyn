@@ -267,6 +267,9 @@ function Restore-OptProfData() {
 
     Write-Host "Downloading optimization data from drop $dropServiceUrl/$($latestDrop.Name)"
     Exec-Console $dropToolPath "get --dropservice `"$dropServiceUrl`" --name `"$($latestDrop.Name)`" --dest `"$IbcOptimizationDataDir`" --traceto `"$logFile`""
+
+    # Workaround for lack of support for long paths in IBCMerge.exe
+    Move-Item -Path (Join-Path $IbcOptimizationDataDir "Common7\IDE\CommonExtensions\Microsoft\ManagedLanguages\VBCSharp") -Destination $IbcOptimizationDataDir
 }
 
 function Build-OptProfData() {
