@@ -38,7 +38,6 @@ param (
     [switch]$procdump,
     [switch]$skipAnalyzers,
     [switch][Alias('d')]$deployExtensions,
-    [switch]$applyPartialNgenOptimization,
     [switch]$prepareMachine,
     [switch]$useGlobalNuGetCache = $true,
     [switch]$warnAsError = $false,
@@ -118,18 +117,22 @@ function Process-Arguments() {
        exit 0
     }
     
-    if ($officialBuildId) {
-        if (!$vsBranch) {
+    if (!$vsBranch) {
+        if ($officialBuildId) {
             Write-Host "vsBranch must be specified for official builds"
             exit 1
         }
+        
+        $script:vsBranch = "dummy/ci"
+    }
 
-        if (!$vsDropName) {
+    if (!$vsDropName) {
+        if ($officialBuildId) {
             Write-Host "vsDropName must be specified for official builds"
             exit 1
         }
 
-        $script:applyPartialNgenOptimization = $true
+        $script:vsDropName = "Products/DummyDrop"
     }
     
     if ($test32 -and $test64) {
@@ -181,8 +184,6 @@ function BuildSolution() {
     # Do not set the property to true explicitly, since that would override value projects might set.
     $suppressExtensionDeployment = if (!$deployExtensions) { "/p:DeployExtension=false" } else { "" } 
 
-    $optimizationDataDir = if ($applyPartialNgenOptimization) { "/p:IbcOptimizationDataDir=$IbcOptimizationDataDir" } else { "" }
-
     # Setting /p:TreatWarningsAsErrors=true is a workaround for https://github.com/Microsoft/msbuild/issues/3062.
     # We don't pass /warnaserror to msbuild ($warnAsError is set to $false by default above), but set 
     # /p:TreatWarningsAsErrors=true so that compiler reported warnings, other than IDE0055 are treated as errors. 
@@ -207,42 +208,65 @@ function BuildSolution() {
         /p:QuietRestoreBinaryLog=$binaryLog `
         /p:TestTargetFrameworks=$testTargetFrameworks `
         /p:VisualStudioDropName=$vsDropName `
+        /p:IbcOptimizationDataDir=$IbcOptimizationDataDir `
         /p:TreatWarningsAsErrors=true `
-        $optimizationDataDir `
         $suppressExtensionDeployment `
         @properties
 }
 
 function Restore-OptProfData() {
-    Write-Host "Acquiring optimization data"
-  
     $dropToolDir = Get-PackageDir "Drop.App"
-    $dropToolPath = Join-Path "lib\net45\drop.exe"
+    $dropToolPath = Join-Path $dropToolDir "lib\net45\drop.exe"
 
     if (!(Test-Path $dropToolPath)) {
+
+        # Only report error when running in an official build.
+        # Allows to test optimization data operations locally by running 
+        # cibuild.cmd after manually restoring internal tools project.
+        if (!$officialBuildId) {
+            return
+        }
+
         Write-Host "Internal tool not found: '$dropToolPath'." -ForegroundColor Red 
         Write-Host "Run nuget restore `"$EngRoot\internal\Toolset.csproj`"." -ForegroundColor DarkGray 
         ExitWithExitCode 1
     }
+    
+    function find-latest-drop($drops) {
+         $result = $null
+         [DateTime]$latest = [DateTime]::New(0)
+         foreach ($drop in $drops) {
+             $dt = [DateTime]::Parse($drop.CreatedDateUtc)
+             if ($result -eq $null -or ($drop.UploadComplete -and !$drop.DeletePending -and ($dt -gt $latest))) {
+                 $result = $drop
+                 $latest = $dt
+             }
+         }
+
+         return $result
+    }
    
+    Write-Host "Acquiring optimization data"
+
+    Create-Directory $IbcOptimizationDataDir
+
     $dropServiceUrl = "https://devdiv.artifacts.visualstudio.com"
     $dropNamePrefix = "OptimizationData/dotnet/roslyn/master-vs-deps"
+
     $dropsJsonPath = Join-Path $IbcOptimizationDataDir "AvailableDrops.json"
+    $logFile = Join-Path $LogDir "OptimizationDataAcquisition.log"
 
-    Exec-Console $dropToolPath "list --dropservice `"$dropServiceUrl`" --pathPrefixFilter `"$dropNamePrefix`" --toJsonFile `"$dropsJsonPath`""
+    Exec-Console $dropToolPath "list --dropservice `"$dropServiceUrl`" --pathPrefixFilter `"$dropNamePrefix`" --toJsonFile `"$dropsJsonPath`" --traceto `"$logFile`""
     $dropsJson = Get-Content -Raw -Path $dropsJsonPath | ConvertFrom-Json
-
-    if ($dropsJson.Length -eq 0) {
+    $latestDrop = find-latest-drop($dropsJson)
+    
+    if ($latestDrop -eq $null) {
         Write-Host "No drop matching given name found: $dropServiceUrl/$dropNamePrefix/*" -ForegroundColor Red 
         ExitWithExitCode 1
     }
-    
-    # Assumes the drops are sorted by creation date
-    # TODO: find latest that UploadComplete = true, DeletePending = false
-    $latestDropName = $dropsJson[$dropsJson.Length - 1].Name
 
-    Write-Host "Downloading optimization data from drop $dropServiceUrl/$latestDropName"
-    Exec-Console $dropToolPath "get --dropservice `"$dropServiceUrl`" --name `"$latestDropName`" --dest `"$IbcOptimizationDataDir`""
+    Write-Host "Downloading optimization data from drop $dropServiceUrl/$($latestDrop.Name)"
+    Exec-Console $dropToolPath "get --dropservice `"$dropServiceUrl`" --name `"$($latestDrop.Name)`" --dest `"$IbcOptimizationDataDir`" --traceto `"$logFile`""
 }
 
 function Build-OptProfData() {
@@ -464,8 +488,8 @@ try {
         List-Processes
         Prepare-TempDir
     }
-    
-    if ($applyPartialNgenOptimization) {
+
+    if ($ci -and $restore -and $configuration -eq "Release") {
         Restore-OptProfData
     }
 
@@ -477,7 +501,7 @@ try {
         BuildSolution
     }
     
-    if ($applyPartialNgenOptimization) {
+    if ($ci -and $build -and $configuration -eq "Release") {
         Build-OptProfData
     }
 
