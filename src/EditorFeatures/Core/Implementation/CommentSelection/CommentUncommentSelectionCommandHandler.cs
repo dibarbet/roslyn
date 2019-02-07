@@ -187,11 +187,34 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                 if (operation == Operation.Comment)
                 {
                     CommentSpan(document, service, span, textChanges, trackingSpans, cancellationToken);
+                    //BlockCommentSpan(document, service, span, textChanges, trackingSpans, cancellationToken);
                 }
                 else
                 {
                     UncommentSpan(document, service, span, textChanges, trackingSpans, cancellationToken);
+                    //UnBlockCommentSpan(document, service, span, textChanges, trackingSpans, cancellationToken);
                 }
+            }
+        }
+
+        private void UnBlockCommentSpan(Document document, ICommentSelectionService service, SnapshotSpan span,
+            List<TextChange> textChanges, List<ITrackingSpan> spansToSelect, CancellationToken cancellationToken)
+        {
+            var info = service.GetInfoAsync(document, span.Span.ToTextSpan(), cancellationToken).WaitAndGetResult(cancellationToken);
+            if (info.SupportsBlockComment)
+            {
+                UncommentContainingBlockComment(info, span, textChanges, spansToSelect);
+            }
+        }
+
+        private void BlockCommentSpan(Document document, ICommentSelectionService service, SnapshotSpan span,
+            List<TextChange> textChanges, List<ITrackingSpan> trackingSpans, CancellationToken cancellationToken)
+        {
+            // Get the information from the language to ensure block comments are supported.
+            var commentInfo = service.GetInfoAsync(document, span.Span.ToTextSpan(), cancellationToken).WaitAndGetResult(cancellationToken);
+            if (commentInfo.SupportsBlockComment)
+            {
+                AddBlockComment(span, textChanges, trackingSpans, commentInfo);
             }
         }
 

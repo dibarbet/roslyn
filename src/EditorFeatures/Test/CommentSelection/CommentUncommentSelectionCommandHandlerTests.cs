@@ -497,6 +497,18 @@ class Goo
             UncommentSelection(code, Enumerable.Empty<TextChange>(), new Span(8, 0), supportBlockComments: true);
         }
 
+        [WpfFact, Trait(Traits.Feature, Traits.Features.CommentSelection)]
+        [WorkItem(932411, "http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/932411")]
+        public void Uncomment_WithFormatting()
+        {
+            var code = @"
+class A
+{
+    void M(int a, int b) { }
+}";
+            UncommentSelection(code, Enumerable.Empty<TextChange>(), new Span(8, 0), supportBlockComments: true);
+        }
+
         private static void UncommentSelection(string code, IEnumerable<TextChange> expectedChanges, Span expectedSelectedSpan, bool supportBlockComments)
         {
             CommentOrUncommentSelection(code, expectedChanges, new[] { expectedSelectedSpan }, supportBlockComments, CommentUncommentSelectionCommandHandler.Operation.Uncomment);
