@@ -501,12 +501,18 @@ class Goo
         [WorkItem(932411, "http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/932411")]
         public void Uncomment_WithFormatting()
         {
+            // TODO no unit tests for edit because it calls CollectEdits directly.  Formatting happens after in ExecuteCommand
             var code = @"
 class A
 {
-    void M(int a, int b) { }
+    |start|//void M( int a, int b )|end| { }
 }";
-            UncommentSelection(code, Enumerable.Empty<TextChange>(), new Span(8, 0), supportBlockComments: true);
+            var expectedChanges = new[]
+            {
+                new TextChange(new TextSpan(18, 2), string.Empty)
+            };
+
+            UncommentSelection(code, expectedChanges, new Span(14, 30), supportBlockComments: true);
         }
 
         private static void UncommentSelection(string code, IEnumerable<TextChange> expectedChanges, Span expectedSelectedSpan, bool supportBlockComments)
