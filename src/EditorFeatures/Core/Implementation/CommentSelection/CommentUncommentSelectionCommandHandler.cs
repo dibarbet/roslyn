@@ -446,6 +446,29 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             return true;
         }
 
+        private bool IsLocationWhitespace(int location, SnapshotSpan selectedSpan)
+        {
+            char character = selectedSpan.Snapshot.GetPoint(location).GetChar();
+            return char.IsWhiteSpace(character);
+        }
+
+        private bool IsLocationCommented(int location, IEnumerable<Span> commentedSpans)
+        {
+            return commentedSpans.Contains(span => span.Contains(location));
+        }
+
+        private bool SpanContainsUncommentedNonWhitespaceCharacters(SnapshotSpan selectedSpan, IEnumerable<Span> commentedSpans)
+        {
+            for (int i = selectedSpan.Start; i <= selectedSpan.End; i++)
+            {
+                if (!IsLocationCommented(i, commentedSpans) && !IsLocationWhitespace(i, selectedSpan))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         private bool TryUncommentBlockComment(CommentSelectionInfo info, SnapshotSpan selectedSpan, List<Span> intersectingSpans, List<TextChange> textChanges, List<ITrackingSpan> spansToSelect)
         {
             if (intersectingSpans.IsEmpty())
@@ -465,13 +488,18 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                 // Get and removal all block comment spans that are entirely contained inside the selected span.
                 var spansInsideSelection = intersectingSpans.Where(commentSpan => selectedSpan.Contains(commentSpan));
 
-                foreach (var spanToRemove in spansInsideSelection)
+                if (SpanContainsUncommentedNonWhitespaceCharacters(selectedSpan, spansInsideSelection))
                 {
-                    DeleteText(textChanges, new TextSpan(spanToRemove.Start, info.BlockCommentStartString.Length));
-                    DeleteText(textChanges, new TextSpan(spanToRemove.End - info.BlockCommentEndString.Length, info.BlockCommentEndString.Length));
+                    foreach (var spanToRemove in spansInsideSelection)
+                    {
+                        DeleteText(textChanges, new TextSpan(spanToRemove.Start, info.BlockCommentStartString.Length));
+                        DeleteText(textChanges, new TextSpan(spanToRemove.End - info.BlockCommentEndString.Length, info.BlockCommentEndString.Length));
+                    }
+                    spansToSelect.Add(selectedSpan.Snapshot.CreateTrackingSpan(Span.FromBounds(positionOfStart, positionOfEnd + info.BlockCommentEndString.Length), SpanTrackingMode.EdgeExclusive));
+                    return true;
                 }
-                spansToSelect.Add(selectedSpan.Snapshot.CreateTrackingSpan(Span.FromBounds(positionOfStart, positionOfEnd + info.BlockCommentEndString.Length), SpanTrackingMode.EdgeExclusive));
-                return true;
+
+                return false;
 
                 //double commentLength = blockCommentSpansInsideSelection.Sum(commentSpan => commentSpan.Length + info.BlockCommentEndString.Length);
                 // Special case - there are multiple sequential comment blocks with no code in between.
