@@ -6502,5 +6502,42 @@ class C
 }
 ", optionName: nameof(PreferDiscard), parseOptions: new CSharpParseOptions(LanguageVersion.CSharp8));
         }
+
+        [WorkItem(32856, "https://github.com/dotnet/roslyn/issues/32856")]
+        [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)]
+        public async Task RedundantAssignment_WithLeadingComment()
+        {
+            await TestInRegularAndScriptAsync(
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
+        [|string foo = null;|]
+
+        if (true)
+        {
+            foo = '1';
+        }
+        Console.WriteLine(foo);
+    }
+}",
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
+        string foo;
+
+        if (true)
+        {
+            foo = '1';
+        }
+        Console.WriteLine(foo);
+    }
+}", options: PreferUnusedLocal);
+        }
     }
 }
