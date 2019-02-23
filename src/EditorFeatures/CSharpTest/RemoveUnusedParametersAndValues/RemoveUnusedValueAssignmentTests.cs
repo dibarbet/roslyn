@@ -5472,10 +5472,10 @@ $@"class C
     {
         int z1 = 1;
         _ = M2();
-        int x;
         // Multiple unused variable declarations (x and y) moved below to start of if-else block
         // Used declaration (z1) and evaluation (_ = M2()) retained.
         // Completely unused declaration (z2) removed.
+        int x;
         int y;
         if (flag)
         {
@@ -5530,10 +5530,10 @@ $@"class C
     int M(bool flag, int p)
     {
         int z1 = 1, _ = M2();
-        int x;
         // Multiple unused variable declarations (x and y) moved below to start of if-else block
         // Used declaration (z1) and evaluation (_ = M2()) retained.
         // Completely unused declaration (z2) removed.
+        int x;
         int y;
         if (flag)
         {
@@ -6514,13 +6514,12 @@ class C
     {
         // This is a comment before the variable assignment.
         // It has two lines.
-        [|string foo = null;|]
-
+        [|int foo = 0;|]
         if (true)
         {
-            foo = '1';
+            foo = 1;
         }
-        Console.WriteLine(foo);
+        System.Console.WriteLine(foo);
     }
 }",
 @"class C
@@ -6529,13 +6528,183 @@ class C
     {
         // This is a comment before the variable assignment.
         // It has two lines.
-        string foo;
+        int foo;
+        if (true)
+        {
+            foo = 1;
+        }
+        System.Console.WriteLine(foo);
+    }
+}", options: PreferUnusedLocal);
+        }
+
+        [WorkItem(32856, "https://github.com/dotnet/roslyn/issues/32856")]
+        [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)]
+        public async Task RedundantAssignment_WithLeadingAndTrailingComment()
+        {
+            await TestInRegularAndScriptAsync(
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
+        [|int foo = 0;|] // Trailing comment.
+        if (true)
+        {
+            foo = 1;
+        }
+        System.Console.WriteLine(foo);
+    }
+}",
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
+        int foo; // Trailing comment.
+        if (true)
+        {
+            foo = 1;
+        }
+        System.Console.WriteLine(foo);
+    }
+}", options: PreferUnusedLocal);
+        }
+
+        [WorkItem(32856, "https://github.com/dotnet/roslyn/issues/32856")]
+        [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)]
+        public async Task RedundantAssignment_WithTrailingComment()
+        {
+            await TestInRegularAndScriptAsync(
+@"class C
+{
+    void M()
+    {
+        [|int foo = 0;|] // Some comment.
 
         if (true)
         {
-            foo = '1';
+            foo = 1;
         }
-        Console.WriteLine(foo);
+        System.Console.WriteLine(foo);
+    }
+}",
+@"class C
+{
+    void M()
+    {
+        int foo; // Some comment.
+
+        if (true)
+        {
+            foo = 1;
+        }
+        System.Console.WriteLine(foo);
+    }
+}", options: PreferUnusedLocal);
+        }
+
+        [WorkItem(32856, "https://github.com/dotnet/roslyn/issues/32856")]
+        [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)]
+        public async Task MultipleRedundantAssignment_WithLeadingAndTrailingComment()
+        {
+            await TestInRegularAndScriptAsync(
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
+        {|FixAllInDocument:int foo = 0, bar = 0;|} // Trailing comment.
+        if (true)
+        {
+            foo = 1;
+            bar = 1;
+        }
+        System.Console.WriteLine(foo);
+        System.Console.WriteLine(bar);
+    }
+}",
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
+        int foo; // Trailing comment.
+        int bar;
+        if (true)
+        {
+            foo = 1;
+            bar = 1;
+        }
+        System.Console.WriteLine(foo);
+        System.Console.WriteLine(bar);
+    }
+}", options: PreferUnusedLocal);
+        }
+
+        [WorkItem(32856, "https://github.com/dotnet/roslyn/issues/32856")]
+        [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)]
+        public async Task MergeRedundantAssignment_WithTrailingComment()
+        {
+            await TestInRegularAndScriptAsync(
+@"class C
+{
+    void M()
+    {
+        // Preceding comment.
+        [|int foo = 0;|] // Some comment.
+        
+        var b = true;
+
+        foo = 0;
+        if (b)
+        {
+            foo = 1;
+        }
+        System.Console.WriteLine(foo);
+    }
+}",
+@"class C
+{
+    void M()
+    {
+        var b = true;
+
+        // Preceding comment.
+        int foo = 0; // Some comment.
+        if (b)
+        {
+            foo = 1;
+        }
+        System.Console.WriteLine(foo);
+    }
+}", options: PreferUnusedLocal);
+        }
+
+        [WorkItem(32856, "https://github.com/dotnet/roslyn/issues/32856")]
+        [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)]
+        public async Task UnusedAssignment_WithLeadingComment()
+        {
+            await TestInRegularAndScriptAsync(
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
+        [|int foo = 0;|]
+    }
+}",
+@"class C
+{
+    void M()
+    {
+        // This is a comment before the variable assignment.
+        // It has two lines.
     }
 }", options: PreferUnusedLocal);
         }
