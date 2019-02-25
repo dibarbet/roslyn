@@ -425,8 +425,6 @@ namespace Microsoft.CodeAnalysis.RemoveUnusedParametersAndValues
                             var candidate = variableDeclarator.GetAncestor<TLocalDeclarationStatementSyntax>();
                             var candidateTrivia = candidate.GetLeadingTrivia();
 
-                            var i242411 = 1;
-
                             // Local declaration statement containing the declarator might be a candidate for removal if all its variables get marked for removal.
                             candidateDeclarationStatementsForRemoval.Add(variableDeclarator.GetAncestor<TLocalDeclarationStatementSyntax>());
                         }
@@ -504,7 +502,6 @@ namespace Microsoft.CodeAnalysis.RemoveUnusedParametersAndValues
                         }
 
                         nodesToAdd.Add((declarationStatement, node));
-                        //InsertLocalDeclarationStatement(declarationStatement, node, insertAfter);
                     }
                     else
                     {
@@ -519,7 +516,6 @@ namespace Microsoft.CodeAnalysis.RemoveUnusedParametersAndValues
                             Debug.Assert(newLocalNameOpt != null);
                             var declarationStatement = CreateLocalDeclarationStatement(type, newLocalNameOpt);
                             nodesToAdd.Add((declarationStatement, node));
-                            //InsertLocalDeclarationStatement(declarationStatement, node);
                         }
                     }
                 }
@@ -562,9 +558,15 @@ namespace Microsoft.CodeAnalysis.RemoveUnusedParametersAndValues
                     }
                 }
 
-                foreach (var node in nodesToRemove.Keys)
+                foreach (var node in nodesToRemove)
                 {
-                    editor.RemoveNode(node, SyntaxGenerator.DefaultRemoveOptions);
+                    var removeOptions = SyntaxGenerator.DefaultRemoveOptions;
+                    // If there was not a node added with trivia, make sure to keep it.
+                    if (!node.Value)
+                    {
+                        removeOptions |= SyntaxRemoveOptions.KeepLeadingTrivia;
+                    }
+                    editor.RemoveNode(node.Key, removeOptions);
                 }
 
                 foreach (var kvp in nodeReplacementMap)

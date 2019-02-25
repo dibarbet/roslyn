@@ -5401,13 +5401,13 @@ $@"class C
 
     int M(bool flag, int p)
     {
-        // Trigger diagostic
 
         // Unused assignment from parameter, should be removed.
 
         // Unused assignment from local, should be removed.
         int local = 3;
 
+        // Trigger diagostic
         // Used assignment, declaration for 'x' should move here
         int x = 0;
         System.Console.WriteLine(x);
@@ -5415,11 +5415,10 @@ $@"class C
         // Unused non-constant 'out' assignment
         // Not fixed as we have a different code fix 'Use discard' for it.
         M2(out x);
-
-        // Unused initialization with only def/use in nested block.
-        // Declaration for 'y' should be moved inside the if block.
         if (flag)
         {
+            // Unused initialization with only def/use in nested block.
+            // Declaration for 'y' should be moved inside the if block.
             int y = 2;
             System.Console.WriteLine(y);
         }
@@ -6681,30 +6680,6 @@ class C
             foo = 1;
         }
         System.Console.WriteLine(foo);
-    }
-}", options: PreferUnusedLocal);
-        }
-
-        [WorkItem(32856, "https://github.com/dotnet/roslyn/issues/32856")]
-        [Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)]
-        public async Task UnusedAssignment_WithLeadingComment()
-        {
-            await TestInRegularAndScriptAsync(
-@"class C
-{
-    void M()
-    {
-        // This is a comment before the variable assignment.
-        // It has two lines.
-        [|int foo = 0;|]
-    }
-}",
-@"class C
-{
-    void M()
-    {
-        // This is a comment before the variable assignment.
-        // It has two lines.
     }
 }", options: PreferUnusedLocal);
         }
