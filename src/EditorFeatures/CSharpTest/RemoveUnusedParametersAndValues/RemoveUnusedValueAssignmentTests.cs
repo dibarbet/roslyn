@@ -5471,6 +5471,7 @@ $@"class C
     {
         int z1 = 1;
         _ = M2();
+
         // Multiple unused variable declarations (x and y) moved below to start of if-else block
         // Used declaration (z1) and evaluation (_ = M2()) retained.
         // Completely unused declaration (z2) removed.
@@ -5529,6 +5530,7 @@ $@"class C
     int M(bool flag, int p)
     {
         int z1 = 1, _ = M2();
+
         // Multiple unused variable declarations (x and y) moved below to start of if-else block
         // Used declaration (z1) and evaluation (_ = M2()) retained.
         // Completely unused declaration (z2) removed.

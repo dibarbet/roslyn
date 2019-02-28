@@ -420,10 +420,7 @@ namespace Microsoft.CodeAnalysis.RemoveUnusedParametersAndValues
                             Debug.Assert(variableDeclarator != null);
                             nodesToRemove.Add(variableDeclarator, false);
 
-                            var trivia = variableDeclarator.Parent.GetLeadingTrivia();
-
                             var candidate = variableDeclarator.GetAncestor<TLocalDeclarationStatementSyntax>();
-                            var candidateTrivia = candidate.GetLeadingTrivia();
 
                             // Local declaration statement containing the declarator might be a candidate for removal if all its variables get marked for removal.
                             candidateDeclarationStatementsForRemoval.Add(variableDeclarator.GetAncestor<TLocalDeclarationStatementSyntax>());
@@ -617,13 +614,20 @@ namespace Microsoft.CodeAnalysis.RemoveUnusedParametersAndValues
                     // If the insertion node is being removed, keep its trivia.
                     if (nodesToRemove.TryGetValue(insertionNode, out bool isProcessed) && !isProcessed)
                     {
+                        //declarationStatement = declarationStatement
+                        //    .WithAdditionalAnnotations(Formatter.Annotation)
+                        //    .WithLeadingTrivia(insertionNode.GetLeadingTrivia().Where(trivia => !syntaxFacts.IsWhitespaceOrEndOfLineTrivia(trivia)))
+                        //    .WithTrailingTrivia(insertionNode.GetTrailingTrivia().Where(trivia => !syntaxFacts.IsWhitespaceOrEndOfLineTrivia(trivia)));
+                        //.WithLeadingTrivia(syntaxFacts.GetTriviaAfterLeadingBlankLines(insertionNode))
+                        //.WithTrailingTrivia(insertionNode.GetTrailingTrivia());
                         declarationStatement = declarationStatement.WithTriviaFrom(insertionNode);
                         // Set the node as processed to ensure the trivia only gets added once.
                         nodesToRemove[insertionNode] = true;
                     }
                     else
                     {
-                        declarationStatement = declarationStatement.WithLeadingTrivia(editor.Generator.ElasticCarriageReturnLineFeed);
+                        declarationStatement = declarationStatement
+                            .WithLeadingTrivia(editor.Generator.ElasticCarriageReturnLineFeed);
                     }
                     editor.InsertBefore(insertionNode, declarationStatement);
                 }
