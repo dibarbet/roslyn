@@ -371,5 +371,58 @@ $"Class C
     End Function
 End Class")
         End Function
+
+        <WorkItem(32856, "https://github.com/dotnet/roslyn/issues/33312")>
+        <Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)>
+        Public Async Function RedundantAssignment_WithLeadingAndTrailingComment() As Task
+            Await TestInRegularAndScriptAsync(
+$"Class C
+    Private Function M() As Integer
+        'Preceding comment.'
+        Dim [|x|] As Integer = 0 'Trailing comment'
+        If True Then
+            x = 2
+        End If
+        Return x
+    End Function
+End Class",
+$"Class C
+    Private Function M() As Integer
+        'Preceding comment.'
+        Dim x As Integer
+        If True Then
+            x = 2
+        End If
+        Return x
+    End Function
+End Class")
+        End Function
+
+        <Fact, Trait(Traits.Feature, Traits.Features.CodeActionsRemoveUnusedValues)>
+        Public Async Function MultipleRedundantAssignment_WithLeadingAndTrailingComment() As Task
+            Dim x, y As Integer
+
+            Await TestInRegularAndScriptAsync(
+$"Class C
+    Private Function M() As Integer
+        'Preceding comment.'
+        Dim [|x|] As Integer = 0 'Trailing comment'
+        If True Then
+            x = 2
+        End If
+        Return x
+    End Function
+End Class",
+$"Class C
+    Private Function M() As Integer
+        'Preceding comment.'
+        Dim x As Integer
+        If True Then
+            x = 2
+        End If
+        Return x
+    End Function
+End Class")
+        End Function
     End Class
 End Namespace
