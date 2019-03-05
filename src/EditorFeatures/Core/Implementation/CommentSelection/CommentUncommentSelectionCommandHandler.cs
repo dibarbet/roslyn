@@ -23,12 +23,14 @@ using VSCommanding = Microsoft.VisualStudio.Commanding;
 
 namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 {
-    [Export(typeof(VSCommanding.ICommandHandler))]
-    [ContentType(ContentTypeNames.RoslynContentType)]
-    [Name(PredefinedCommandHandlerNames.CommentSelection)]
-    internal class CommentUncommentSelectionCommandHandler :
+    internal enum Operation { Comment, Uncomment }
+
+    //[Export(typeof(VSCommanding.ICommandHandler))]
+    //[ContentType(ContentTypeNames.RoslynContentType)]
+    //[Name(PredefinedCommandHandlerNames.CommentSelection)]
+    internal class CommentUncommentSelectionCommandHandler/* :
         VSCommanding.ICommandHandler<CommentSelectionCommandArgs>,
-        VSCommanding.ICommandHandler<UncommentSelectionCommandArgs>
+        VSCommanding.ICommandHandler<UncommentSelectionCommandArgs>*/
     {
         private readonly ITextUndoHistoryRegistry _undoHistoryRegistry;
         private readonly IEditorOperationsFactoryService _editorOperationsFactoryService;
@@ -170,8 +172,6 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             var newDocument = service.FormatAsync(document, textSpans, cancellationToken).WaitAndGetResult(cancellationToken);
             newDocument.Project.Solution.Workspace.ApplyDocumentChanges(newDocument, cancellationToken);
         }
-
-        internal enum Operation { Comment, Uncomment }
 
         /// <summary>
         /// Add the necessary edits to the given spans. Also collect tracking spans over each span.
