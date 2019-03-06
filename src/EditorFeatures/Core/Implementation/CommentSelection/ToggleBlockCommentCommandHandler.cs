@@ -247,77 +247,29 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
         {
             var info = blockCommentSelection.CommentSelectionInfo;
             var selectedSpan = blockCommentSelection.SelectedSpan;
-            var trackingSpanStart = selectedSpan.Start;
-            var trackingSpanEnd = selectedSpan.End;
             var spanTrackingMode = SpanTrackingMode.EdgeInclusive;
 
-            if (!blockCommentSelection.Text.StartsWith(info.BlockCommentStartString))
+            // Add comments to all uncommented spans in the selection.
+            foreach (var uncommentedSpan in blockCommentSelection.UncommentedSpansInSelection)
             {
-                // If the start of the selected span is uncommented add an open comment.
-                if (!blockCommentSelection.IsLocationCommented(selectedSpan.Start))
-                {
-                    InsertText(textChanges, selectedSpan.Start, info.BlockCommentStartString);
-                }
-                else
-                {
-                    // If the start is commented, close the comment and re-open.
-                    if (!blockCommentSelection.Text.StartsWith(info.BlockCommentEndString))
-                    {
-                        InsertText(textChanges, selectedSpan.Start, info.BlockCommentEndString);
-                        InsertText(textChanges, selectedSpan.Start, info.BlockCommentStartString);
-                        spanTrackingMode = SpanTrackingMode.EdgeExclusive;
-                    }
-                    else
-                    {
-                        // Move the tracking span forward so that the previous end comment marker is not selected.
-                        trackingSpanStart = selectedSpan.Start + info.BlockCommentEndString.Length;
-                    }
-                }
+                InsertText(textChanges, uncommentedSpan.Start, info.BlockCommentStartString);
+                InsertText(textChanges, uncommentedSpan.End, info.BlockCommentEndString);
+                trackingSpans.Add(blockCommentSelection.GetTrackingSpan(selectedSpan, spanTrackingMode), Operation.Comment);
             }
 
-            if (!blockCommentSelection.Text.EndsWith(info.BlockCommentEndString))
+            // If the start is commented (and not a comment marker), close the current comment and open a new one.
+            if (blockCommentSelection.IsLocationCommented(selectedSpan.Start) && !blockCommentSelection.DoesBeginWithBlockComment())
             {
-                // If the end of the selected span is uncommented add an ending comment marker.
-                if (!blockCommentSelection.IsLocationCommented(blockCommentSelection.SelectedSpan.End))
-                {
-                    InsertText(textChanges, selectedSpan.End, info.BlockCommentEndString);
-                }
-                else
-                {
-                    // If the end is in a comment, close the comment and re-open.
-                    if (!blockCommentSelection.Text.EndsWith(info.BlockCommentStartString))
-                    {
-                        //trackingSpanEnd = selectedSpan.End - info.BlockCommentStartString.Length;
-                        InsertText(textChanges, selectedSpan.End, info.BlockCommentEndString);
-                        InsertText(textChanges, selectedSpan.End, info.BlockCommentStartString);
-                        spanTrackingMode = SpanTrackingMode.EdgeExclusive;
-                    }
-                    else
-                    {
-                        // Move the tracking span backward so that the next start comment marker is not selected.
-                        trackingSpanEnd = selectedSpan.End - info.BlockCommentStartString.Length;
-                    }
-                }
+                InsertText(textChanges, selectedSpan.Start, info.BlockCommentEndString);
+                InsertText(textChanges, selectedSpan.Start, info.BlockCommentStartString);
             }
 
-            // For any block comment marker inside the selection, create sequential markers.
-            foreach (var blockCommentSpan in blockCommentSelection.IntersectingBlockComments)
+            // If the end is commented (and not a comment marker), close the current comment and open a new one.
+            if (blockCommentSelection.IsLocationCommented(selectedSpan.End) && !blockCommentSelection.DoesEndWithBlockComment())
             {
-                // If the block comment begins inside the section, add a close marker before the open marker.
-                if (blockCommentSpan.Start > selectedSpan.Start)
-                {
-                    InsertText(textChanges, blockCommentSpan.Start, info.BlockCommentEndString);
-                }
-
-                // If the block comment ends before the end of the selection, add an open marker after the end marker.
-                if (blockCommentSpan.End < selectedSpan.End)
-                {
-                    InsertText(textChanges, blockCommentSpan.End, info.BlockCommentStartString);
-                }
+                InsertText(textChanges, selectedSpan.End, info.BlockCommentEndString);
+                InsertText(textChanges, selectedSpan.End, info.BlockCommentStartString);
             }
-
-            var span = Span.FromBounds(trackingSpanStart, trackingSpanEnd);
-            trackingSpans.Add(blockCommentSelection.GetTrackingSpan(span, spanTrackingMode), Operation.Comment);
         }
 
         private void AddBlockComment(SnapshotSpan span, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans, CommentSelectionInfo commentInfo)
@@ -357,14 +309,26 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 
             public SnapshotSpan SelectedSpan { get; }
 
-            public IEnumerable<Span> IntersectingBlockComments { get; }
+            private readonly Lazy<IEnumerable<Span>> _uncommentedSpansInSelection;
+            public IEnumerable<Span> UncommentedSpansInSelection
+            {
+                get { return _uncommentedSpansInSelection.Value; }
+            }
+
+            private readonly Lazy<IEnumerable<Span>> _intersectingBlockComments;
+            public IEnumerable<Span> IntersectingBlockComments
+            {
+                get { return _intersectingBlockComments.Value; }
+            }
 
             public BlockCommentSelection(CommentSelectionInfo commentSelectionInfo, SnapshotSpan selectedSpan)
             {
                 CommentSelectionInfo = commentSelectionInfo;
                 SelectedSpan = selectedSpan;
-                IntersectingBlockComments = GetIntersectingBlockComments(selectedSpan);
                 Text = selectedSpan.GetText().Trim();
+
+                _intersectingBlockComments = new Lazy<IEnumerable<Span>>(GetIntersectingBlockComments);
+                _uncommentedSpansInSelection = new Lazy<IEnumerable<Span>>(GetUncommentedSpansInSelection);
             }
 
             /// <summary>
@@ -372,11 +336,10 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             /// A commented span is defined by the first open marker until the first close marker.
             /// Once an open marker is found, subsequent open markers are ignored until a closing marker is found.
             /// </summary>
-            /// <param name="selectedSpan">the selected span.</param>
             /// <returns>a list of all block commented spans after the index, inclusive of the block comment end string.</returns>
-            private List<Span> GetIntersectingBlockComments(SnapshotSpan selectedSpan)
+            private IEnumerable<Span> GetIntersectingBlockComments()
             {
-                var allText = selectedSpan.Snapshot.AsText();
+                var allText = SelectedSpan.Snapshot.AsText();
                 var commentedSpans = new List<Span>();
 
                 var openIdx = 0;
@@ -386,7 +349,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     var closeIdx = allText.IndexOf(CommentSelectionInfo.BlockCommentEndString, openIdx + CommentSelectionInfo.BlockCommentStartString.Length, caseSensitive: true);
 
                     // If an open or close marker is not found (-1) or the open marker begins after the selection, no point in continuing.
-                    if (openIdx < 0 || closeIdx < 0 || openIdx > selectedSpan.End)
+                    if (openIdx < 0 || closeIdx < 0 || openIdx > SelectedSpan.End)
                     {
                         break;
                     }
@@ -414,11 +377,64 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             }
 
             /// <summary>
+            /// Retrieves all non commented, non whitespace spans.
+            /// </summary>
+            private IEnumerable<Span> GetUncommentedSpansInSelection()
+            {
+                var uncommentedSpans = new List<Span>();
+
+                // Invert the commented spans to get the uncommented spans.
+                int spanStart = SelectedSpan.Start;
+                foreach (var commentedSpan in IntersectingBlockComments)
+                {
+                    // Only add the span if the commented span starts after the current position.
+                    if (commentedSpan.Start > spanStart)
+                    {
+                        var newSpanEnd = commentedSpan.Start;
+                        var uncommentedSpan = Span.FromBounds(spanStart, newSpanEnd);
+                        // Only add the span if it is not whitespace.
+                        if (!IsSpanWhitespace(uncommentedSpan))
+                        {
+                            uncommentedSpans.Add(Span.FromBounds(spanStart, newSpanEnd));
+                        }
+                    }
+
+                    // Move to the next commented span end.
+                    spanStart = commentedSpan.End;
+                }
+
+                // If part of the selection is remaining, it isn't commented.  Add it if it isn't whitespace.
+                if (spanStart < SelectedSpan.End)
+                {
+                    var uncommentedSpan = Span.FromBounds(spanStart, SelectedSpan.End);
+                    if (!IsSpanWhitespace(uncommentedSpan))
+                    {
+                        uncommentedSpans.Add(uncommentedSpan);
+                    }
+                }
+
+                return uncommentedSpans;
+
+                bool IsSpanWhitespace(Span span)
+                {
+                    for (var i = span.Start; i < span.End; i++)
+                    {
+                        if (!IsLocationWhitespace(i))
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+            }
+
+            /// <summary>
             /// Checks if the given location is whitespace.
             /// </summary>
             /// <param name="location"></param>
             /// <returns></returns>
-            private bool IsLocationWhitespace(int location)
+            public bool IsLocationWhitespace(int location)
             {
                 var character = SelectedSpan.Snapshot.GetPoint(location).GetChar();
                 return char.IsWhiteSpace(character);
@@ -434,12 +450,14 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 
             public bool DoesBeginWithBlockComment()
             {
-                return Text.StartsWith(CommentSelectionInfo.BlockCommentStartString, StringComparison.Ordinal);
+                return Text.StartsWith(CommentSelectionInfo.BlockCommentStartString, StringComparison.Ordinal)
+                       || Text.StartsWith(CommentSelectionInfo.BlockCommentEndString, StringComparison.Ordinal);
             }
 
             public bool DoesEndWithBlockComment()
             {
-                return Text.EndsWith(CommentSelectionInfo.BlockCommentEndString, StringComparison.Ordinal); ;
+                return Text.EndsWith(CommentSelectionInfo.BlockCommentStartString, StringComparison.Ordinal)
+                       || Text.EndsWith(CommentSelectionInfo.BlockCommentEndString, StringComparison.Ordinal);
             }
 
             /// <summary>
@@ -447,14 +465,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             /// </summary>
             public bool IsEntirelyCommented()
             {
-                for (int i = SelectedSpan.Start; i < SelectedSpan.End; i++)
-                {
-                    if (!IsLocationCommented(i) && !IsLocationWhitespace(i))
-                    {
-                        return false;
-                    }
-                }
-                return true;
+                return UncommentedSpansInSelection.IsEmpty();
             }
 
             /// <summary>
