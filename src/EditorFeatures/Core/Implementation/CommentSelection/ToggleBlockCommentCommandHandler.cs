@@ -144,13 +144,12 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                 .Where(change => change.Value == Operation.Uncomment)
                 .Select(uncommentChange => uncommentChange.Key.GetSpan(snapshot).Span.ToTextSpan())
                 .ToImmutableArray();
-            //var newDocument = service.FormatAsync(document, textSpans, cancellationToken).WaitAndGetResult(cancellationToken);
-            //newDocument.Project.Solution.Workspace.ApplyDocumentChanges(newDocument, cancellationToken);
+            var newDocument = service.FormatAsync(document, textSpans, cancellationToken).WaitAndGetResult(cancellationToken);
+            newDocument.Project.Solution.Workspace.ApplyDocumentChanges(newDocument, cancellationToken);
         }
 
         /// <summary>
         /// Add the necessary edits to the given spans. Also collect tracking spans over each span.
-        ///
         /// Internal so that it can be called by unit tests.
         /// </summary>
         internal void CollectEdits(
@@ -168,92 +167,141 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
         {
             var commentInfo = service.GetInfoAsync(document, selectedSpan.Span.ToTextSpan(), cancellationToken).WaitAndGetResult(cancellationToken);
 
-            var blockCommentSelectionContext = new BlockCommentSelectionContext(commentInfo, selectedSpan);
+            var blockCommentSelection = new BlockCommentSelection(commentInfo, selectedSpan);
 
             if (commentInfo.SupportsBlockComment)
             {
-                if (TryUncommentBlockComment(blockCommentSelectionContext, textChanges, trackingSpans))
+                if (TryUncommentBlockComment(blockCommentSelection, textChanges, trackingSpans))
                 {
                     return;
                 }
                 else
                 {
-                    BlockCommentSpan(blockCommentSelectionContext, textChanges, trackingSpans);
+                    BlockCommentSpan(blockCommentSelection, textChanges, trackingSpans);
                 }
             }
         }
 
-        private bool TryUncommentBlockComment(BlockCommentSelectionContext blockCommentInfo, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
+        private bool TryUncommentBlockComment(BlockCommentSelection blockCommentSelection, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
         {
             // If there are not any block comments intersecting the selection, there is nothing to uncomment.
-            if (!blockCommentInfo.HasIntersectingBlockComments())
+            if (!blockCommentSelection.HasIntersectingBlockComments())
             {
                 return false;
             }
 
-            // If the selection begins and ends with a block comment and is entirely commented (or whitespace), try to remove all the block comments inside the selection.
-            if (blockCommentInfo.SelectionBeginsAndEndsWithBlockComment() && !blockCommentInfo.SelectionContainsUncommentedNonWhitespaceCharacters())
+            // If the selection is entirely commented, remove the block comments.
+            if (blockCommentSelection.IsEntirelyCommented())
             {
-                if (blockCommentInfo.TryGetBlockCommentsInsideSelection(out var spansInsideSelection))
+                foreach (var spanToRemove in blockCommentSelection.IntersectingBlockComments)
                 {
-                    foreach (var spanToRemove in spansInsideSelection)
-                    {
-                        DeleteBlockComment(textChanges, spanToRemove, blockCommentInfo.CommentSelectionInfo);
-                    }
-                    trackingSpans.Add(blockCommentInfo.GetTrackingSpan(blockCommentInfo.SelectedSpan, SpanTrackingMode.EdgeExclusive), Operation.Uncomment);
-                    return true;
+                    DeleteBlockComment(textChanges, spanToRemove, blockCommentSelection.CommentSelectionInfo);
                 }
-
-                return false;
+                trackingSpans.Add(blockCommentSelection.GetTrackingSpan(blockCommentSelection.SelectedSpan, SpanTrackingMode.EdgeExclusive), Operation.Uncomment);
+                return true;
             }
             else
             {
-                // If the span intersects with any other block comments, pass to the add block comment handler.
-                if (blockCommentInfo.HasIntersectingBlockComments())
+                // If the span intersects with any other block comments but is not entirely commented, pass to add block comment handler.
+                if (blockCommentSelection.HasBlockCommentMarker())
                 {
                     return false;
                 }
 
-                return TryUncommentSelectedSpanWithinBlockComment(blockCommentInfo, textChanges, trackingSpans);
+                return TryUncommentSelectedSpanWithinBlockComment(blockCommentSelection, textChanges, trackingSpans);
             }
         }
 
         /// <summary>
         /// Check if the selection is entirely contained within a block comment and remove it.
         /// </summary>
-        private bool TryUncommentSelectedSpanWithinBlockComment(BlockCommentSelectionContext blockCommentInfo, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
+        private bool TryUncommentSelectedSpanWithinBlockComment(BlockCommentSelection blockCommentSelection, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
         {
-            if (blockCommentInfo.TryGetBlockCommentSurroundingSelection(out var containingSpan))
+            if (blockCommentSelection.TryGetSurroundingBlockComment(out var containingSpan))
             {
-                trackingSpans.Add(blockCommentInfo.GetTrackingSpan(containingSpan, SpanTrackingMode.EdgeExclusive), Operation.Uncomment);
-                DeleteBlockComment(textChanges, containingSpan, blockCommentInfo.CommentSelectionInfo);
+                trackingSpans.Add(blockCommentSelection.GetTrackingSpan(containingSpan, SpanTrackingMode.EdgeExclusive), Operation.Uncomment);
+                DeleteBlockComment(textChanges, containingSpan, blockCommentSelection.CommentSelectionInfo);
                 return true;
             }
 
             return false;
         }
 
+        private void BlockCommentSpan(BlockCommentSelection blockCommentSelection, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
+        {
+            if (blockCommentSelection.HasIntersectingBlockComments())
+            {
+                AddBlockCommentWithIntersectingSpans(blockCommentSelection, textChanges, trackingSpans);
+            }
+            else
+            {
+                AddBlockComment(blockCommentSelection.SelectedSpan, textChanges, trackingSpans, blockCommentSelection.CommentSelectionInfo);
+            }
+        }
+
         /// <summary>
         /// Adds a block comment when the selection already contains block comment(s).
         /// The result will be sequential block comments with the entire selection being commented out.
         /// </summary>
-        private void AddBlockCommentWithIntersectingSpans(BlockCommentSelectionContext blockCommentInfo, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
+        private void AddBlockCommentWithIntersectingSpans(BlockCommentSelection blockCommentSelection, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
         {
-            var info = blockCommentInfo.CommentSelectionInfo;
-            var selectedSpan = blockCommentInfo.SelectedSpan;
-            // If the start of the selected span is uncommented add an open comment.
-            if (!blockCommentInfo.IsLocationCommented(selectedSpan.Start))
+            var info = blockCommentSelection.CommentSelectionInfo;
+            var selectedSpan = blockCommentSelection.SelectedSpan;
+            var trackingSpanStart = selectedSpan.Start;
+            var trackingSpanEnd = selectedSpan.End;
+            var spanTrackingMode = SpanTrackingMode.EdgeInclusive;
+
+            if (!blockCommentSelection.Text.StartsWith(info.BlockCommentStartString))
             {
-                InsertText(textChanges, selectedSpan.Start, info.BlockCommentStartString);
+                // If the start of the selected span is uncommented add an open comment.
+                if (!blockCommentSelection.IsLocationCommented(selectedSpan.Start))
+                {
+                    InsertText(textChanges, selectedSpan.Start, info.BlockCommentStartString);
+                }
+                else
+                {
+                    // If the start is commented, close the comment and re-open.
+                    if (!blockCommentSelection.Text.StartsWith(info.BlockCommentEndString))
+                    {
+                        InsertText(textChanges, selectedSpan.Start, info.BlockCommentEndString);
+                        InsertText(textChanges, selectedSpan.Start, info.BlockCommentStartString);
+                        spanTrackingMode = SpanTrackingMode.EdgeExclusive;
+                    }
+                    else
+                    {
+                        // Move the tracking span forward so that the previous end comment marker is not selected.
+                        trackingSpanStart = selectedSpan.Start + info.BlockCommentEndString.Length;
+                    }
+                }
             }
 
-            // If the end of the selected span is uncommented add an ending comment marker.
-            if (!blockCommentInfo.IsLocationCommented(blockCommentInfo.SelectedSpan.End))
+            if (!blockCommentSelection.Text.EndsWith(info.BlockCommentEndString))
             {
-                InsertText(textChanges, selectedSpan.End, info.BlockCommentEndString);
+                // If the end of the selected span is uncommented add an ending comment marker.
+                if (!blockCommentSelection.IsLocationCommented(blockCommentSelection.SelectedSpan.End))
+                {
+                    InsertText(textChanges, selectedSpan.End, info.BlockCommentEndString);
+                }
+                else
+                {
+                    // If the end is in a comment, close the comment and re-open.
+                    if (!blockCommentSelection.Text.EndsWith(info.BlockCommentStartString))
+                    {
+                        //trackingSpanEnd = selectedSpan.End - info.BlockCommentStartString.Length;
+                        InsertText(textChanges, selectedSpan.End, info.BlockCommentEndString);
+                        InsertText(textChanges, selectedSpan.End, info.BlockCommentStartString);
+                        spanTrackingMode = SpanTrackingMode.EdgeExclusive;
+                    }
+                    else
+                    {
+                        // Move the tracking span backward so that the next start comment marker is not selected.
+                        trackingSpanEnd = selectedSpan.End - info.BlockCommentStartString.Length;
+                    }
+                }
             }
 
-            foreach (var blockCommentSpan in blockCommentInfo.IntersectingBlockCommentSpans)
+            // For any block comment marker inside the selection, create sequential markers.
+            foreach (var blockCommentSpan in blockCommentSelection.IntersectingBlockComments)
             {
                 // If the block comment begins inside the section, add a close marker before the open marker.
                 if (blockCommentSpan.Start > selectedSpan.Start)
@@ -267,19 +315,9 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     InsertText(textChanges, blockCommentSpan.End, info.BlockCommentStartString);
                 }
             }
-            trackingSpans.Add(blockCommentInfo.GetTrackingSpan(blockCommentInfo.SelectedSpan, SpanTrackingMode.EdgeInclusive), Operation.Comment);
-        }
 
-        private void BlockCommentSpan(BlockCommentSelectionContext blockCommentInfo, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans)
-        {
-            if (blockCommentInfo.HasIntersectingBlockComments())
-            {
-                AddBlockCommentWithIntersectingSpans(blockCommentInfo, textChanges, trackingSpans);
-            }
-            else
-            {
-                AddBlockComment(blockCommentInfo.SelectedSpan, textChanges, trackingSpans, blockCommentInfo.CommentSelectionInfo);
-            }
+            var span = Span.FromBounds(trackingSpanStart, trackingSpanEnd);
+            trackingSpans.Add(blockCommentSelection.GetTrackingSpan(span, spanTrackingMode), Operation.Comment);
         }
 
         private void AddBlockComment(SnapshotSpan span, List<TextChange> textChanges, IDictionary<ITrackingSpan, Operation> trackingSpans, CommentSelectionInfo commentInfo)
@@ -311,19 +349,22 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             textChanges.Add(new TextChange(span, string.Empty));
         }
 
-        internal class BlockCommentSelectionContext
+        internal class BlockCommentSelection
         {
+            public string Text { get; }
+
             public CommentSelectionInfo CommentSelectionInfo { get; }
 
             public SnapshotSpan SelectedSpan { get; }
 
-            public IEnumerable<Span> IntersectingBlockCommentSpans { get; }
+            public IEnumerable<Span> IntersectingBlockComments { get; }
 
-            public BlockCommentSelectionContext(CommentSelectionInfo commentSelectionInfo, SnapshotSpan selectedSpan)
+            public BlockCommentSelection(CommentSelectionInfo commentSelectionInfo, SnapshotSpan selectedSpan)
             {
                 CommentSelectionInfo = commentSelectionInfo;
                 SelectedSpan = selectedSpan;
-                IntersectingBlockCommentSpans = GetIntersectingBlockCommentedSpans(commentSelectionInfo, selectedSpan);
+                IntersectingBlockComments = GetIntersectingBlockComments(selectedSpan);
+                Text = selectedSpan.GetText().Trim();
             }
 
             /// <summary>
@@ -331,19 +372,18 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             /// A commented span is defined by the first open marker until the first close marker.
             /// Once an open marker is found, subsequent open markers are ignored until a closing marker is found.
             /// </summary>
-            /// <param name="info">the comment selection info.</param>
             /// <param name="selectedSpan">the selected span.</param>
             /// <returns>a list of all block commented spans after the index, inclusive of the block comment end string.</returns>
-            private List<Span> GetIntersectingBlockCommentedSpans(CommentSelectionInfo info, SnapshotSpan selectedSpan)
+            private List<Span> GetIntersectingBlockComments(SnapshotSpan selectedSpan)
             {
                 var allText = selectedSpan.Snapshot.AsText();
                 var commentedSpans = new List<Span>();
 
                 var openIdx = 0;
-                while ((openIdx = allText.IndexOf(info.BlockCommentStartString, openIdx, caseSensitive: true)) > 0)
+                while ((openIdx = allText.IndexOf(CommentSelectionInfo.BlockCommentStartString, openIdx, caseSensitive: true)) > 0)
                 {
                     // Retrieve the first closing marker located after the open index.
-                    var closeIdx = allText.IndexOf(info.BlockCommentEndString, openIdx + info.BlockCommentStartString.Length, caseSensitive: true);
+                    var closeIdx = allText.IndexOf(CommentSelectionInfo.BlockCommentEndString, openIdx + CommentSelectionInfo.BlockCommentStartString.Length, caseSensitive: true);
 
                     // If an open or close marker is not found (-1) or the open marker begins after the selection, no point in continuing.
                     if (openIdx < 0 || closeIdx < 0 || openIdx > selectedSpan.End)
@@ -352,8 +392,8 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     }
 
                     // If there is an intersection with the newly found span and the selected span, add it.
-                    var blockCommentSpan = new Span(openIdx, closeIdx + info.BlockCommentEndString.Length - openIdx);
-                    if (selectedSpan.IntersectsWith(blockCommentSpan))
+                    var blockCommentSpan = new Span(openIdx, closeIdx + CommentSelectionInfo.BlockCommentEndString.Length - openIdx);
+                    if (HasIntersection(blockCommentSpan))
                     {
                         commentedSpans.Add(blockCommentSpan);
                     }
@@ -362,6 +402,15 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                 }
 
                 return commentedSpans;
+            }
+
+            /// <summary>
+            /// Checks if a span intersects the selected span.
+            /// </summary>
+            private bool HasIntersection(Span otherSpan)
+            {
+                // Spans are intersecting if 1 location is the same between them (empty spans look at the start).
+                return SelectedSpan.OverlapsWith(otherSpan) || otherSpan.Contains(SelectedSpan);
             }
 
             /// <summary>
@@ -380,26 +429,25 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             /// </summary>
             public bool IsLocationCommented(int location)
             {
-                return IntersectingBlockCommentSpans.Contains(span => span.Contains(location));
+                return IntersectingBlockComments.Contains(span => span.Contains(location));
             }
 
-            /// <summary>
-            /// Checks if the selection begins and ends with a block comment.
-            /// </summary>
-            /// <returns></returns>
-            public bool SelectionBeginsAndEndsWithBlockComment()
+            public bool DoesBeginWithBlockComment()
             {
-                var spanText = SelectedSpan.GetText();
-                var trimmedSpanText = spanText.Trim();
-                return trimmedSpanText.StartsWith(CommentSelectionInfo.BlockCommentStartString, StringComparison.Ordinal) && trimmedSpanText.EndsWith(CommentSelectionInfo.BlockCommentEndString, StringComparison.Ordinal);
+                return Text.StartsWith(CommentSelectionInfo.BlockCommentStartString, StringComparison.Ordinal);
+            }
+
+            public bool DoesEndWithBlockComment()
+            {
+                return Text.EndsWith(CommentSelectionInfo.BlockCommentEndString, StringComparison.Ordinal); ;
             }
 
             /// <summary>
             /// Checks if the selected span contains any uncommented non whitespace characters.
             /// </summary>
-            public bool SelectionContainsUncommentedNonWhitespaceCharacters()
+            public bool IsEntirelyCommented()
             {
-                for (int i = SelectedSpan.Start; i <= SelectedSpan.End; i++)
+                for (int i = SelectedSpan.Start; i < SelectedSpan.End; i++)
                 {
                     if (!IsLocationCommented(i) && !IsLocationWhitespace(i))
                     {
@@ -409,31 +457,42 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                 return true;
             }
 
-            public bool HasIntersectingBlockComments()
+            /// <summary>
+            /// Returns if the selection contains a block comment marker.
+            /// </summary>
+            public bool HasBlockCommentMarker()
             {
-                return !IntersectingBlockCommentSpans.IsEmpty();
+                return Text.Contains(CommentSelectionInfo.BlockCommentStartString) || Text.Contains(CommentSelectionInfo.BlockCommentEndString);
             }
 
+            /// <summary>
+            /// Returns if the selection intersects with any block comments.
+            /// </summary>
+            public bool HasIntersectingBlockComments()
+            {
+                return !IntersectingBlockComments.IsEmpty();
+            }
+
+            /// <summary>
+            /// Returns a tracking span associated with the selected span.
+            /// </summary>
             public ITrackingSpan GetTrackingSpan(Span span, SpanTrackingMode spanTrackingMode)
             {
                 return SelectedSpan.Snapshot.CreateTrackingSpan(Span.FromBounds(span.Start, span.End), spanTrackingMode);
             }
 
-            public bool TryGetBlockCommentSurroundingSelection(out Span containingSpan)
+            /// <summary>
+            /// Retrive the block comment entirely surrounding the selection if it exists.
+            /// </summary>
+            public bool TryGetSurroundingBlockComment(out Span containingSpan)
             {
-                containingSpan = IntersectingBlockCommentSpans.FirstOrDefault(commentedSpan => commentedSpan.Contains(SelectedSpan));
+                containingSpan = IntersectingBlockComments.FirstOrDefault(commentedSpan => commentedSpan.Contains(SelectedSpan));
                 if (containingSpan.Start < 0 || containingSpan.End < 0)
                 {
                     return false;
                 }
 
                 return true;
-            }
-
-            public bool TryGetBlockCommentsInsideSelection(out IEnumerable<Span> blockCommentsInsideSelection)
-            {
-                blockCommentsInsideSelection = IntersectingBlockCommentSpans.Where(commentSpan => SelectedSpan.Contains(commentSpan));
-                return !blockCommentsInsideSelection.IsEmpty();
             }
         }
     }
