@@ -23,7 +23,6 @@ using VSCommanding = Microsoft.VisualStudio.Commanding;
 
 namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 {
-    internal enum Operation { Comment, Uncomment }
 
     //[Export(typeof(VSCommanding.ICommandHandler))]
     //[ContentType(ContentTypeNames.RoslynContentType)]

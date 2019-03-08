@@ -6,8 +6,10 @@ using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CommentSelection;
+using Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection;
 using Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection;
 using Microsoft.CodeAnalysis.Editor.Shared.Extensions;
+using Microsoft.CodeAnalysis.Editor.UnitTests;
 using Microsoft.CodeAnalysis.Editor.UnitTests.Utilities;
 using Microsoft.CodeAnalysis.Editor.UnitTests.Workspaces;
 using Microsoft.CodeAnalysis.Test.Utilities;
@@ -21,7 +23,7 @@ using Roslyn.Test.Utilities;
 using Roslyn.Utilities;
 using Xunit;
 
-namespace Microsoft.CodeAnalysis.Editor.UnitTests.CommentSelection
+namespace Microsoft.CodeAnalysis.Editor.CSharp.UnitTests.CommentSelection
 {
     [UseExportProvider]
     public class ToggleBlockCommentCommandHandlerTests
@@ -184,8 +186,7 @@ class C
             ToggleBlockComment(markup, expected, expectedSelectedSpans);
         }
 
-        //[WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
-        [Fact(Skip = "TODO")]
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
         public void AddComment_CaretInsideToken()
         {
             var markup =
@@ -209,7 +210,35 @@ class C
 
             var expectedSelectedSpans = new[]
             {
-                Span.FromBounds(45, 49)
+                Span.FromBounds(46, 50)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void AddComment_CaretInsideOperatorToken()
+        {
+            var markup = @"
+class C
+{
+    void M()
+    {
+        Func<int, bool> myFunc = x =$$> x == 5;
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        Func<int, bool> myFunc = x =>/**/ x == 5;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(72, 76)
             };
             ToggleBlockComment(markup, expected, expectedSelectedSpans);
         }
@@ -1036,17 +1065,350 @@ class C
     void M()
     {
         var i = 1;
-        /*var*/ j = 2;   
+        /*var*/ j = 2;
     }
 }";
 
             var expectedSelectedSpans = new[]
             {
-                Span.FromBounds(43, 46)
+                Span.FromBounds(73, 77)
             };
             ToggleBlockComment(markup, expected, expectedSelectedSpans);
         }
 
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_CaretInsideUnclosedBlock()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        /*var i = 1;
+        var $$j = 2;
+        var k = 3;
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        var i = 1;
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(43, 103)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_BlockInsideSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        [|/*var i = 1;
+        var j = 2;
+        var k = 3;*/|]
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        var i = 1;
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(43, 93)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_BlockAndWhitespaceInSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {[|
+
+        /*var i = 1;
+        var j = 2;
+        var k = 3;*/          |]
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+
+        var i = 1;
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(45, 95)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_BlockWithSingleLineCommentInSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        [|/*var i = 1;
+        //var j = 2;
+        var k = 3;*/|]
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        var i = 1;
+        //var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(43, 95)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_CommentMarkerStringNearSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        string s = '/*';
+        [|/*var i = 1;
+        var j = 2;
+        var k = 3;*/|]
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        string s = '/*';
+        var i = 1;
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(69, 119)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_CommentMarkerStringInSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        [|/*string s = '/*';*/|]
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        string s = '/*';
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(43, 59)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_SequentialBlockInSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        [|/*var i = 1;
+        *//*var j = 2;
+        var k = 3;*/|]
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        var i = 1;
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(43, 93)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_SequentialBlockAndWhitespaceInSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {[|
+
+        /*var i = 1;
+        */   
+  /*var j = 2;
+        var k = 3;*/       |]
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+
+        var i = 1;
+
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(45, 97)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_BlockPartiallyInsideSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        /*var [|i = 1;
+        var j = 2;|]
+        var k = 3;*/
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        var i = 1;
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(43, 93)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
+        public void RemoveComment_PartialSequentialBlockInSelection()
+        {
+            var markup =
+@"
+class C
+{
+    void M()
+    {
+        /*var [|i = 1;
+        *//*var j = 2;
+        var |]k = 3;*/
+    }
+}";
+            var expected =
+@"
+class C
+{
+    void M()
+    {
+        var i = 1;
+        var j = 2;
+        var k = 3;
+    }
+}";
+
+            var expectedSelectedSpans = new[]
+            {
+                Span.FromBounds(43, 93)
+            };
+            ToggleBlockComment(markup, expected, expectedSelectedSpans);
+        }
 
         //        [WpfFact, Trait(Traits.Feature, Traits.Features.ToggleBlockComment)]
         //        public void Comment_ApplyTwice()
@@ -1206,104 +1568,105 @@ class C
         //            ToggleBlockComment(code, expectedChanges, expectedSelectedSpans);
         //        }
 
-        private static void ToggleBlockComment(string code, IEnumerable<TextChange> expectedChanges, Span expectedSelectedSpan)
+        /*
+    private static void ToggleBlockComment(string code, IEnumerable<TextChange> expectedChanges, Span expectedSelectedSpan)
+    {
+        ToggleBlockComment(code, expectedChanges, new List<Span> { expectedSelectedSpan });
+    }
+
+    private static void ToggleBlockComment(string code, IEnumerable<TextChange> expectedChanges, IEnumerable<Span> expectedSelectedSpans)
+    {
+        using (var disposableView = EditorFactory.CreateView(TestExportProvider.ExportProviderWithCSharpAndVisualBasic, code))
         {
-            ToggleBlockComment(code, expectedChanges, new List<Span> { expectedSelectedSpan });
+            var selectedSpans = SetupSelection(disposableView.TextView);
+
+            ToggleBlockComment(disposableView.TextView, expectedChanges, expectedSelectedSpans);
+        }
+    }
+
+    private static void ToggleBlockComment(
+        ITextView textView,
+        IEnumerable<TextChange> expectedChanges,
+        IEnumerable<Span> expectedSelectedSpans)
+    {
+        var textUndoHistoryRegistry = TestExportProvider.ExportProviderWithCSharpAndVisualBasic.GetExportedValue<ITextUndoHistoryRegistry>();
+        var editorOperationsFactory = TestExportProvider.ExportProviderWithCSharpAndVisualBasic.GetExportedValue<IEditorOperationsFactoryService>();
+        var commandHandler = new ToggleBlockCommentCommandHandler(textUndoHistoryRegistry, editorOperationsFactory);
+        var service = new MockCommentSelectionService();
+
+        var trackingSpans = new Dictionary<ITrackingSpan, Operation>();
+        var textChanges = new List<TextChange>();
+
+        commandHandler.CollectEdits(
+            null, service, textView.Selection.GetSnapshotSpansOnBuffer(textView.TextBuffer),
+            textChanges, trackingSpans, CancellationToken.None);
+
+        Roslyn.Test.Utilities.AssertEx.SetEqual(expectedChanges, textChanges);
+
+        // Actually apply the edit to let the tracking spans adjust.
+        using (var edit = textView.TextBuffer.CreateEdit())
+        {
+            textChanges.Do(tc => edit.Replace(tc.Span.ToSpan(), tc.NewText));
+
+            edit.Apply();
         }
 
-        private static void ToggleBlockComment(string code, IEnumerable<TextChange> expectedChanges, IEnumerable<Span> expectedSelectedSpans)
+        if (trackingSpans.Any())
         {
-            using (var disposableView = EditorFactory.CreateView(TestExportProvider.ExportProviderWithCSharpAndVisualBasic, code))
-            {
-                var selectedSpans = SetupSelection(disposableView.TextView);
-
-                ToggleBlockComment(disposableView.TextView, expectedChanges, expectedSelectedSpans);
-            }
+            textView.SetSelection(trackingSpans.First().Key.GetSpan(textView.TextSnapshot));
         }
 
-        private static void ToggleBlockComment(
-            ITextView textView,
-            IEnumerable<TextChange> expectedChanges,
-            IEnumerable<Span> expectedSelectedSpans)
+        if (expectedSelectedSpans != null)
         {
-            var textUndoHistoryRegistry = TestExportProvider.ExportProviderWithCSharpAndVisualBasic.GetExportedValue<ITextUndoHistoryRegistry>();
-            var editorOperationsFactory = TestExportProvider.ExportProviderWithCSharpAndVisualBasic.GetExportedValue<IEditorOperationsFactoryService>();
-            var commandHandler = new ToggleBlockCommentCommandHandler(textUndoHistoryRegistry, editorOperationsFactory);
-            var service = new MockCommentSelectionService();
-
-            var trackingSpans = new Dictionary<ITrackingSpan, Operation>();
-            var textChanges = new List<TextChange>();
-
-            commandHandler.CollectEdits(
-                null, service, textView.Selection.GetSnapshotSpansOnBuffer(textView.TextBuffer),
-                textChanges, trackingSpans, CancellationToken.None);
-
-            Roslyn.Test.Utilities.AssertEx.SetEqual(expectedChanges, textChanges);
-
-            // Actually apply the edit to let the tracking spans adjust.
-            using (var edit = textView.TextBuffer.CreateEdit())
-            {
-                textChanges.Do(tc => edit.Replace(tc.Span.ToSpan(), tc.NewText));
-
-                edit.Apply();
-            }
-
-            if (trackingSpans.Any())
-            {
-                textView.SetSelection(trackingSpans.First().Key.GetSpan(textView.TextSnapshot));
-            }
-
-            if (expectedSelectedSpans != null)
-            {
-                Roslyn.Test.Utilities.AssertEx.Equal(expectedSelectedSpans, textView.Selection.SelectedSpans.Select(snapshotSpan => snapshotSpan.Span));
-            }
+            Roslyn.Test.Utilities.AssertEx.Equal(expectedSelectedSpans, textView.Selection.SelectedSpans.Select(snapshotSpan => snapshotSpan.Span));
         }
+    }
 
-        private static IEnumerable<Span> SetupSelection(IWpfTextView textView)
+    private static IEnumerable<Span> SetupSelection(IWpfTextView textView)
+    {
+        var spans = new List<Span>();
+        while (true)
         {
-            var spans = new List<Span>();
-            while (true)
-            {
-                var startOfSelection = FindAndRemoveMarker(textView, "|start|");
-                var endOfSelection = FindAndRemoveMarker(textView, "|end|");
+            var startOfSelection = FindAndRemoveMarker(textView, "|start|");
+            var endOfSelection = FindAndRemoveMarker(textView, "|end|");
 
-                if (startOfSelection < 0)
-                {
-                    break;
-                }
-                else
-                {
-                    spans.Add(Span.FromBounds(startOfSelection, endOfSelection));
-                }
-            }
-
-            var snapshot = textView.TextSnapshot;
-            if (spans.Count == 1)
+            if (startOfSelection < 0)
             {
-                textView.Selection.Select(new SnapshotSpan(snapshot, spans.Single()), isReversed: false);
-                textView.Caret.MoveTo(new SnapshotPoint(snapshot, spans.Single().End));
+                break;
             }
             else
             {
-                textView.Selection.Mode = TextSelectionMode.Box;
-                textView.Selection.Select(new VirtualSnapshotPoint(snapshot, spans.First().Start),
-                                          new VirtualSnapshotPoint(snapshot, spans.Last().End));
-                textView.Caret.MoveTo(new SnapshotPoint(snapshot, spans.Last().End));
+                spans.Add(Span.FromBounds(startOfSelection, endOfSelection));
             }
-
-            return spans;
         }
 
-        private static int FindAndRemoveMarker(ITextView textView, string marker)
+        var snapshot = textView.TextSnapshot;
+        if (spans.Count == 1)
         {
-            var index = textView.TextSnapshot.GetText().IndexOf(marker, StringComparison.Ordinal);
-            if (index >= 0)
-            {
-                textView.TextBuffer.Delete(new Span(index, marker.Length));
-            }
-
-            return index;
+            textView.Selection.Select(new SnapshotSpan(snapshot, spans.Single()), isReversed: false);
+            textView.Caret.MoveTo(new SnapshotPoint(snapshot, spans.Single().End));
         }
+        else
+        {
+            textView.Selection.Mode = TextSelectionMode.Box;
+            textView.Selection.Select(new VirtualSnapshotPoint(snapshot, spans.First().Start),
+                                      new VirtualSnapshotPoint(snapshot, spans.Last().End));
+            textView.Caret.MoveTo(new SnapshotPoint(snapshot, spans.Last().End));
+        }
+
+        return spans;
+    }
+
+    private static int FindAndRemoveMarker(ITextView textView, string marker)
+    {
+        var index = textView.TextSnapshot.GetText().IndexOf(marker, StringComparison.Ordinal);
+        if (index >= 0)
+        {
+            textView.TextBuffer.Delete(new Span(index, marker.Length));
+        }
+
+        return index;
+    }*/
 
         private static void ToggleBlockComment(string markup, string expected, IEnumerable<Span> expectedSelectedSpans)
         {
