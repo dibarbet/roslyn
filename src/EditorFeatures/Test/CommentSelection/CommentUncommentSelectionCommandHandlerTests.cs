@@ -767,7 +767,7 @@ class A
             var commandHandler = new CommentUncommentSelectionCommandHandler(textUndoHistoryRegistry, editorOperationsFactory);
             var service = new MockCommentSelectionService(supportBlockComments);
 
-            var trackingSpans = new List<ITrackingSpan>();
+            var trackingSpans = new List<CommentTrackingSpan>();
             var textChanges = new List<TextChange>();
 
             commandHandler.CollectEdits(
@@ -786,7 +786,7 @@ class A
 
             if (trackingSpans.Any())
             {
-                textView.SetSelection(trackingSpans.First().GetSpan(textView.TextSnapshot));
+                textView.SetSelection(trackingSpans.First().ToSnapshotSpan(textView.TextBuffer.CurrentSnapshot));
             }
 
             if (expectedSelectedSpans != null)

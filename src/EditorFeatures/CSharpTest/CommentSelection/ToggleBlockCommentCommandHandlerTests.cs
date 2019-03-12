@@ -1874,7 +1874,7 @@ class C
 
                 for (int i = 0; i < expectedText.Length; i++)
                 {
-                    commandHandler.ExecuteCommand(textView, textBuffer, TestCommandExecutionContext.Create());
+                    commandHandler.ExecuteCommand(textView, textBuffer, Operation.Toggle, TestCommandExecutionContext.Create());
                     AssertCommentResult(doc.TextBuffer, textView, expectedText[i], expectedSelections[i]);
                 }
             }
