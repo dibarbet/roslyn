@@ -878,4 +878,10 @@ Do you want to proceed?</value>
   <data name="Operator_Overloaded" xml:space="preserve">
     <value>Operator - Overloaded</value>
   </data>
+  <data name="Toggle_Block_Comment" xml:space="preserve">
+    <value>Toggle Block Comment</value>
+  </data>
+  <data name="Toggling_block_comment_on_selection" xml:space="preserve">
+    <value>Toggling block comment on selection...</value>
+  </data>
 </root>

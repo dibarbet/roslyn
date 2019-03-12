@@ -1143,8 +1143,8 @@ class C
 
             var expectedSelectedSpans = new[]
             {
-                Span.FromBounds(43, 59),
-                Span.FromBounds(69, 85),
+                Span.FromBounds(43, 57),
+                Span.FromBounds(71, 85),
                 Span.FromBounds(95, 111)
             };
             ToggleBlockComment(markup, expected, expectedSelectedSpans);

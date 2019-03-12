@@ -76,7 +76,6 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
             var getRoot = document.GetSyntaxRootAsync();
             var commentInfo = service.GetInfoAsync(document, selectedSpans.First().Span.ToTextSpan(), cancellationToken).WaitAndGetResult(cancellationToken);
             var root = getRoot.WaitAndGetResult(cancellationToken);
-
             if (commentInfo.SupportsBlockComment)
             {
                 ToggleBlockComments(commentInfo, root, selectedSpans, textChanges, trackingSpans);
