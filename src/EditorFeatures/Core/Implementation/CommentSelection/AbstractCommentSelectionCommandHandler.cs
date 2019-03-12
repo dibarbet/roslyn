@@ -18,13 +18,19 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 {
     internal enum Operation { Comment, Uncomment, Toggle }
 
+    /// <summary>
+    /// Wrapper around an ITrackingSpan that holds extra data used to format and modify span.
+    /// </summary>
     internal struct CommentTrackingSpan
     {
         public Operation Operation { get; }
 
-        private ITrackingSpan _trackingSpan;
-        private int _amountToAddToStart;
-        private int _amountToAddToEnd;
+        private readonly ITrackingSpan _trackingSpan;
+
+        // In some cases, the tracking span needs to be adjusted by a specific amount after the changes have been applied.
+        // These fields store the amount to adjust the span by after edits have been applied.
+        private readonly int _amountToAddToStart;
+        private readonly int _amountToAddToEnd;
 
         public CommentTrackingSpan(ITrackingSpan trackingSpan, Operation operation)
         {
@@ -86,6 +92,44 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             return VSCommanding.CommandState.Available;
         }
 
+        protected static void Format(ICommentSelectionService service, ITextSnapshot snapshot, IEnumerable<CommentTrackingSpan> changes, CancellationToken cancellationToken)
+        {
+            var document = snapshot.GetOpenDocumentInCurrentContextWithChanges();
+            if (document == null)
+            {
+                return;
+            }
+
+            // Only format uncomment actions.
+            var textSpans = changes
+                .Where(change => change.Operation == Operation.Uncomment)
+                .Select(uncommentChange => uncommentChange.ToSnapshotSpan(snapshot).Span.ToTextSpan())
+                .ToImmutableArray();
+            var newDocument = service.FormatAsync(document, textSpans, cancellationToken).WaitAndGetResult(cancellationToken);
+            newDocument.Project.Solution.Workspace.ApplyDocumentChanges(newDocument, cancellationToken);
+        }
+
+        private static ICommentSelectionService GetService(Document document)
+        {
+            // First, try to get the new service for comment selection.
+            var service = document.GetLanguageService<ICommentSelectionService>();
+            if (service != null)
+            {
+                return service;
+            }
+
+            // If we couldn't find one, fallback to the legacy service.
+#pragma warning disable CS0618 // Type or member is obsolete
+            var legacyService = document.GetLanguageService<ICommentUncommentService>();
+#pragma warning restore CS0618 // Type or member is obsolete
+            if (legacyService != null)
+            {
+                return new CommentSelectionServiceProxy(legacyService);
+            }
+
+            return null;
+        }
+
         internal bool ExecuteCommand(ITextView textView, ITextBuffer subjectBuffer, Operation operation, CommandExecutionContext context)
         {
             var title = GetTitle(operation);
@@ -131,44 +175,6 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             }
 
             return true;
-        }
-
-        protected static void Format(ICommentSelectionService service, ITextSnapshot snapshot, IEnumerable<CommentTrackingSpan> changes, CancellationToken cancellationToken)
-        {
-            var document = snapshot.GetOpenDocumentInCurrentContextWithChanges();
-            if (document == null)
-            {
-                return;
-            }
-
-            // Only format uncomment actions.
-            var textSpans = changes
-                .Where(change => change.Operation == Operation.Uncomment)
-                .Select(uncommentChange => uncommentChange.ToSnapshotSpan(snapshot).Span.ToTextSpan())
-                .ToImmutableArray();
-            var newDocument = service.FormatAsync(document, textSpans, cancellationToken).WaitAndGetResult(cancellationToken);
-            newDocument.Project.Solution.Workspace.ApplyDocumentChanges(newDocument, cancellationToken);
-        }
-
-        protected ICommentSelectionService GetService(Document document)
-        {
-            // First, try to get the new service for comment selection.
-            var service = document.GetLanguageService<ICommentSelectionService>();
-            if (service != null)
-            {
-                return service;
-            }
-
-            // If we couldn't find one, fallback to the legacy service.
-#pragma warning disable CS0618 // Type or member is obsolete
-            var legacyService = document.GetLanguageService<ICommentUncommentService>();
-#pragma warning restore CS0618 // Type or member is obsolete
-            if (legacyService != null)
-            {
-                return new CommentSelectionServiceProxy(legacyService);
-            }
-
-            return null;
         }
 
         public abstract string DisplayName { get; }
