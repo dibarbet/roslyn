@@ -1,5 +1,6 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -11,12 +12,14 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.CommentSelection
 {
-    internal abstract class AbstractCommentSelectionService : ICommentSelectionService
+    internal abstract class AbstractCommentSelectionService : ICommentSelectionLanguageService
     {
         public abstract string BlockCommentEndString { get; }
         public abstract string BlockCommentStartString { get; }
         public abstract string SingleLineCommentString { get; }
         public abstract bool SupportsBlockComment { get; }
+
+        public abstract Task<Document> ToggleBlockComment(Document document, IEnumerable<TextSpan> selectedSpans, CancellationToken cancellationToken);
 
         public Task<Document> FormatAsync(Document document, ImmutableArray<TextSpan> changes, CancellationToken cancellationToken)
         {

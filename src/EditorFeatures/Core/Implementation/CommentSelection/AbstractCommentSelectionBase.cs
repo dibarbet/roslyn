@@ -116,6 +116,9 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     return true;
                 }
 
+                var trackingSpan = //
+
+
                 var service = GetService(document);
                 if (service == null)
                 {
