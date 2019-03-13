@@ -6,6 +6,7 @@ using System.Collections.Immutable;
 using System.ComponentModel.Composition;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CommentSelection;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection;
@@ -30,14 +31,16 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
     [ContentType(ContentTypeNames.RoslynContentType)]
     [Name(PredefinedCommandHandlerNames.CommentSelection)]*/
     internal class ToggleBlockCommentCommandHandler :
-        AbstractCommentSelectionCommandHandler/*,
+        AbstractCommentSelectionBase/*,
         VSCommanding.ICommandHandler<CommentSelectionCommandArgs>*/
     {
         [ImportingConstructor]
         internal ToggleBlockCommentCommandHandler(
             ITextUndoHistoryRegistry undoHistoryRegistry,
-            IEditorOperationsFactoryService editorOperationsFactoryService) : base(undoHistoryRegistry, editorOperationsFactoryService)
-        { }
+            IEditorOperationsFactoryService editorOperationsFactoryService)
+            : base(undoHistoryRegistry, editorOperationsFactoryService)
+        {
+        }
 
         /* TODO - modify once the toggle block comment handler is added.
         public VSCommanding.CommandState GetCommandState(CommentSelectionCommandArgs args)
@@ -52,67 +55,60 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
 
         public override string DisplayName => EditorFeaturesResources.Toggle_Block_Comment;
 
-        protected override string GetTitle(Operation operation)
-        {
-            return EditorFeaturesResources.Toggle_Block_Comment;
-        }
+        protected override string GetTitle(Operation operation) => EditorFeaturesResources.Toggle_Block_Comment;
 
-        protected override string GetMessage(Operation operation)
-        {
-            return EditorFeaturesResources.Toggling_block_comment_on_selection;
-        }
+        protected override string GetMessage(Operation operation) => EditorFeaturesResources.Toggling_block_comment_on_selection;
 
-        protected override void SetTrackingSpans(ITextView textView, ITextBuffer buffer, List<CommentTrackingSpan> trackingSpans)
-        {
-            var spans = trackingSpans.Select(trackingSpan => trackingSpan.ToSelection(buffer));
-            textView.GetMultiSelectionBroker().SetSelectionRange(spans, spans.Last());
-        }
-
-        internal override void CollectEdits(Document document, ICommentSelectionService service, NormalizedSnapshotSpanCollection selectedSpans,
-            List<TextChange> textChanges, List<CommentTrackingSpan> trackingSpans, Operation operation, CancellationToken cancellationToken)
+        internal async override Task<CommentSelectionResult> CollectEdits(Document document, ICommentSelectionService service, NormalizedSnapshotSpanCollection selectedSpans,
+            Operation operation, CancellationToken cancellationToken)
         {
             var experimentationService = document.Project.Solution.Workspace.Services.GetRequiredService<IExperimentationService>();
             if (!experimentationService.IsExperimentEnabled(WellKnownExperimentNames.RoslynToggleBlockComment))
             {
-                return;
+                return default(CommentSelectionResult);
             }
 
-            if (selectedSpans.IsEmpty())
-            {
-                return;
-            }
+            var root = document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+            var commentInfo = await service.GetInfoAsync(document, selectedSpans.First().Span.ToTextSpan(), cancellationToken).ConfigureAwait(false);
 
-            var getRoot = document.GetSyntaxRootAsync();
-            var commentInfo = service.GetInfoAsync(document, selectedSpans.First().Span.ToTextSpan(), cancellationToken).WaitAndGetResult(cancellationToken);
-            var root = getRoot.WaitAndGetResult(cancellationToken);
             if (commentInfo.SupportsBlockComment)
             {
-                ToggleBlockComments(commentInfo, root, selectedSpans, textChanges, trackingSpans);
+                return ToggleBlockComments(commentInfo, await root, selectedSpans);
             }
+
+            return default(CommentSelectionResult);
         }
 
-        private static void ToggleBlockComments(CommentSelectionInfo commentInfo, SyntaxNode root, NormalizedSnapshotSpanCollection selectedSpans,
-            List<TextChange> textChanges, List<CommentTrackingSpan> trackingSpans)
+        private static CommentSelectionResult ToggleBlockComments(CommentSelectionInfo commentInfo, SyntaxNode root, NormalizedSnapshotSpanCollection selectedSpans)
         {
             var blockCommentedSpans = GetDescendentBlockCommentSpansFromRoot(root);
             var blockCommentSelectionHelpers = selectedSpans.Select(span => new BlockCommentSelectionHelper(blockCommentedSpans, span));
 
+            var operation;
             // If there is a multi selection, either uncomment all or comment all.
-            var onlyAddComment = false;
             if (selectedSpans.Count > 1)
             {
-                onlyAddComment = blockCommentSelectionHelpers.Where(helper => !helper.IsEntirelyCommented()).Any();
+                operation = blockCommentSelectionHelpers.Any(helper => !helper.IsEntirelyCommented())
+                ? Operation.Comment
+                : Operation.Uncomment;
             }
+
+            var textChanges = new List<TextChange>();
+            var trackingSpans = new List<CommentTrackingSpan>();
 
             foreach (var blockCommentSelection in blockCommentSelectionHelpers)
             {
-                if (!onlyAddComment && TryUncommentBlockComment(blockCommentedSpans, blockCommentSelection, textChanges, trackingSpans, commentInfo))
-                { }
+                if (operation == Operation.Uncomment)
+                {
+                    TryUncommentBlockComment(blockCommentedSpans, blockCommentSelection, textChanges, trackingSpans, commentInfo);
+                }
                 else
                 {
                     BlockCommentSpan(blockCommentSelection, textChanges, trackingSpans, root, commentInfo);
                 }
             }
+
+            return new CommentSelectionResult(textChanges, trackingSpans, operation);
         }
 
         private static bool TryUncommentBlockComment(IEnumerable<Span> blockCommentedSpans, BlockCommentSelectionHelper blockCommentSelectionHelper,
@@ -340,7 +336,7 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
                 int addToStart = 0, int addToEnd = 0)
             {
                 var trackingSpan = SelectedSpan.Snapshot.CreateTrackingSpan(Span.FromBounds(span.Start, span.End), spanTrackingMode);
-                return new CommentTrackingSpan(trackingSpan, operation, addToStart, addToEnd);
+                return new CommentTrackingSpan(trackingSpan, addToStart, addToEnd);
             }
 
             /// <summary>

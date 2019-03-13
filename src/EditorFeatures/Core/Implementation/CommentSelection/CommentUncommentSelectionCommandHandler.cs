@@ -6,6 +6,7 @@ using System.Collections.Immutable;
 using System.ComponentModel.Composition;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CommentSelection;
 using Microsoft.CodeAnalysis.Editor.Shared.Extensions;
 using Microsoft.CodeAnalysis.Shared.Extensions;
@@ -26,15 +27,17 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
     [ContentType(ContentTypeNames.RoslynContentType)]
     [Name(PredefinedCommandHandlerNames.CommentSelection)]
     internal class CommentUncommentSelectionCommandHandler :
-        AbstractCommentSelectionCommandHandler,
+        AbstractCommentSelectionBase,
         VSCommanding.ICommandHandler<CommentSelectionCommandArgs>,
         VSCommanding.ICommandHandler<UncommentSelectionCommandArgs>
     {
         [ImportingConstructor]
         internal CommentUncommentSelectionCommandHandler(
             ITextUndoHistoryRegistry undoHistoryRegistry,
-            IEditorOperationsFactoryService editorOperationsFactoryService) : base(undoHistoryRegistry, editorOperationsFactoryService)
-        { }
+            IEditorOperationsFactoryService editorOperationsFactoryService)
+            : base(undoHistoryRegistry, editorOperationsFactoryService)
+        {
+        }
 
         public VSCommanding.CommandState GetCommandState(CommentSelectionCommandArgs args)
         {
@@ -66,20 +69,16 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 
         protected override string GetTitle(Operation operation)
         {
-            return operation == Operation.Comment ? EditorFeaturesResources.Comment_Selection
+            return operation == Operation.Comment
+                ? EditorFeaturesResources.Comment_Selection
                 : EditorFeaturesResources.Uncomment_Selection;
         }
 
         protected override string GetMessage(Operation operation)
         {
-            return operation == Operation.Comment ? EditorFeaturesResources.Commenting_currently_selected_text
+            return operation == Operation.Comment
+                ? EditorFeaturesResources.Commenting_currently_selected_text
                 : EditorFeaturesResources.Uncommenting_currently_selected_text;
-        }
-
-        protected override void SetTrackingSpans(ITextView textView, ITextBuffer buffer, List<CommentTrackingSpan> trackingSpans)
-        {
-            // TODO, this doesn't currently handle block selection
-            textView.SetSelection(trackingSpans.First().ToSnapshotSpan(buffer.CurrentSnapshot));
         }
 
         /// <summary>
@@ -87,11 +86,13 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
         ///
         /// Internal so that it can be called by unit tests.
         /// </summary>
-        internal override void CollectEdits(
+        internal override Task<CommentSelectionResult> CollectEdits(
             Document document, ICommentSelectionService service, NormalizedSnapshotSpanCollection selectedSpans,
-            List<TextChange> textChanges, List<CommentTrackingSpan> trackingSpans, Operation operation, CancellationToken cancellationToken)
+            Operation operation, CancellationToken cancellationToken)
         {
             var spanTrackingList = new List<ITrackingSpan>();
+            var trackingSpans = new List<CommentTrackingSpan>();
+            var textChanges = new List<TextChange>();
             foreach (var span in selectedSpans)
             {
                 if (operation == Operation.Comment)
@@ -103,7 +104,8 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     UncommentSpan(document, service, span, textChanges, spanTrackingList, cancellationToken);
                 }
             }
-            trackingSpans.AddRange(spanTrackingList.Select(span => new CommentTrackingSpan(span, operation)));
+            trackingSpans.AddRange(spanTrackingList.Select(span => new CommentTrackingSpan(span)));
+            return Task.FromResult(new CommentSelectionResult(textChanges, trackingSpans, operation));
         }
 
         /// <summary>
