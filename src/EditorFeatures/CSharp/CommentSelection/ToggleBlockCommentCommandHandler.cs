@@ -50,22 +50,23 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
 
         public bool ExecuteCommand(CommentSelectionCommandArgs args, CommandExecutionContext context)
         {
-            return ExecuteCommand(args.TextView, args.SubjectBuffer, Operation.Toggle, context);
+            return ExecuteCommand(args.TextView, args.SubjectBuffer, Operation.Undefined, context);
         }*/
 
         public override string DisplayName => EditorFeaturesResources.Toggle_Block_Comment;
 
         protected override string GetTitle(Operation operation) => EditorFeaturesResources.Toggle_Block_Comment;
 
-        protected override string GetMessage(Operation operation) => EditorFeaturesResources.Toggling_block_comment_on_selection;
+        protected override string GetMessage(Operation operation) => EditorFeaturesResources.Toggling_block_comment;
 
         internal async override Task<CommentSelectionResult> CollectEdits(Document document, ICommentSelectionService service, NormalizedSnapshotSpanCollection selectedSpans,
             Operation operation, CancellationToken cancellationToken)
         {
+            var emptyResult = new CommentSelectionResult(new List<TextChange>(), new List<CommentTrackingSpan>(), operation);
             var experimentationService = document.Project.Solution.Workspace.Services.GetRequiredService<IExperimentationService>();
             if (!experimentationService.IsExperimentEnabled(WellKnownExperimentNames.RoslynToggleBlockComment))
             {
-                return default(CommentSelectionResult);
+                return emptyResult;
             }
 
             var root = document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
@@ -76,60 +77,57 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
                 return ToggleBlockComments(commentInfo, await root, selectedSpans);
             }
 
-            return default(CommentSelectionResult);
+            return emptyResult;
         }
+
 
         private static CommentSelectionResult ToggleBlockComments(CommentSelectionInfo commentInfo, SyntaxNode root, NormalizedSnapshotSpanCollection selectedSpans)
         {
             var blockCommentedSpans = GetDescendentBlockCommentSpansFromRoot(root);
-            var blockCommentSelectionHelpers = selectedSpans.Select(span => new BlockCommentSelectionHelper(blockCommentedSpans, span));
+            var blockCommentSelectionHelpers = selectedSpans.Select(span => new BlockCommentSelectionHelper(blockCommentedSpans, span)).ToList();
 
-            var operation;
-            // If there is a multi selection, either uncomment all or comment all.
-            if (selectedSpans.Count > 1)
-            {
-                operation = blockCommentSelectionHelpers.Any(helper => !helper.IsEntirelyCommented())
-                ? Operation.Comment
-                : Operation.Uncomment;
-            }
-
-            var textChanges = new List<TextChange>();
-            var trackingSpans = new List<CommentTrackingSpan>();
-
+            var returnOperation = Operation.Uncomment;
+            var uncommentChanges = new List<TextChange>();
+            var uncommentTrackingSpans = new List<CommentTrackingSpan>();
+            // Try to uncomment until an uncommented span is found.
             foreach (var blockCommentSelection in blockCommentSelectionHelpers)
             {
-                if (operation == Operation.Uncomment)
+                var hasCommentsToRemove = TryUncommentBlockComment(blockCommentedSpans, blockCommentSelection, uncommentChanges, uncommentTrackingSpans, commentInfo);
+                // If any selection does not have comments to remove, then the operation should be comment.
+                if (!hasCommentsToRemove)
                 {
-                    TryUncommentBlockComment(blockCommentedSpans, blockCommentSelection, textChanges, trackingSpans, commentInfo);
-                }
-                else
-                {
-                    BlockCommentSpan(blockCommentSelection, textChanges, trackingSpans, root, commentInfo);
+                    returnOperation = Operation.Comment;
+                    break;
                 }
             }
 
-            return new CommentSelectionResult(textChanges, trackingSpans, operation);
+            if (returnOperation == Operation.Comment)
+            {
+                var commentChanges = new List<TextChange>();
+                var commentTrackingSpans = new List<CommentTrackingSpan>();
+                blockCommentSelectionHelpers.ForEach(
+                    blockCommentSelection => BlockCommentSpan(blockCommentSelection, root, commentChanges, commentTrackingSpans, commentInfo));
+                return new CommentSelectionResult(commentChanges, commentTrackingSpans, returnOperation);
+            }
+            else
+            {
+                return new CommentSelectionResult(uncommentChanges, uncommentTrackingSpans, returnOperation);
+            }
         }
 
-        private static bool TryUncommentBlockComment(IEnumerable<Span> blockCommentedSpans, BlockCommentSelectionHelper blockCommentSelectionHelper,
-            List<TextChange> textChanges, List<CommentTrackingSpan> trackingSpans, CommentSelectionInfo commentInfo)
+        private static bool TryUncommentBlockComment(IEnumerable<Span> blockCommentedSpans,
+            BlockCommentSelectionHelper blockCommentSelectionHelper, List<TextChange> textChanges,
+            List<CommentTrackingSpan> trackingSpans, CommentSelectionInfo commentInfo)
         {
             // If the selection is just a caret, try and uncomment blocks on the same line with only whitespace on the line.
             if (blockCommentSelectionHelper.SelectedSpan.IsEmpty && blockCommentSelectionHelper.TryGetBlockCommentOnSameLine(blockCommentedSpans, out var blockCommentOnSameLine))
             {
                 DeleteBlockComment(blockCommentSelectionHelper, blockCommentOnSameLine, textChanges, commentInfo);
-                trackingSpans.Add(blockCommentSelectionHelper.GetTrackingSpan(blockCommentOnSameLine, SpanTrackingMode.EdgeExclusive, Operation.Uncomment));
+                trackingSpans.Add(blockCommentSelectionHelper.GetTrackingSpan(blockCommentOnSameLine, SpanTrackingMode.EdgeExclusive));
                 return true;
             }
-
-            // If there are not any block comments intersecting the selection, there is nothing to uncomment.
-            if (!blockCommentSelectionHelper.HasIntersectingBlockComments())
-            {
-                return false;
-            }
-
             // If the selection is entirely commented, remove any block comments that intersect.
-            if (blockCommentSelectionHelper.IsEntirelyCommented())
+            else if (blockCommentSelectionHelper.IsEntirelyCommented())
             {
                 var intersectingBlockComments = blockCommentSelectionHelper.IntersectingBlockComments;
                 foreach (var spanToRemove in intersectingBlockComments)
@@ -137,15 +135,17 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
                     DeleteBlockComment(blockCommentSelectionHelper, spanToRemove, textChanges, commentInfo);
                 }
                 var trackingSpan = Span.FromBounds(intersectingBlockComments.First().Start, intersectingBlockComments.Last().End);
-                trackingSpans.Add(blockCommentSelectionHelper.GetTrackingSpan(trackingSpan, SpanTrackingMode.EdgeExclusive, Operation.Uncomment));
+                trackingSpans.Add(blockCommentSelectionHelper.GetTrackingSpan(trackingSpan, SpanTrackingMode.EdgeExclusive));
                 return true;
             }
-
-            return false;
+            else
+            {
+                return false;
+            }
         }
 
-        private static void BlockCommentSpan(BlockCommentSelectionHelper blockCommentSelectionHelper, List<TextChange> textChanges,
-            List<CommentTrackingSpan> trackingSpans, SyntaxNode root, CommentSelectionInfo commentInfo)
+        private static void BlockCommentSpan(BlockCommentSelectionHelper blockCommentSelectionHelper, SyntaxNode root,
+            List<TextChange> textChanges, List<CommentTrackingSpan> trackingSpans, CommentSelectionInfo commentInfo)
         {
             if (blockCommentSelectionHelper.HasIntersectingBlockComments())
             {
@@ -161,8 +161,8 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
                     spanToAdd = Span.FromBounds(caretLocation, caretLocation);
                 }
 
+                trackingSpans.Add(blockCommentSelectionHelper.GetTrackingSpan(spanToAdd, SpanTrackingMode.EdgeInclusive));
                 AddBlockComment(commentInfo, spanToAdd, textChanges);
-                trackingSpans.Add(blockCommentSelectionHelper.GetTrackingSpan(spanToAdd, SpanTrackingMode.EdgeInclusive, Operation.Comment));
             }
         }
 
@@ -170,8 +170,8 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
         /// Adds a block comment when the selection already contains block comment(s).
         /// The result will be sequential block comments with the entire selection being commented out.
         /// </summary>
-        private static void AddBlockCommentWithIntersectingSpans(BlockCommentSelectionHelper blockCommentSelectionHelper, List<TextChange> textChanges,
-            List<CommentTrackingSpan> trackingSpans, CommentSelectionInfo commentInfo)
+        private static void AddBlockCommentWithIntersectingSpans(BlockCommentSelectionHelper blockCommentSelectionHelper,
+            List<TextChange> textChanges, List<CommentTrackingSpan> trackingSpans, CommentSelectionInfo commentInfo)
         {
             var selectedSpan = blockCommentSelectionHelper.SelectedSpan;
             var spanTrackingMode = SpanTrackingMode.EdgeInclusive;
@@ -186,7 +186,8 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
             }
 
             // If the start is commented (and not a comment marker), close the current comment and open a new one.
-            if (blockCommentSelectionHelper.IsLocationCommented(selectedSpan.Start) && !blockCommentSelectionHelper.DoesBeginWithBlockComment(commentInfo))
+            if (blockCommentSelectionHelper.IsLocationCommented(selectedSpan.Start)
+                && !blockCommentSelectionHelper.DoesBeginWithBlockComment(commentInfo))
             {
                 InsertText(textChanges, selectedSpan.Start, commentInfo.BlockCommentEndString);
                 InsertText(textChanges, selectedSpan.Start, commentInfo.BlockCommentStartString);
@@ -195,7 +196,8 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
             }
 
             // If the end is commented (and not a comment marker), close the current comment and open a new one.
-            if (blockCommentSelectionHelper.IsLocationCommented(selectedSpan.End) && !blockCommentSelectionHelper.DoesEndWithBlockComment(commentInfo))
+            if (blockCommentSelectionHelper.IsLocationCommented(selectedSpan.End)
+                && !blockCommentSelectionHelper.DoesEndWithBlockComment(commentInfo))
             {
                 InsertText(textChanges, selectedSpan.End, commentInfo.BlockCommentEndString);
                 InsertText(textChanges, selectedSpan.End, commentInfo.BlockCommentStartString);
@@ -203,7 +205,8 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
                 amountToAddToEnd = -commentInfo.BlockCommentStartString.Length;
             }
 
-            trackingSpans.Add(blockCommentSelectionHelper.GetTrackingSpan(selectedSpan, spanTrackingMode, Operation.Comment, amountToAddToStart, amountToAddToEnd));
+            var trackingSpan = blockCommentSelectionHelper.GetTrackingSpan(selectedSpan, spanTrackingMode, amountToAddToStart, amountToAddToEnd);
+            trackingSpans.Add(trackingSpan);
         }
 
         private static void AddBlockComment(CommentSelectionInfo commentInfo, Span span, List<TextChange> textChanges)
@@ -212,11 +215,10 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
             InsertText(textChanges, span.End, commentInfo.BlockCommentEndString);
         }
 
-        private static void DeleteBlockComment(BlockCommentSelectionHelper blockCommentSelectionHelper, Span spanToRemove, List<TextChange> textChanges,
-            CommentSelectionInfo commentInfo)
+        private static void DeleteBlockComment(BlockCommentSelectionHelper blockCommentSelectionHelper, Span spanToRemove,
+            List<TextChange> textChanges, CommentSelectionInfo commentInfo)
         {
             DeleteText(textChanges, new TextSpan(spanToRemove.Start, commentInfo.BlockCommentStartString.Length));
-
             var blockCommentMarkerPosition = spanToRemove.End - commentInfo.BlockCommentEndString.Length;
             // Sometimes the block comment will be missing a close marker.
             if (Equals(blockCommentSelectionHelper.GetSubstringFromText(blockCommentMarkerPosition, commentInfo.BlockCommentEndString.Length), commentInfo.BlockCommentEndString))
@@ -313,7 +315,7 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
             /// </summary>
             public bool IsEntirelyCommented()
             {
-                return !UncommentedSpansInSelection.Any();
+                return !UncommentedSpansInSelection.Any() && HasIntersectingBlockComments();
             }
 
             /// <summary>
@@ -332,7 +334,7 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.CommentSelection
             /// <summary>
             /// Returns a tracking span associated with the selected span.
             /// </summary>
-            public CommentTrackingSpan GetTrackingSpan(Span span, SpanTrackingMode spanTrackingMode, Operation operation,
+            public CommentTrackingSpan GetTrackingSpan(Span span, SpanTrackingMode spanTrackingMode,
                 int addToStart = 0, int addToEnd = 0)
             {
                 var trackingSpan = SelectedSpan.Snapshot.CreateTrackingSpan(Span.FromBounds(span.Start, span.End), spanTrackingMode);

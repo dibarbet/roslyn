@@ -21,13 +21,23 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 {
     internal enum Operation
     {
+        /// <summary>
+        /// The operation is a comment action.
+        /// </summary>
         Comment,
+
+        /// <summary>
+        /// The operation is an uncomment action.
+        /// </summary>
         Uncomment,
-        // If the operation does nothing it remains undefined.
+
+        /// <summary>
+        /// The operation is not yet determined.
+        /// </summary>
         Undefined
     }
 
-    internal abstract class AbstractCommentSelectionBase
+    internal abstract partial class AbstractCommentSelectionBase
     {
         private readonly ITextUndoHistoryRegistry _undoHistoryRegistry;
         private readonly IEditorOperationsFactoryService _editorOperationsFactoryService;
@@ -85,31 +95,12 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             textChanges.Add(new TextChange(span, string.Empty));
         }
 
-
-        internal class CommentSelectionResult
-        {
-            public List<TextChange> TextChanges { get; }
-            public List<CommentTrackingSpan> TrackingSpans { get; }
-            public Operation ResultOperation { get; }
-
-            public CommentSelectionResult(List<TextChange> textChanges, List<CommentTrackingSpan> trackingSpans, Operation resultOperation)
-            {
-                TextChanges = textChanges;
-                TrackingSpans = trackingSpans;
-                ResultOperation = resultOperation;
-            }
-
-            public void AddTextChange(TextChange textChange) => TextChanges.Add(textChange);
-
-            public void AddTrackingSpan(CommentTrackingSpan commentTrackingSpan) => TrackingSpans.Add(commentTrackingSpan);
-        }
-
         internal bool ExecuteCommand(ITextView textView, ITextBuffer subjectBuffer, Operation operation, CommandExecutionContext context)
         {
             var title = GetTitle(operation);
             var message = GetMessage(operation);
 
-            using (context.OperationContext.AddScope(allowCancellation: false, message))
+            using (context.OperationContext.AddScope(allowCancellation: true, message))
             {
                 var cancellationToken = context.OperationContext.UserCancellationToken;
 
@@ -131,8 +122,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     return true;
                 }
 
-                var edits = CollectEdits(document, service, selectedSpans, operation, cancellationToken)
-                    .WaitAndGetResult(cancellationToken);
+                var edits = CollectEdits(document, service, selectedSpans, operation, cancellationToken).WaitAndGetResult(cancellationToken);
 
                 // Apply the text changes.
                 using (var transaction = new CaretPreservingEditTransaction(title, textView, _undoHistoryRegistry, _editorOperationsFactoryService))
@@ -143,7 +133,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 
                 if (edits.ResultOperation == Operation.Uncomment)
                 {
-                    // Format the document only during uncomment operations.
+                    // Format the document only during uncomment operations.  Use second transaction so it can be undone.
                     using (var transaction = new CaretPreservingEditTransaction(title, textView, _undoHistoryRegistry, _editorOperationsFactoryService))
                     {
                         Format(service, subjectBuffer.CurrentSnapshot, edits.TrackingSpans, cancellationToken);
@@ -151,7 +141,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     }
                 }
 
-                // Set the selection.
+                // Set the selection after the edits have been applied.
                 if (edits.TrackingSpans.Any())
                 {
                     var spans = edits.TrackingSpans.Select(trackingSpan => trackingSpan.ToSelection(subjectBuffer));

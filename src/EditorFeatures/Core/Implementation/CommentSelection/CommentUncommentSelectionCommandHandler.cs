@@ -23,9 +23,9 @@ using VSCommanding = Microsoft.VisualStudio.Commanding;
 
 namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
 {
-    [Export(typeof(VSCommanding.ICommandHandler))]
-    [ContentType(ContentTypeNames.RoslynContentType)]
-    [Name(PredefinedCommandHandlerNames.CommentSelection)]
+    //[Export(typeof(VSCommanding.ICommandHandler))]
+    //[ContentType(ContentTypeNames.RoslynContentType)]
+    //[Name(PredefinedCommandHandlerNames.CommentSelection)]
     internal class CommentUncommentSelectionCommandHandler :
         AbstractCommentSelectionBase,
         VSCommanding.ICommandHandler<CommentSelectionCommandArgs>,
@@ -91,7 +91,6 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
             Operation operation, CancellationToken cancellationToken)
         {
             var spanTrackingList = new List<ITrackingSpan>();
-            var trackingSpans = new List<CommentTrackingSpan>();
             var textChanges = new List<TextChange>();
             foreach (var span in selectedSpans)
             {
@@ -104,8 +103,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.CommentSelection
                     UncommentSpan(document, service, span, textChanges, spanTrackingList, cancellationToken);
                 }
             }
-            trackingSpans.AddRange(spanTrackingList.Select(span => new CommentTrackingSpan(span)));
-            return Task.FromResult(new CommentSelectionResult(textChanges, trackingSpans, operation));
+            return Task.FromResult(new CommentSelectionResult(textChanges, spanTrackingList.Select(span => new CommentTrackingSpan(span)), operation));
         }
 
         /// <summary>
