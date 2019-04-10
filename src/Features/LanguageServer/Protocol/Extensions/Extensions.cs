@@ -6,11 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.DocumentHighlighting;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.VisualStudio.LanguageServer.Protocol;
-using VSSymbolKind = Microsoft.VisualStudio.LanguageServer.Protocol.SymbolKind;
-using VSLocation = Microsoft.VisualStudio.LanguageServer.Protocol.Location;
+using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
-namespace Microsoft.CodeAnalysis.Protocol.LanguageServices.Extensions
+namespace Microsoft.CodeAnalysis.LanguageServer
 {
     internal static class Extensions
     {
@@ -52,31 +50,31 @@ namespace Microsoft.CodeAnalysis.Protocol.LanguageServices.Extensions
             }
         }
 
-        public static DocumentHighlightKind ToDocumentHighlightKind(this HighlightSpanKind kind)
+        public static LSP.DocumentHighlightKind ToDocumentHighlightKind(this HighlightSpanKind kind)
         {
             switch (kind)
             {
                 case HighlightSpanKind.Reference:
-                    return DocumentHighlightKind.Read;
+                    return LSP.DocumentHighlightKind.Read;
                 case HighlightSpanKind.WrittenReference:
-                    return DocumentHighlightKind.Write;
+                    return LSP.DocumentHighlightKind.Write;
                 default:
-                    return DocumentHighlightKind.Text;
+                    return LSP.DocumentHighlightKind.Text;
             }
         }
 
-        public static VSLocation ToLocation(this Range range, string uriString)
+        public static LSP.Location ToLocation(this LSP.Range range, string uriString)
         {
-            return new VSLocation()
+            return new LSP.Location()
             {
                 Range = range,
                 Uri = new Uri(uriString)
             };
         }
 
-        public static VSSymbolKind GetKind(this string kind)
+        public static LSP.SymbolKind GetKind(this string kind)
         {
-            if (Enum.TryParse<VSSymbolKind>(kind, out var symbolKind))
+            if (Enum.TryParse<LSP.SymbolKind>(kind, out var symbolKind))
             {
                 return symbolKind;
             }
@@ -84,11 +82,11 @@ namespace Microsoft.CodeAnalysis.Protocol.LanguageServices.Extensions
             switch (kind)
             {
                 case "Stucture":
-                    return VSSymbolKind.Struct;
+                    return LSP.SymbolKind.Struct;
                 case "Delegate":
-                    return VSSymbolKind.Function;
+                    return LSP.SymbolKind.Function;
                 default:
-                    return VSSymbolKind.Object;
+                    return LSP.SymbolKind.Object;
             }
         }
     }
