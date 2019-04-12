@@ -13,13 +13,13 @@ namespace Microsoft.CodeAnalysis.LanguageServer
     {
         internal static async Task<Hover> GetHoverAsync(Solution solution, TextDocumentPositionParams request, CancellationToken cancellationToken)
         {
-            var document = solution.GetDocument(request.TextDocument.Uri);
+            var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
             {
                 return null;
             }
 
-            var position = await document.GetPositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
+            var position = await document.GetPositionFromLinePosition(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
 
             var quickInfoService = document.Project.LanguageServices.GetService<QuickInfoService>();
             var info = await quickInfoService.GetQuickInfoAsync(document, position, cancellationToken).ConfigureAwait(false);

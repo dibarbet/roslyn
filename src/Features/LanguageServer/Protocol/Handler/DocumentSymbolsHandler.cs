@@ -17,10 +17,10 @@ namespace Microsoft.CodeAnalysis.LanguageServer
 {
     internal static class DocumentSymbolsHandler
     {
-        internal static async Task<object[]> GetDocumentSymbolsAsync(Solution solution, DocumentSymbolParams request,
+        public static async Task<object[]> GetDocumentSymbolsAsync(Solution solution, DocumentSymbolParams request,
             bool hierarchalDocumentSymbolSupport, CancellationToken cancellationToken)
         {
-            var document = solution.GetDocument(request.TextDocument.Uri);
+            var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
             {
                 return Array.Empty<SymbolInformation>();
@@ -94,7 +94,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
                     Name = item.Text,
                     Location = new LSP.Location
                     {
-                        Uri = ProtocolConversions.UriFromDocument(document),
+                        Uri = document.GetURI(),
                         Range = ProtocolConversions.TextSpanToRange(span, text),
                     },
                     Kind = ProtocolConversions.GlyphToSymbolKind(item.Glyph),

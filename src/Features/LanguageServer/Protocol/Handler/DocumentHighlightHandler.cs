@@ -1,5 +1,6 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -10,20 +11,18 @@ using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer
 {
-    internal static class DocumentHighlightsHandler
+    internal class DocumentHighlightsHandler
     {
-        internal static async Task<DocumentHighlight[]> GetDocumentHighlightsAsync(Solution solution, TextDocumentPositionParams request, CancellationToken cancellationToken)
+        public static async Task<DocumentHighlight[]> GetDocumentHighlightsAsync(Solution solution, TextDocumentPositionParams request, CancellationToken cancellationToken)
         {
-            var docHighlights = ArrayBuilder<DocumentHighlight>.GetInstance();
-
-            var document = solution.GetDocument(request.TextDocument.Uri);
+            var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
             {
-                return docHighlights.ToArrayAndFree();
+                return Array.Empty<DocumentHighlight>();
             }
 
             var documentHighlightService = document.Project.LanguageServices.GetService<IDocumentHighlightsService>();
-            var position = await document.GetPositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
+            var position = await document.GetPositionFromLinePosition(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
 
             var highlights = await documentHighlightService.GetDocumentHighlightsAsync(
                 document,
@@ -37,17 +36,17 @@ namespace Microsoft.CodeAnalysis.LanguageServer
                 var highlightsForDocument = highlights.FirstOrDefault(h => h.Document.Id == document.Id);
                 var text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
 
-                docHighlights.AddRange(highlightsForDocument.HighlightSpans.Select(h =>
+                return highlightsForDocument.HighlightSpans.Select(h =>
                 {
                     return new DocumentHighlight
                     {
                         Range = ProtocolConversions.TextSpanToRange(h.TextSpan, text),
-                        Kind = h.Kind.ToDocumentHighlightKind(),
+                        Kind = ProtocolConversions.HighlightSpanKindToDocumentHighlightKind(h.Kind),
                     };
-                }));
+                }).ToArray();
             }
 
-            return docHighlights.ToArrayAndFree();
+            return Array.Empty<DocumentHighlight>();
         }
     }
 }

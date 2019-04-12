@@ -14,7 +14,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         {
             var foldingRanges = ArrayBuilder<FoldingRange>.GetInstance();
 
-            var document = solution.GetDocument(request.TextDocument.Uri);
+            var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
             {
                 return foldingRanges.ToArrayAndFree();

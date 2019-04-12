@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.NavigateTo;
-using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer
@@ -14,18 +13,11 @@ namespace Microsoft.CodeAnalysis.LanguageServer
     {
         internal static async Task<SymbolInformation[]> GetWorkspaceSymbolsAsync(Solution solution, WorkspaceSymbolParams request, CancellationToken cancellationToken)
         {
-            var symbols = ArrayBuilder<SymbolInformation>.GetInstance();
-
-            var searchTasks = solution.Projects.Select(
-                p => Task.Run(() => SearchProjectAsync(p, request, symbols, cancellationToken), cancellationToken)).ToArray();
-
-            await Task.WhenAll(searchTasks).ConfigureAwait(false);
-
-            return symbols.ToArrayAndFree();
+            var searchTasks = Task.WhenAll(solution.Projects.Select(project => SearchProjectAsync(project, request, cancellationToken)));
+            return (await searchTasks.ConfigureAwait(false)).SelectMany(s => s).ToArray();
 
             // local functions
-            static async Task SearchProjectAsync(Project project, WorkspaceSymbolParams request,
-                ArrayBuilder<SymbolInformation> symbols, CancellationToken cancellationToken)
+            static async Task<ImmutableArray<SymbolInformation>> SearchProjectAsync(Project project, WorkspaceSymbolParams request, CancellationToken cancellationToken)
             {
                 var searchService = project.LanguageServices.GetService<INavigateToSearchService_RemoveInterfaceAboveAndRenameThisAfterInternalsVisibleToUsersUpdate>();
                 if (searchService != null)
@@ -38,21 +30,20 @@ namespace Microsoft.CodeAnalysis.LanguageServer
                         request.Query,
                         searchService.KindsProvided,
                         cancellationToken).ConfigureAwait(false);
+                    var projectSymbolsTasks = Task.WhenAll(items.Select(item => CreateSymbolInformation(item, cancellationToken)));
+                    return (await projectSymbolsTasks.ConfigureAwait(false)).ToImmutableArray();
+                }
 
-                    foreach (var item in items)
+                return ImmutableArray.Create<SymbolInformation>();
+
+                static async Task<SymbolInformation> CreateSymbolInformation(INavigateToSearchResult result, CancellationToken cancellationToken)
+                {
+                    return new SymbolInformation
                     {
-                        var symbolInfo = new SymbolInformation
-                        {
-                            Name = item.Name,
-                            Kind = item.Kind.GetKind(),
-                            Location = await ProtocolConversions.TextSpanToLocationAsync(item.NavigableItem.Document, item.NavigableItem.SourceSpan, cancellationToken).ConfigureAwait(false),
-                        };
-
-                        lock (symbols)
-                        {
-                            symbols.Add(symbolInfo);
-                        }
-                    }
+                        Name = result.Name,
+                        Kind = ProtocolConversions.NavigateToKindToSymbolKind(result.Kind),
+                        Location = await ProtocolConversions.TextSpanToLocationAsync(result.NavigableItem.Document, result.NavigableItem.SourceSpan, cancellationToken).ConfigureAwait(false),
+                    };
                 }
             }
         }

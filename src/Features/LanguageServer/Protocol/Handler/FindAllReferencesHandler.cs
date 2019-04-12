@@ -8,20 +8,20 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer
 {
-    internal static class FindAllReferencesHandler
+    internal class FindAllReferencesHandler
     {
-        internal static async Task<LSP.Location[]> FindAllReferencesAsync(Solution solution, LSP.ReferenceParams request, CancellationToken cancellationToken)
+        public static async Task<LSP.Location[]> FindAllReferencesAsync(Solution solution, LSP.ReferenceParams request, CancellationToken cancellationToken)
         {
             var locations = ArrayBuilder<LSP.Location>.GetInstance();
 
-            var document = solution.GetDocument(request.TextDocument.Uri);
+            var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
             {
                 return locations.ToArrayAndFree();
             }
 
             var findUsagesService = document.Project.LanguageServices.GetService<IFindUsagesService>();
-            var position = await document.GetPositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
+            var position = await document.GetPositionFromLinePosition(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
 
             var context = new SimpleFindUsagesContext(cancellationToken);
 

@@ -21,7 +21,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
     public class RoslynLanguageServiceTests
     {
         [Fact]
-        public async Task TestGetDocumentSymbolsAsync__WithHierarchicalSupport()
+        public async Task TestGetDocumentSymbolsAsync()
         {
             var markup =
 @"{|class:class A
@@ -806,7 +806,7 @@ comment */|}";
                 foreach (var kvp in document.AnnotatedSpans)
                 {
                     locations.GetOrAdd(kvp.Key, CreateLocation)
-                        .AddRange(kvp.Value.Select(s => ProtocolConversions.TextSpanToRange(s, text).ToLocation(GetDocumentFilePathFromName(document.Name))));
+                        .AddRange(kvp.Value.Select(s => ProtocolConversions.TextSpanToLocation(s, text, new Uri(GetDocumentFilePathFromName(document.Name)))));
                 }
 
                 // Pass in the text without markup.

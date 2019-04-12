@@ -3,6 +3,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.DocumentHighlighting;
+using Microsoft.CodeAnalysis.NavigateTo;
 using Microsoft.CodeAnalysis.Text;
 using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
@@ -10,11 +12,6 @@ namespace Microsoft.CodeAnalysis.LanguageServer
 {
     internal static class ProtocolConversions
     {
-        public static Uri UriFromDocument(Document document)
-        {
-            return new Uri(document.FilePath);
-        }
-
         public static LSP.Position LinePositionToPosition(LinePosition linePosition)
         {
             return new LSP.Position { Line = linePosition.Line, Character = linePosition.Character };
@@ -41,25 +38,75 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             return TextSpanToLocationAsync(documentSpan.Document, documentSpan.SourceSpan, cancellationToken);
         }
 
+        public static LSP.Location RangeToLocation(LSP.Range range, string uriString)
+        {
+            return new LSP.Location()
+            {
+                Range = range,
+                Uri = new Uri(uriString)
+            };
+        }
+
         public static async Task<LSP.Location> TextSpanToLocationAsync(Document document, TextSpan span, CancellationToken cancellationToken)
         {
             var text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
 
+            return TextSpanToLocation(span, text, document.GetURI());
+        }
+
+        public static LSP.Location TextSpanToLocation(TextSpan span, SourceText text, Uri documentUri)
+        {
             var location = new LSP.Location
             {
-                Uri = UriFromDocument(document),
+                Uri = documentUri,
                 Range = TextSpanToRange(span, text),
             };
 
             return location;
         }
 
+        public static LSP.SymbolKind NavigateToKindToSymbolKind(string kind)
+        {
+            if (Enum.TryParse<LSP.SymbolKind>(kind, out var symbolKind))
+            {
+                return symbolKind;
+            }
+
+            // TODO - Define conversion from NavigateToItemKind to LSP Symbol kind
+            switch (kind)
+            {
+                case NavigateToItemKind.EnumItem:
+                    return LSP.SymbolKind.EnumMember;
+                case NavigateToItemKind.Structure:
+                    return LSP.SymbolKind.Struct;
+                case NavigateToItemKind.Delegate:
+                    return LSP.SymbolKind.Function;
+                default:
+                    return LSP.SymbolKind.Object;
+            }
+        }
+
+        public static LSP.DocumentHighlightKind HighlightSpanKindToDocumentHighlightKind(HighlightSpanKind kind)
+        {
+            switch (kind)
+            {
+                case HighlightSpanKind.Reference:
+                    return LSP.DocumentHighlightKind.Read;
+                case HighlightSpanKind.WrittenReference:
+                    return LSP.DocumentHighlightKind.Write;
+                default:
+                    return LSP.DocumentHighlightKind.Text;
+            }
+        }
+
         public static LSP.SymbolKind GlyphToSymbolKind(Glyph glyph)
         {
-            var glyphString = glyph.ToString().Replace("Public", string.Empty)
-                                              .Replace("Protected", string.Empty)
-                                              .Replace("Private", string.Empty)
-                                              .Replace("Internal", string.Empty);
+            // Glyph kinds have accessibility modifiers in their name, e.g. ClassPrivate.
+            // Remove the accessibility modifier and try to convert to LSP symbol kind.
+            var glyphString = glyph.ToString().Replace(nameof(Accessibility.Public), string.Empty)
+                                              .Replace(nameof(Accessibility.Protected), string.Empty)
+                                              .Replace(nameof(Accessibility.Private), string.Empty)
+                                              .Replace(nameof(Accessibility.Internal), string.Empty);
 
             if (Enum.TryParse<LSP.SymbolKind>(glyphString, out var symbolKind))
             {

@@ -19,13 +19,13 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         {
             var locations = ArrayBuilder<LSP.Location>.GetInstance();
 
-            var document = solution.GetDocument(request.TextDocument.Uri);
+            var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
             {
                 return locations.ToArrayAndFree();
             }
 
-            var position = await document.GetPositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
+            var position = await document.GetPositionFromLinePosition(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
 
             var definitionService = document.Project.LanguageServices.GetService<IGoToDefinitionService>();
 
@@ -42,17 +42,16 @@ namespace Microsoft.CodeAnalysis.LanguageServer
                     var definitionText = await definition.Document.GetTextAsync(cancellationToken).ConfigureAwait(false);
                     locations.Add(new LSP.Location
                     {
-                        Uri = ProtocolConversions.UriFromDocument(definition.Document),
+                        Uri = definition.Document.GetURI(),
                         Range = ProtocolConversions.TextSpanToRange(definition.SourceSpan, definitionText),
                     });
                 }
             }
-
-            // No definition found - see if we can get metadata as source but that's only applicable for C#\VB.
             else if (document.SupportsSemanticModel && metadataAsSourceService != null)
             {
+                // No definition found - see if we can get metadata as source but that's only applicable for C#\VB.
                 var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, position, cancellationToken).ConfigureAwait(false);
-                if (symbol.Locations.First().IsInMetadata)
+                if (symbol.Locations != null && !symbol.Locations.IsEmpty && symbol.Locations.First().IsInMetadata)
                 {
                     if (!typeOnly || symbol is ITypeSymbol)
                     {
