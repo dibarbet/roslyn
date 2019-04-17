@@ -1,5 +1,6 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
+using System.Composition;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -7,11 +8,14 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.QuickInfo;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 
-namespace Microsoft.CodeAnalysis.LanguageServer
+namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Implementation
 {
-    internal static class HoverHandler
+    [Shared]
+    [ExportLspMethod(Methods.TextDocumentHoverName)]
+    internal class HoverHandler : IRequestHandler<TextDocumentPositionParams, Hover>
     {
-        internal static async Task<Hover> GetHoverAsync(Solution solution, TextDocumentPositionParams request, CancellationToken cancellationToken)
+        public async Task<Hover> HandleRequestAsync(Solution solution, TextDocumentPositionParams request,
+            ClientCapabilities clientCapabilities, CancellationToken cancellationToken)
         {
             var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
@@ -19,7 +23,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
                 return null;
             }
 
-            var position = await document.GetPositionFromLinePosition(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
+            var position = await document.GetPositionFromLinePositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
 
             var quickInfoService = document.Project.LanguageServices.GetService<QuickInfoService>();
             var info = await quickInfoService.GetQuickInfoAsync(document, position, cancellationToken).ConfigureAwait(false);

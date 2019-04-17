@@ -2,18 +2,21 @@
 
 using System;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.DocumentHighlighting;
-using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 
-namespace Microsoft.CodeAnalysis.LanguageServer
+namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Implementation
 {
-    internal class DocumentHighlightsHandler
+    [Shared]
+    [ExportLspMethod(Methods.TextDocumentDocumentHighlightName)]
+    internal class DocumentHighlightsHandler : IRequestHandler<TextDocumentPositionParams, DocumentHighlight[]>
     {
-        public static async Task<DocumentHighlight[]> GetDocumentHighlightsAsync(Solution solution, TextDocumentPositionParams request, CancellationToken cancellationToken)
+        public async Task<DocumentHighlight[]> HandleRequestAsync(Solution solution, TextDocumentPositionParams request,
+            ClientCapabilities clientCapabilities, CancellationToken cancellationToken)
         {
             var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
@@ -22,7 +25,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             }
 
             var documentHighlightService = document.Project.LanguageServices.GetService<IDocumentHighlightsService>();
-            var position = await document.GetPositionFromLinePosition(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
+            var position = await document.GetPositionFromLinePositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
 
             var highlights = await documentHighlightService.GetDocumentHighlightsAsync(
                 document,

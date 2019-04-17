@@ -6,12 +6,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.NavigateTo;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
+using System.Composition;
 
-namespace Microsoft.CodeAnalysis.LanguageServer
+namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Implementation
 {
-    internal static class WorkspaceSymbolsHandler
+    [Shared]
+    [ExportLspMethod(Methods.WorkspaceSymbolName)]
+    internal class WorkspaceSymbolsHandler : IRequestHandler<WorkspaceSymbolParams, SymbolInformation[]>, IVisualStudioRequestHandler
     {
-        internal static async Task<SymbolInformation[]> GetWorkspaceSymbolsAsync(Solution solution, WorkspaceSymbolParams request, CancellationToken cancellationToken)
+        public async Task<SymbolInformation[]> HandleRequestAsync(Solution solution, WorkspaceSymbolParams request,
+            ClientCapabilities clientCapabilities, CancellationToken cancellationToken)
         {
             var searchTasks = Task.WhenAll(solution.Projects.Select(project => SearchProjectAsync(project, request, cancellationToken)));
             return (await searchTasks.ConfigureAwait(false)).SelectMany(s => s).ToArray();

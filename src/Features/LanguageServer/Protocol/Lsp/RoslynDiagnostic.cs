@@ -6,9 +6,12 @@ using System.Runtime.Serialization;
 namespace Microsoft.VisualStudio.LanguageServer.Protocol
 {
     [DataContract]
-    public class FoldingRangeParams
+    public class RoslynDiagnostic : Diagnostic
     {
-        [DataMember(Name = "textDocument")]
-        public TextDocumentIdentifier TextDocument { get; set; }
+        /// <summary>
+        /// Custom tags on diagnostics - used by analyzers for things like marking a location as unnecessary.
+        /// </summary>
+        [DataMember(Name = "tags")]
+        public string[] Tags { get; set; }
     }
 }

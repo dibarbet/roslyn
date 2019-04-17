@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Composition;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,12 +14,14 @@ using Microsoft.VisualStudio.LanguageServer.Protocol;
 using Roslyn.Utilities;
 using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
-namespace Microsoft.CodeAnalysis.LanguageServer
+namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Implementation
 {
-    internal static class DocumentSymbolsHandler
+    [Shared]
+    [ExportLspMethod(Methods.TextDocumentDocumentSymbolName)]
+    internal class DocumentSymbolsHandler : IRequestHandler<DocumentSymbolParams, object[]>
     {
-        public static async Task<object[]> GetDocumentSymbolsAsync(Solution solution, DocumentSymbolParams request,
-            bool hierarchalDocumentSymbolSupport, CancellationToken cancellationToken)
+        public async Task<object[]> HandleRequestAsync(Solution solution, DocumentSymbolParams request,
+            ClientCapabilities clientCapabilities, CancellationToken cancellationToken)
         {
             var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)

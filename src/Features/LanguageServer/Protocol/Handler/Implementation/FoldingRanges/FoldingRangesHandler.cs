@@ -1,16 +1,21 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
+using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Structure;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 
-namespace Microsoft.CodeAnalysis.LanguageServer
+namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Implementation
 {
-    internal static class FoldingRangesHandler
+    [Shared]
+    // TODO - Use method name from VS language server package once updated.
+    [ExportLspMethod("textDocument/foldingRange")]
+    internal class FoldingRangesHandler : IRequestHandler<FoldingRangeParams, FoldingRange[]>
     {
-        internal static async Task<FoldingRange[]> GetFoldingRangeAsync(Solution solution, FoldingRangeParams request, CancellationToken cancellationToken)
+        public async Task<FoldingRange[]> HandleRequestAsync(Solution solution, FoldingRangeParams request,
+            ClientCapabilities clientCapabilities, CancellationToken cancellationToken)
         {
             var foldingRanges = ArrayBuilder<FoldingRange>.GetInstance();
 

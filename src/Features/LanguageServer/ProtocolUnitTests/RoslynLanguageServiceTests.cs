@@ -866,7 +866,7 @@ comment */|}";
         }
 
         private static async Task<LSP.Location[]> RunGotoImplementationAsync(Solution solution, LSP.Location caret)
-            => await CreateRoslynLanguageService().GotoImplementationAsync(solution, CreateTextDocumentPositionParams(caret), CancellationToken.None);
+            => await CreateRoslynLanguageService().FindImplementationsAsync(solution, CreateTextDocumentPositionParams(caret), CancellationToken.None);
 
         private static async Task<LSP.DocumentHighlight[]> RunGetDocumentHighlightAsync(Solution solution, LSP.Location caret)
             => await CreateRoslynLanguageService().GetDocumentHighlightAsync(solution, CreateTextDocumentPositionParams(caret), CancellationToken.None);

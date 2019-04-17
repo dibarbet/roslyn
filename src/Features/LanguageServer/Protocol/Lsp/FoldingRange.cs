@@ -2,6 +2,7 @@
 
 using System.Runtime.Serialization;
 
+// TODO - Remove once we have a new version of this package.
 namespace Microsoft.VisualStudio.LanguageServer.Protocol
 {
     [DataContract]
