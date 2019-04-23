@@ -55,7 +55,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
                     await (NotifyAsync?.InvokeAsync(this, eventArgs)).ConfigureAwait(false);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // TODO - Replace trace
             }
