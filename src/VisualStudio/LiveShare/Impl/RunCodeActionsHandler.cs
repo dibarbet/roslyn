@@ -44,7 +44,6 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
             if (request.Command == RunCodeActionCommandName)
             {
                 var runRequest = ((JToken)request.Arguments.Single()).ToObject<RunCodeActionParams>();
-
                 var codeActions = await GetCodeActionsAsync(solution,
                                                             runRequest.TextDocument.Uri,
                                                             runRequest.Range,
