@@ -18,6 +18,7 @@ namespace Microsoft.VisualStudio.LanguageServices.CSharp.LanguageClient
     // create multiple ILanguageClients for each content type
     // https://devdiv.visualstudio.com/DevDiv/_workitems/edit/952373
     [ContentType(ContentTypeNames.CSharpContentType)]
+    [ContentType("C#_LSP")]
     [Export(typeof(ILanguageClient))]
     [ExportMetadata("Capabilities", "WorkspaceStreamingSymbolProvider")]
     internal class CSharpLanguageServerClient : AbstractLanguageServerClient
