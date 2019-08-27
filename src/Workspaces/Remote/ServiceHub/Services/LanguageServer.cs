@@ -97,6 +97,17 @@ namespace Microsoft.CodeAnalysis.Remote
             // we have this so that we don't get log file every time VS shutdown
         }
 
+        [JsonRpcMethod(Methods.TextDocumentDefinitionName)]
+        public Task<object> GoToDefinitionAsync(TextDocumentPositionParams positionParameters)
+        {
+            if (int.TryParse("1", out var result) && result == 1)
+            {
+                throw new ArgumentException("HIT IT");
+            }
+
+            return Task.FromResult((object)new LSP.Location[] { } );
+        }
+
         [JsonRpcMethod(VSSymbolMethods.WorkspaceBeginSymbolName)]
         public Task<VSBeginSymbolParams> BeginWorkspaceSymbolAsync(string query, int searchId, CancellationToken cancellationToken)
         {

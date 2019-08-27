@@ -96,10 +96,12 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.LiveShare
                         ExecuteCommandProvider = new ExecuteCommandOptions(),
                         DocumentHighlightProvider = true,
                         ReferencesProvider = true,
-                        DefinitionProvider = true,
+
                         SignatureHelpProvider = new SignatureHelpOptions() { },
                         CompletionProvider = new CompletionOptions(),
                         ImplementationProvider = true,
+
+                        DefinitionProvider = false,
 
                         // Uses LSP SDK client.
                         DocumentLinkProvider = null,
