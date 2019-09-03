@@ -20,7 +20,7 @@ namespace Microsoft.VisualStudio.LanguageServices.CSharp.LanguageClient
     [ContentType(ContentTypeNames.CSharpContentType)]
     [ContentType("C#_LSP")]
     [Export(typeof(ILanguageClient))]
-    [ExportMetadata("Capabilities", "WorkspaceStreamingSymbolProvider")]
+    [ExportMetadata("Capabilities", "DefinitionProvider")]
     internal class CSharpLanguageServerClient : AbstractLanguageServerClient
     {
         [ImportingConstructor]

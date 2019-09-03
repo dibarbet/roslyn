@@ -72,7 +72,8 @@ namespace Microsoft.CodeAnalysis.Remote
             {
                 Capabilities = new VSServerCapabilities()
                 {
-                    WorkspaceStreamingSymbolProvider = true
+                    //WorkspaceStreamingSymbolProvider = true,
+                    DefinitionProvider = true
                 }
             };
         }
@@ -100,7 +101,8 @@ namespace Microsoft.CodeAnalysis.Remote
         [JsonRpcMethod(Methods.TextDocumentDefinitionName)]
         public Task<object> GoToDefinitionAsync(TextDocumentPositionParams positionParameters)
         {
-            if (int.TryParse("1", out var result) && result == 1)
+            int i = 1;
+            if (i == 1)
             {
                 throw new ArgumentException("HIT IT");
             }
