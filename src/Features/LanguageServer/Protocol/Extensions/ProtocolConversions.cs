@@ -196,6 +196,11 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             }
         }
 
+        public static LSP.SymbolKind SymbolKindToLspSymbolKind(SymbolKind SymbolKind)
+        {
+
+        }
+
         public static LSP.DocumentHighlightKind HighlightSpanKindToDocumentHighlightKind(HighlightSpanKind kind)
         {
             switch (kind)

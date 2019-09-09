@@ -23,30 +23,37 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
         public async Task<object[]> HandleRequestAsync(Solution solution, DocumentSymbolParams request,
             ClientCapabilities clientCapabilities, CancellationToken cancellationToken, bool keepThreadContext = false)
         {
+            using var symbolDisposer = ArrayBuilder<object>.GetInstance(out var symbols);
+
             var document = solution.GetDocumentFromURI(request.TextDocument.Uri);
             if (document == null)
             {
-                return Array.Empty<SymbolInformation>();
+                return symbols.ToArray();
             }
 
-            var symbols = ArrayBuilder<object>.GetInstance();
-
             var navBarService = document.Project.LanguageServices.GetService<INavigationBarItemService>();
+            if (navBarService == null)
+            {
+                return symbols.ToArray();
+            }
+
             var navBarItems = await navBarService.GetItemsAsync(document, cancellationToken).ConfigureAwait(keepThreadContext);
             if (navBarItems.Count == 0)
             {
-                return symbols.ToArrayAndFree();
+                return symbols.ToArray();
             }
 
             var compilation = await document.Project.GetCompilationAsync(cancellationToken).ConfigureAwait(keepThreadContext);
             var tree = await document.GetSyntaxTreeAsync(cancellationToken).ConfigureAwait(keepThreadContext);
             var text = await document.GetTextAsync(cancellationToken).ConfigureAwait(keepThreadContext);
 
+            var symbolItems = GetSymbolItems(navBarItems);
+
             // TODO - Return more than 2 levels of symbols.
             // https://github.com/dotnet/roslyn/projects/45#card-20033869
             if (clientCapabilities?.TextDocument?.DocumentSymbol?.HierarchicalDocumentSymbolSupport == true)
             {
-                foreach (var item in navBarItems)
+                foreach (var item in symbolItems)
                 {
                     // only top level ones
                     symbols.Add(await GetDocumentSymbolAsync(item, compilation, tree, text, keepThreadContext, cancellationToken).ConfigureAwait(keepThreadContext));
@@ -54,11 +61,11 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             }
             else
             {
-                foreach (var item in navBarItems)
+                foreach (var item in symbolItems)
                 {
                     symbols.Add(GetSymbolInformation(item, compilation, tree, document, text, cancellationToken, containerName: null));
 
-                    foreach (var childItem in item.ChildItems)
+                    foreach (var childItem in GetSymbolItems(item.ChildItems))
                     {
                         symbols.Add(GetSymbolInformation(childItem, compilation, tree, document, text, cancellationToken, item.Text));
                     }
@@ -66,64 +73,55 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             }
 
             var result = symbols.WhereNotNull().ToArray();
-            symbols.Free();
             return result;
         }
+
+        private static IEnumerable<NavigationBarSymbolItem> GetSymbolItems(IEnumerable<NavigationBarItem> navBarItems)
+            => navBarItems.Where(item => item is NavigationBarSymbolItem).Select(item => (NavigationBarSymbolItem)item);
 
         /// <summary>
         /// Get a symbol information from a specified nav bar item.
         /// </summary>
-        private static SymbolInformation GetSymbolInformation(NavigationBarItem item, Compilation compilation, SyntaxTree tree, Document document,
+        private static SymbolInformation GetSymbolInformation(NavigationBarSymbolItem item, Compilation compilation, SyntaxTree tree, Document document,
             SourceText text, CancellationToken cancellationToken, string containerName = null)
         {
-            if (item.Spans.Count == 0)
+            if (item.Spans.Count == 0 || !TryGetSymbolForNavigationBarItem(item, compilation, cancellationToken, out var symbol))
             {
                 return null;
             }
 
-            var location = GetLocation(item, compilation, tree, cancellationToken);
+            var location = GetLocation(symbol, tree);
 
-            if (location == null)
+            return new SymbolInformation
             {
-                return Create(item, item.Spans.First(), containerName, document, text);
-            }
-
-            return Create(item, location.SourceSpan, containerName, document, text);
-
-            static SymbolInformation Create(NavigationBarItem item, TextSpan span, string containerName, Document document, SourceText text)
-            {
-                return new SymbolInformation
+                Name = item.Text,
+                Location = new LSP.Location
                 {
-                    Name = item.Text,
-                    Location = new LSP.Location
-                    {
-                        Uri = document.GetURI(),
-                        Range = ProtocolConversions.TextSpanToRange(span, text),
-                    },
-                    Kind = ProtocolConversions.GlyphToSymbolKind(item.Glyph),
-                    ContainerName = containerName,
-                };
-            }
+                    Uri = document.GetURI(),
+                    Range = ProtocolConversions.TextSpanToRange(location.SourceSpan, text),
+                },
+                Kind = ProtocolConversions.GlyphToSymbolKind(item.Glyph),
+                ContainerName = containerName,
+            };
         }
 
         /// <summary>
         /// Get a document symbol from a specified nav bar item.
         /// </summary>
-        private static async Task<DocumentSymbol> GetDocumentSymbolAsync(NavigationBarItem item, Compilation compilation, SyntaxTree tree,
+        private static DocumentSymbol GetDocumentSymbolAsync(NavigationBarSymbolItem item, Compilation compilation, SyntaxTree tree,
             SourceText text, bool keepThreadContext, CancellationToken cancellationToken)
         {
-            // it is actually symbol location getter. but anyway.
-            var location = GetLocation(item, compilation, tree, cancellationToken);
-            if (location == null)
+            if (item.Spans.Count == 0 || !TryGetSymbolForNavigationBarItem(item, compilation, cancellationToken, out var symbol))
             {
                 return null;
             }
 
-            var symbol = await GetSymbolAsync(location, compilation, keepThreadContext, cancellationToken).ConfigureAwait(keepThreadContext);
-            if (symbol == null)
-            {
-                return null;
-            }
+            // TODO - CHECK MATCHES BEFORE REPLACE.
+            string n = nameof(ObsoleteAttribute);
+
+            var location = GetLocation(symbol, tree);
+
+            symbol.Kind
 
             return new DocumentSymbol
             {
@@ -133,67 +131,49 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                 Deprecated = symbol.GetAttributes().Any(x => x.AttributeClass.MetadataName == "ObsoleteAttribute"),
                 Range = ProtocolConversions.TextSpanToRange(item.Spans.First(), text),
                 SelectionRange = ProtocolConversions.TextSpanToRange(location.SourceSpan, text),
-                Children = await GetChildrenAsync(item.ChildItems, compilation, tree, text, keepThreadContext, cancellationToken).ConfigureAwait(keepThreadContext),
+                Children = GetChildrenAsync(GetSymbolItems(item.ChildItems), compilation, tree, text, keepThreadContext, cancellationToken),
             };
 
-            static async Task<DocumentSymbol[]> GetChildrenAsync(IEnumerable<NavigationBarItem> items, Compilation compilation, SyntaxTree tree,
+            static DocumentSymbol[] GetChildrenAsync(IEnumerable<NavigationBarSymbolItem> items, Compilation compilation, SyntaxTree tree,
                 SourceText text, bool keepThreadContext, CancellationToken cancellationToken)
             {
-                var list = new ArrayBuilder<DocumentSymbol>();
+                using var childSymbolsDisposer = ArrayBuilder<DocumentSymbol>.GetInstance(out var list);
                 foreach (var item in items)
                 {
-                    list.Add(await GetDocumentSymbolAsync(item, compilation, tree, text, keepThreadContext, cancellationToken).ConfigureAwait(keepThreadContext));
+                    list.Add(GetDocumentSymbolAsync(item, compilation, tree, text, keepThreadContext, cancellationToken));
                 }
 
-                return list.ToArrayAndFree();
+                return list.ToArray();
             }
+        }
 
-            static async Task<ISymbol> GetSymbolAsync(Location location, Compilation compilation, bool keepThreadContext, CancellationToken cancellationToken)
+        /// <summary>
+        /// Gets the symbol associated with a nav bar item.
+        /// </summary>
+        private static bool TryGetSymbolForNavigationBarItem(NavigationBarSymbolItem item, Compilation compilation, CancellationToken cancellationToken, out ISymbol symbol)
+        {
+            var symbols = item.NavigationSymbolId.Resolve(compilation, cancellationToken: cancellationToken);
+            symbol = symbols.Symbol;
+            if (symbol != null)
             {
-                var model = compilation.GetSemanticModel(location.SourceTree);
-                var root = await model.SyntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(keepThreadContext);
-                var node = root.FindNode(location.SourceSpan);
-
-                while (node != null)
-                {
-                    var symbol = model.GetDeclaredSymbol(node);
-                    if (symbol != null)
-                    {
-                        return symbol;
-                    }
-
-                    node = node.Parent;
-                }
-
-                return null;
+                return true;
+            }
+            else if (item.NavigationSymbolIndex < symbols.CandidateSymbols.Length)
+            {
+                symbol = symbols.CandidateSymbols[item.NavigationSymbolIndex.Value];
+                return true;
+            }
+            else
+            {
+                return false;
             }
         }
 
         /// <summary>
         /// Get a location for a particular nav bar item.
         /// </summary>
-        private static Location GetLocation(NavigationBarItem item, Compilation compilation, SyntaxTree tree, CancellationToken cancellationToken)
+        private static Location GetLocation(ISymbol symbol, SyntaxTree tree)
         {
-            if (!(item is NavigationBarSymbolItem symbolItem))
-            {
-                return null;
-            }
-
-            var symbols = symbolItem.NavigationSymbolId.Resolve(compilation, cancellationToken: cancellationToken);
-            var symbol = symbols.Symbol;
-
-            if (symbol == null)
-            {
-                if (symbolItem.NavigationSymbolIndex < symbols.CandidateSymbols.Length)
-                {
-                    symbol = symbols.CandidateSymbols[symbolItem.NavigationSymbolIndex.Value];
-                }
-                else
-                {
-                    return null;
-                }
-            }
-
             var location = symbol.Locations.FirstOrDefault(l => l.SourceTree.Equals(tree));
             return location ?? symbol.Locations.FirstOrDefault();
         }
