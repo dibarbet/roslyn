@@ -108,6 +108,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client
                         WorkspaceSymbolProvider = false,
                         HoverProvider = false,
                         TextDocumentSync = null,
+                        FoldingRangeProvider = null,
                     })));
 
             var lifeTimeService = LspClientLifeTimeService;

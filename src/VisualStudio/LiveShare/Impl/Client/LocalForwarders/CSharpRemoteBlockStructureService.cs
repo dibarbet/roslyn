@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Structure;
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.LocalForwarders
 {
-    [ExportLanguageServiceFactory(typeof(BlockStructureService), StringConstants.CSharpLspLanguageName), Shared]
+    /*[ExportLanguageServiceFactory(typeof(BlockStructureService), StringConstants.CSharpLspLanguageName), Shared]*/
     internal class CSharpLspBlockStructureServiceFactory : ILanguageServiceFactory
     {
         public ILanguageService CreateLanguageService(HostLanguageServices languageServices)

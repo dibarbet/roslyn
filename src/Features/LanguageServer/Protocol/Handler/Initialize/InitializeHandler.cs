@@ -29,7 +29,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                 DocumentOnTypeFormattingProvider = new DocumentOnTypeFormattingOptions { FirstTriggerCharacter = "}", MoreTriggerCharacter = new[] { ";", "\n" } },
                 DocumentHighlightProvider = true,
                 RenameProvider = true,
-                ExecuteCommandProvider = new ExecuteCommandOptions()
+                ExecuteCommandProvider = new ExecuteCommandOptions(),
+                FoldingRangeProvider = new FoldingRangeProviderOptions(),
             }
         };
 
