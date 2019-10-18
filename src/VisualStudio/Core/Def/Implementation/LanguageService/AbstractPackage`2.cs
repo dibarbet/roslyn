@@ -17,6 +17,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
 using Task = System.Threading.Tasks.Task;
+using static Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService.AbstractLanguageServerClient;
 
 namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
 {
@@ -132,6 +133,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
 
         protected override void Dispose(bool disposing)
         {
+            LSPFileLogger.WriteContents();
             if (disposing)
             {
                 ThreadHelper.JoinableTaskFactory.Run(async () =>

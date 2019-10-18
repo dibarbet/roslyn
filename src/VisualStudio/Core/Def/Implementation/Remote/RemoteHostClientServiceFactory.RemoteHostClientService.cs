@@ -14,6 +14,7 @@ using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Remote;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Roslyn.Utilities;
+using static Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService.AbstractLanguageServerClient;
 
 namespace Microsoft.VisualStudio.LanguageServices.Remote
 {
@@ -98,6 +99,10 @@ namespace Microsoft.VisualStudio.LanguageServices.Remote
 
             public void Disable()
             {
+                using var logger = new LSPFileLogger(nameof(RemoteHostClientService));
+                logger.Log("Disabling...");
+                logger.Log(Environment.StackTrace);
+
                 RemoteHostClient client = null;
 
                 lock (_gate)
@@ -259,6 +264,10 @@ namespace Microsoft.VisualStudio.LanguageServices.Remote
 
                 if (_shutdownCancellationTokenSource.IsCancellationRequested)
                 {
+                    using var logger = new LSPFileLogger(nameof(RemoteHostClientService));
+                    logger.Log($"{nameof(OnStatusChanged)} from {sender} with cancellation requested.");
+                    logger.Log(Environment.StackTrace);
+
                     lock (_gate)
                     {
                         // RemoteHost has been disabled
@@ -267,6 +276,9 @@ namespace Microsoft.VisualStudio.LanguageServices.Remote
                 }
                 else
                 {
+                    using var logger = new LSPFileLogger(nameof(RemoteHostClientService));
+                    logger.Log($"{nameof(OnStatusChanged)} from {sender} invoked without cancellation requested.  Using NoOp remote host.");
+                    logger.Log(Environment.StackTrace);
                     lock (_gate)
                     {
                         // save last remoteHostClient

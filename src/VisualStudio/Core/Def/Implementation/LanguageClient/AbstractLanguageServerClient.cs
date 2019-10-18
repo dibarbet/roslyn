@@ -17,6 +17,8 @@ using Microsoft.CodeAnalysis.Editor.Shared.Utilities;
 using Microsoft.CodeAnalysis.Options;
 using System.Linq;
 using Microsoft.CodeAnalysis.Experiments;
+using System.Text;
+using System.IO;
 
 namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
 {
@@ -79,11 +81,64 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             _languageServerName = languageServerName;
         }
 
+        internal class LSPFileLogger : IDisposable
+        {
+            private static string s_filePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "roslynLSPLogs.txt");
+
+            private static StringBuilder s_logString = new StringBuilder();
+
+            private string _contextName;
+
+            private static readonly object s_lock = new object();
+            private static bool s_firstConstruction = true;
+
+            public LSPFileLogger(string contextName)
+            {
+                _contextName = contextName;
+
+                if (s_firstConstruction)
+                {
+                    Log("\n\nNew static instance....");
+                }
+                s_firstConstruction = false;
+            }
+
+            public void Log(string message)
+            {
+                lock(s_lock)
+                {
+                    s_logString.Append($"[{DateTime.Now}][Thread:{Thread.CurrentThread.ManagedThreadId}][{_contextName}] {message}\n");
+                }
+            }
+
+            public static void WriteContents()
+            {
+                lock (s_lock)
+                {
+                    using (var sw = File.AppendText(s_filePath))
+                    {
+                        sw.Write(s_logString.ToString());
+                    }
+                    s_logString = new StringBuilder();
+                }
+            }
+
+            public void Dispose()
+            {
+                WriteContents();
+            }
+        }
+
         public async Task<Connection> ActivateAsync(CancellationToken cancellationToken)
         {
+            using var logger = new LSPFileLogger(_languageServerName);
+            logger.Log("ActivateAsync started");
+
             var client = await _workspace.TryGetRemoteHostClientAsync(cancellationToken).ConfigureAwait(false);
             if (client == null)
             {
+                logger.Log("ActivateAsync, Remote host client is null");
+                logger.Log(System.Environment.StackTrace);
                 // there is no OOP. either user turned it off, or process got killed.
                 return null;
             }
@@ -98,7 +153,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                 hostGroup,
                 TimeSpan.FromMinutes(60),
                 cancellationToken).ConfigureAwait(false);
-
+            logger.Log($"ActivateAsync, returning stream {stream}");
             return new Connection(stream, stream);
         }
 
@@ -109,10 +164,13 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
         public Task OnLoadedAsync()
         {
             var token = _asyncListener.BeginAsyncOperation("OnLoadedAsync");
-
+            using var logger = new LSPFileLogger(_languageServerName);
+            logger.Log("OnLoadedAsync invoked");
             // set up event stream so that we start LSP server once Roslyn is loaded
             _eventListener.WorkspaceStarted.ContinueWith(async _ =>
             {
+                using var internalLogger = new LSPFileLogger(_languageServerName);
+                internalLogger.Log("Workspace started, begin loading OOP");
                 // initialize things on UI thread
                 await InitializeOnUIAsync().ConfigureAwait(false);
 
@@ -125,14 +183,18 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                 var client = await _workspace.TryGetRemoteHostClientAsync(CancellationToken.None).ConfigureAwait(false);
                 if (client == null)
                 {
+                    internalLogger.Log("Workspace started, remote host client is null.");
                     // there is no OOP. either user turned it off, or process got killed.
                     // don't ask platform to start LSP
                     return;
                 }
-
+                internalLogger.Log($"Workspace started, invoking StartAsync. ClientId {client.ClientId}");
                 // let platform know that they can start us
                 await StartAsync.InvokeAsync(this, EventArgs.Empty).ConfigureAwait(false);
+                internalLogger.Log("Workspace started, StartAsync completed");
             }, TaskScheduler.Default).CompletesAsyncOperation(token);
+
+            logger.Log("OnLoadedAsync completed");
 
             return Task.CompletedTask;
 
