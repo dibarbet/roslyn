@@ -2,11 +2,8 @@
 
 using System;
 using System.ComponentModel.Composition;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Editor.Shared.Utilities;
-using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Microsoft.CodeAnalysis.SolutionCrawler;
 using Microsoft.VisualStudio.TaskStatusCenter;
 using Roslyn.Utilities;
@@ -14,16 +11,12 @@ using Roslyn.Utilities;
 namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
 {
     [Export(typeof(TaskCenterSolutionAnalysisProgressReporter))]
-    internal sealed class TaskCenterSolutionAnalysisProgressReporter
+    internal sealed partial class TaskCenterSolutionAnalysisProgressReporter
     {
         private static readonly TimeSpan s_minimumInterval = TimeSpan.FromMilliseconds(200);
 
         private readonly IVsTaskStatusCenterService _taskCenterService;
         private readonly TaskHandlerOptions _options;
-
-        // Lock to prevent concurrent modifications to resettable delay.
-        // https://devdiv.visualstudio.com/DevDiv/_workitems/edit/994068
-        private readonly object _progressUpdatedLock = new object();
 
         // these fields are never accessed concurrently
         private TaskCompletionSource<VoidResult> _currentTask;
@@ -33,23 +26,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
         private ProgressStatus _lastProgressStatus;
         private ProgressStatus _lastShownProgressStatus;
 
-        // _resettableDelay makes sure that we at the end update status to correct value.
-        // in contrast to _lastTimeReported makes sure that we only update at least s_minimumInterval interval.
-        //
-        // for example, when an event stream comes in as below (assuming 200ms minimum interval)
-        // e1 -> (100ms)-> e2 -> (300ms)-> e3 -> (100ms) -> e4
-        //
-        // actual status shown to users without _resettableDelay will be 
-        // e1 -> e3.
-        //
-        // e2 and e4 will be skipped since interval was smaller than min interval.
-        // losing e2 is fine, but e4 is problematic since the user now could see the wrong status 
-        // until the next event comes in. 
-        // for example, it could show "Evaluating" when it is actually "Paused" until the next event
-        // which could be long time later.
-        // what _resettableDelay does is making sure that if the next event doesn't come in 
-        // within certain delay, it updates status to e4 (current).
-        private ResettableDelay _resettableDelay;
+        private readonly SolutionCrawlerEventHandlerWithDelay _solutionCrawlerEventHandler;
 
         // this is only field that is shared between 2 events streams (IDiagnosticService and ISolutionCrawlerProgressReporter)
         // and can be called concurrently.
@@ -62,55 +39,53 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
             VisualStudioWorkspace workspace)
         {
             _lastTimeReported = DateTimeOffset.UtcNow;
-            _resettableDelay = null;
-
-            ResetProgressStatus();
-
             _taskCenterService = (IVsTaskStatusCenterService)taskStatusCenterService;
-
             _options = new TaskHandlerOptions()
             {
                 Title = ServicesVSResources.Running_low_priority_background_processes,
                 ActionsAfterCompletion = CompletionActions.None
             };
 
-            var crawlerService = workspace.Services.GetService<ISolutionCrawlerService>();
+            var crawlerService = workspace.Services.GetRequiredService<ISolutionCrawlerService>();
             var reporter = crawlerService.GetProgressReporter(workspace);
 
-            StartedOrStopped(reporter.InProgress);
+            _solutionCrawlerEventHandler = new SolutionCrawlerEventHandlerWithDelay(reporter, (int)s_minimumInterval.TotalMilliseconds);
+
+            ResetProgressStatus();
+
+            if (reporter.InProgress)
+            {
+                Started();
+            }
+            else
+            {
+                Stopped();
+            }
 
             // no event unsubscription since it will remain alive until VS shutdown
-            reporter.ProgressChanged += OnSolutionCrawlerProgressChanged;
+            _solutionCrawlerEventHandler.UpdateProgress += OnUpdateProgress;
         }
 
-        private void OnSolutionCrawlerProgressChanged(object sender, ProgressData progressData)
+        private void OnUpdateProgress(object sender, ProgressData progressData)
         {
-            // there is no concurrent call to this method since ISolutionCrawlerProgressReporter will serialize all
+            // there is no concurrent call to this method since SolutionCrawlerEventHandlerWithDelay will serialize all
             // events to preserve event ordering
             switch (progressData.Status)
             {
                 case ProgressStatus.Started:
-                    StartedOrStopped(started: true);
+                    Started();
                     break;
                 case ProgressStatus.PendingItemCountUpdated:
-                    lock (_progressUpdatedLock)
-                    {
-                        _lastPendingItemCount = progressData.PendingItemCount.Value;
-                        ProgressUpdated();
-                    }
-
+                    _lastPendingItemCount = progressData.PendingItemCount.Value;
+                    ProgressUpdated();
                     break;
                 case ProgressStatus.Stopped:
-                    StartedOrStopped(started: false);
+                    Stopped();
                     break;
                 case ProgressStatus.Evaluating:
                 case ProgressStatus.Paused:
-                    lock (_progressUpdatedLock)
-                    {
-                        _lastProgressStatus = progressData.Status;
-                        ProgressUpdated();
-                    }
-
+                    _lastProgressStatus = progressData.Status;
+                    ProgressUpdated();
                     break;
                 default:
                     throw ExceptionUtilities.UnexpectedValue(progressData.Status);
@@ -130,9 +105,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                 // make sure we are not flooding UI. 
                 // this is just presentation, fine to not updating UI right away especially since
                 // at the end, this notification will go away automatically
-                // but to make UI to be updated to right status eventually if task takes long time to finish
-                // we enqueue refresh task.
-                EnqueueRefresh();
                 return;
             }
 
@@ -146,61 +118,39 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                 var statusMessage = (_lastProgressStatus == ProgressStatus.Paused) ? ServicesVSResources.Paused_0_tasks_in_queue : ServicesVSResources.Evaluating_0_tasks_in_queue;
                 return string.Format(statusMessage, _lastPendingItemCount);
             }
-
-            void EnqueueRefresh()
-            {
-                if (_resettableDelay != null)
-                {
-                    _resettableDelay.Reset();
-                    return;
-                }
-
-                _resettableDelay = new ResettableDelay((int)s_minimumInterval.TotalMilliseconds, AsynchronousOperationListenerProvider.NullListener);
-                _resettableDelay.Task.SafeContinueWith(_ =>
-                {
-                    // Re-acquire lock as we're modifying the delay and updating progress.
-                    lock (_progressUpdatedLock)
-                    {
-                        _resettableDelay = null;
-                        ProgressUpdated();
-                    }
-                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-            }
         }
 
-        private void StartedOrStopped(bool started)
+        private void Started()
         {
-            if (started)
-            {
-                ResetProgressStatus();
+            ResetProgressStatus();
 
-                // if there is any pending one. make sure it is finished.
-                _currentTask?.TrySetResult(default);
+            // if there is any pending one. make sure it is finished.
+            _currentTask?.TrySetResult(default);
 
-                var taskHandler = _taskCenterService.PreRegister(_options, data: default);
+            var taskHandler = _taskCenterService.PreRegister(_options, data: default);
 
-                _currentTask = new TaskCompletionSource<VoidResult>();
-                taskHandler.RegisterTask(_currentTask.Task);
+            _currentTask = new TaskCompletionSource<VoidResult>();
+            taskHandler.RegisterTask(_currentTask.Task);
 
-                // report initial progress
-                ChangeProgress(taskHandler, message: null);
+            // report initial progress
+            ChangeProgress(taskHandler, message: null);
 
-                // set handler
-                _taskHandler = taskHandler;
-            }
-            else
-            {
-                // clear progress message
-                ChangeProgress(_taskHandler, message: null);
+            // set handler
+            _taskHandler = taskHandler;
+        }
 
-                // stop progress
-                _currentTask?.TrySetResult(default);
-                _currentTask = null;
+        private void Stopped()
+        {
+            // clear progress message
+            ChangeProgress(_taskHandler, message: null);
 
-                _taskHandler = null;
+            // stop progress
+            _currentTask?.TrySetResult(default);
+            _currentTask = null;
 
-                ResetProgressStatus();
-            }
+            _taskHandler = null;
+
+            ResetProgressStatus();
         }
 
         private void ResetProgressStatus()
