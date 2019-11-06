@@ -1,5 +1,7 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
+#nullable enable
+
 using System;
 using System.ComponentModel.Composition;
 using System.Threading.Tasks;
@@ -19,18 +21,16 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
         private readonly TaskHandlerOptions _options;
 
         // these fields are never accessed concurrently
-        private TaskCompletionSource<VoidResult> _currentTask;
-        private DateTimeOffset _lastTimeReported;
+        private TaskCompletionSource<VoidResult>? _currentTask;
 
         private int _lastPendingItemCount;
         private ProgressStatus _lastProgressStatus;
-        private ProgressStatus _lastShownProgressStatus;
 
         private readonly SolutionCrawlerEventHandlerWithDelay _solutionCrawlerEventHandler;
 
         // this is only field that is shared between 2 events streams (IDiagnosticService and ISolutionCrawlerProgressReporter)
         // and can be called concurrently.
-        private volatile ITaskHandler _taskHandler;
+        private volatile ITaskHandler? _taskHandler;
 
         [ImportingConstructor]
         public TaskCenterSolutionAnalysisProgressReporter(
@@ -38,7 +38,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
             IDiagnosticService diagnosticService,
             VisualStudioWorkspace workspace)
         {
-            _lastTimeReported = DateTimeOffset.UtcNow;
             _taskCenterService = (IVsTaskStatusCenterService)taskStatusCenterService;
             _options = new TaskHandlerOptions()
             {
@@ -49,9 +48,11 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
             var crawlerService = workspace.Services.GetRequiredService<ISolutionCrawlerService>();
             var reporter = crawlerService.GetProgressReporter(workspace);
 
-            _solutionCrawlerEventHandler = new SolutionCrawlerEventHandlerWithDelay(reporter, (int)s_minimumInterval.TotalMilliseconds);
-
             ResetProgressStatus();
+
+            _solutionCrawlerEventHandler = new SolutionCrawlerEventHandlerWithDelay(reporter, s_minimumInterval);
+            // no event unsubscription since it will remain alive until VS shutdown
+            _solutionCrawlerEventHandler.UpdateProgress += OnUpdateProgress;
 
             if (reporter.InProgress)
             {
@@ -61,9 +62,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
             {
                 Stopped();
             }
-
-            // no event unsubscription since it will remain alive until VS shutdown
-            _solutionCrawlerEventHandler.UpdateProgress += OnUpdateProgress;
         }
 
         private void OnUpdateProgress(object sender, ProgressData progressData)
@@ -76,7 +74,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                     Started();
                     break;
                 case ProgressStatus.PendingItemCountUpdated:
-                    _lastPendingItemCount = progressData.PendingItemCount.Value;
+                    _lastPendingItemCount = progressData.PendingItemCount ?? 0;
                     ProgressUpdated();
                     break;
                 case ProgressStatus.Stopped:
@@ -94,23 +92,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
 
         private void ProgressUpdated()
         {
-            // we prefer showing evaluating if progress is flipping between evaluate and pause
-            // in short period of time.
-            var forceUpdate = _lastShownProgressStatus == ProgressStatus.Paused &&
-                              _lastProgressStatus == ProgressStatus.Evaluating;
-
-            var current = DateTimeOffset.UtcNow;
-            if (!forceUpdate && current - _lastTimeReported < s_minimumInterval)
-            {
-                // make sure we are not flooding UI. 
-                // this is just presentation, fine to not updating UI right away especially since
-                // at the end, this notification will go away automatically
-                return;
-            }
-
-            _lastShownProgressStatus = _lastProgressStatus;
-            _lastTimeReported = current;
-
             ChangeProgress(_taskHandler, GetMessage());
 
             string GetMessage()
@@ -157,10 +138,9 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
         {
             _lastPendingItemCount = 0;
             _lastProgressStatus = ProgressStatus.Paused;
-            _lastShownProgressStatus = ProgressStatus.Paused;
         }
 
-        private static void ChangeProgress(ITaskHandler taskHandler, string message)
+        private static void ChangeProgress(ITaskHandler? taskHandler, string? message)
         {
             var data = new TaskProgressData
             {

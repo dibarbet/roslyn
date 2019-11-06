@@ -3,10 +3,9 @@
 #nullable enable
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.Editor.Shared.Utilities;
-using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Microsoft.CodeAnalysis.SolutionCrawler;
 using Roslyn.Utilities;
 
@@ -15,46 +14,48 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
     internal sealed partial class TaskCenterSolutionAnalysisProgressReporter
     {
         /// <summary>
-        /// Helper class to pass on solution crawler events with an additional event invoked after the previous event and a delay.
-        /// Outputs the resulting events in single-file.
-        /// Reason for invoking an additional event with a delay.
-        /// When an event stream comes in as below (assuming 200ms minimum interval)
-        /// e1 -> (100ms)-> e2 -> (300ms)-> e3 -> (100ms) -> e4
-        ///
-        /// The actual status shown to users without an additional event will be 
-        /// e1 -> e3.
-        ///
-        /// e2 and e4 will be skipped since the interval was smaller than min interval.
-        /// Losing e2 is fine, but losing e4 is problematic as the user sees the wrong status until the next event comes in. 
-        /// For example, it could show "Evaluating" when it is actually "Paused".
-        /// 
-        /// <see cref="_resettableDelay"/> ensures that we invoke an event for e4 if the next event doesn't
+        /// Helper class to pass on solution crawler events throttled with a certain delay.
         /// arrive within a certain delay.
         /// </summary>
         private class SolutionCrawlerEventHandlerWithDelay
         {
-            private readonly int _resettableDelayInterval;
+            private readonly TimeSpan _publishInterval;
             private readonly object _lock = new object();
 
             private ProgressData _progressData;
-            private ResettableDelay? _resettableDelay;
-            private Task _task;
+            private ProgressData _lastPublishedProgressData;
 
+            /// <summary>
+            /// Task used to invoke events outside the <see cref="_lock"/>
+            /// </summary>
+            private Task _invokeEventTask;
+
+            /// <summary>
+            /// Task used to trigger event invocation on an interval
+            /// defined by <see cref="_publishInterval"/>
+            /// </summary>
+            private Task _intervalTask;
+
+            private bool _isTimerRunning;
+
+            /// <summary>
+            /// Solution crawler events throttled to the specified <see cref="_publishInterval"/>
+            /// </summary>
             public EventHandler<ProgressData>? UpdateProgress;
 
-            public SolutionCrawlerEventHandlerWithDelay(ISolutionCrawlerProgressReporter reporter, int resettableDelayInterval)
+            public SolutionCrawlerEventHandlerWithDelay(ISolutionCrawlerProgressReporter reporter, TimeSpan publishInterval)
             {
-                _resettableDelayInterval = resettableDelayInterval;
-                _task = Task.CompletedTask;
+                _publishInterval = publishInterval;
+                _invokeEventTask = Task.CompletedTask;
+                _intervalTask = Task.CompletedTask;
+                _isTimerRunning = false;
 
                 // no event unsubscription since it will remain alive until VS shutdown
                 reporter.ProgressChanged += OnSolutionCrawlerProgressChanged;
             }
 
             /// <summary>
-            /// Invoke a progress updated event and add delay.
-            /// Delay is used to invoke the event again at a later point.
-            /// The second invocation delay is reset as new events come in.
+            /// Retrieve and throttle solution crawler events to be sent to the progress reporter UI.
             /// 
             /// there is no concurrent call to this method since ISolutionCrawlerProgressReporter will serialize all
             /// events to preserve event ordering
@@ -62,44 +63,64 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
             /// <param name="progressData"></param>
             public void OnSolutionCrawlerProgressChanged(object sender, ProgressData progressData)
             {
-                _progressData = progressData;
-                if (_resettableDelay == null || _resettableDelay.Task.IsCompleted)
-                {
-                    StartDelay();
-                }
-                else
-                {
-                    _resettableDelay.Reset();
-                }
-
-                InvokeEvent();
-            }
-
-            /// <summary>
-            /// Serialize output events.
-            /// </summary>
-            private void InvokeEvent()
-            {
-                EventHandler<ProgressData>? localUpdateProgress;
-                ProgressData progressData;
+                Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] Sln crawler event {_progressData.Status} and count {_progressData.PendingItemCount}");
                 lock (_lock)
                 {
-                    localUpdateProgress = UpdateProgress;
-                    progressData = _progressData;
-                    _task = _task.SafeContinueWith(_ =>
+                    _progressData = progressData;
+
+                    // The publish event timer is already running. If this is a stop event make sure the timer does not get extended.
+                    // Otherwise, just update the progress data and continue.
+                    if (_isTimerRunning)
                     {
-                        localUpdateProgress?.Invoke(this, _progressData);
-                    }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                        if (progressData.Status == ProgressStatus.Stopped)
+                        {
+                            Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] End timer");
+                            _isTimerRunning = false;
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] Start timer");
+                        // Event publishing is not running, so trigger new timer.
+                        _isTimerRunning = true;
+                        RunOnTimer();
+                    }
                 }
             }
 
-            private void StartDelay()
+            private void InvokeEvent()
             {
-                _resettableDelay = new ResettableDelay(_resettableDelayInterval, AsynchronousOperationListenerProvider.NullListener);
-                _resettableDelay.Task.SafeContinueWith(_ =>
+                Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] Invoking event with {_progressData.Status}");
+                _invokeEventTask = _invokeEventTask.SafeContinueWith(_ =>
+                {
+                    // No need to publish the exact same event over and over.
+                    if (!Equals(_progressData, _lastPublishedProgressData))
+                    {
+                        UpdateProgress?.Invoke(this, _progressData);
+                        _lastPublishedProgressData = _progressData;
+                    }
+                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+
+            private void RunOnTimer()
+            {
+                lock (_lock)
                 {
                     InvokeEvent();
-                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+                    // Only continue the timer if there has not been a stop event.
+                    if (_isTimerRunning)
+                    {
+                        _intervalTask = _intervalTask.ContinueWithAfterDelay(() =>
+                        {
+                            RunOnTimer();
+                        }, CancellationToken.None, _publishInterval, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                    }
+                }
             }
         }
     }
