@@ -63,7 +63,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
             /// <param name="progressData"></param>
             public void OnSolutionCrawlerProgressChanged(object sender, ProgressData progressData)
             {
-                Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] Sln crawler event {_progressData.Status} and count {_progressData.PendingItemCount}");
                 lock (_lock)
                 {
                     _progressData = progressData;
@@ -74,7 +73,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                     {
                         if (progressData.Status == ProgressStatus.Stopped)
                         {
-                            Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] End timer");
                             _isTimerRunning = false;
                         }
                         else
@@ -84,7 +82,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                     }
                     else
                     {
-                        Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] Start timer");
                         // Event publishing is not running, so trigger new timer.
                         _isTimerRunning = true;
                         RunOnTimer();
@@ -94,7 +91,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
 
             private void InvokeEvent()
             {
-                Debug.WriteLine($"[{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}] Invoking event with {_progressData.Status}");
                 _invokeEventTask = _invokeEventTask.SafeContinueWith(_ =>
                 {
                     // No need to publish the exact same event over and over.
