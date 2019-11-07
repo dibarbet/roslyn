@@ -4,6 +4,7 @@
 
 using System;
 using System.ComponentModel.Composition;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.SolutionCrawler;
@@ -23,14 +24,25 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
         // these fields are never accessed concurrently
         private TaskCompletionSource<VoidResult>? _currentTask;
 
-        private int _lastPendingItemCount;
-        private ProgressStatus _lastProgressStatus;
+        private readonly object _lock = new object();
 
-        private readonly SolutionCrawlerEventHandlerWithDelay _solutionCrawlerEventHandler;
+        private ProgressData _lastProgressData;
 
-        // this is only field that is shared between 2 events streams (IDiagnosticService and ISolutionCrawlerProgressReporter)
-        // and can be called concurrently.
-        private volatile ITaskHandler? _taskHandler;
+        /// <summary>
+        /// Unfortunately, <see cref="ProgressData.PendingItemCount"/> is only reported
+        /// when the <see cref="ProgressData.Status"/> is <see cref="ProgressStatus.PendingItemCountUpdated"/>
+        /// So we have to store this in addition to <see cref="_lastProgressData"/> so that we
+        /// do not overwrite the last reported count with 0.
+        /// </summary>
+        private int _lastProgressCount;
+
+        /// <summary>
+        /// Task used to trigger throttled UI updates in an interval
+        /// defined by <see cref="s_minimumInterval"/>
+        /// </summary>
+        private Task? _intervalTask;
+
+        private ITaskHandler _taskHandler;
 
         [ImportingConstructor]
         public TaskCenterSolutionAnalysisProgressReporter(
@@ -45,14 +57,12 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                 ActionsAfterCompletion = CompletionActions.None
             };
 
+            _taskHandler = _taskCenterService.PreRegister(_options, data: default);
+
             var crawlerService = workspace.Services.GetRequiredService<ISolutionCrawlerService>();
             var reporter = crawlerService.GetProgressReporter(workspace);
 
-            ResetProgressStatus();
-
-            _solutionCrawlerEventHandler = new SolutionCrawlerEventHandlerWithDelay(reporter, s_minimumInterval);
-            // no event unsubscription since it will remain alive until VS shutdown
-            _solutionCrawlerEventHandler.UpdateProgress += OnUpdateProgress;
+            reporter.ProgressChanged += OnSolutionCrawlerProgressChanged;
 
             if (reporter.InProgress)
             {
@@ -64,7 +74,48 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
             }
         }
 
-        private void OnUpdateProgress(object sender, ProgressData progressData)
+        /// <summary>
+        /// Retrieve and throttle solution crawler events to be sent to the progress reporter UI.
+        /// 
+        /// there is no concurrent call to this method since ISolutionCrawlerProgressReporter will serialize all
+        /// events to preserve event ordering
+        /// </summary>
+        /// <param name="progressData"></param>
+        public void OnSolutionCrawlerProgressChanged(object sender, ProgressData progressData)
+        {
+            lock (_lock)
+            {
+                _lastProgressData = progressData;
+
+                // The task is running which will update the progress.
+                if (_intervalTask != null)
+                {
+                    return;
+                }
+
+                _intervalTask = Task.CompletedTask.ContinueWithAfterDelay(() =>
+                {
+                    ReportProgress();
+                }, CancellationToken.None, s_minimumInterval, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+                // Report progress immediately to ensure we update the UI on the first event.
+                ReportProgress();
+            }
+        }
+
+        private void ReportProgress()
+        {
+            ProgressData data;
+            lock (_lock)
+            {
+                data = _lastProgressData;
+                _intervalTask = null;
+            }
+
+            UpdateUI(data);
+        }
+
+        private void UpdateUI(ProgressData progressData)
         {
             // there is no concurrent call to this method since SolutionCrawlerEventHandlerWithDelay will serialize all
             // events to preserve event ordering
@@ -74,47 +125,38 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                     Started();
                     break;
                 case ProgressStatus.PendingItemCountUpdated:
-                    _lastPendingItemCount = progressData.PendingItemCount ?? 0;
-                    ProgressUpdated();
+                    _lastProgressCount = progressData.PendingItemCount ?? 0;
+                    ChangeProgress(GetMessage(progressData, _lastProgressCount));
                     break;
                 case ProgressStatus.Stopped:
                     Stopped();
                     break;
                 case ProgressStatus.Evaluating:
                 case ProgressStatus.Paused:
-                    _lastProgressStatus = progressData.Status;
-                    ProgressUpdated();
+                    ChangeProgress(GetMessage(progressData, _lastProgressCount));
                     break;
                 default:
                     throw ExceptionUtilities.UnexpectedValue(progressData.Status);
             }
         }
 
-        private void ProgressUpdated()
+        private static string GetMessage(ProgressData progressData, int pendingItemCount)
         {
-            ChangeProgress(_taskHandler, GetMessage());
-
-            string GetMessage()
-            {
-                var statusMessage = (_lastProgressStatus == ProgressStatus.Paused) ? ServicesVSResources.Paused_0_tasks_in_queue : ServicesVSResources.Evaluating_0_tasks_in_queue;
-                return string.Format(statusMessage, _lastPendingItemCount);
-            }
+            var statusMessage = (progressData.Status == ProgressStatus.Paused) ? ServicesVSResources.Paused_0_tasks_in_queue : ServicesVSResources.Evaluating_0_tasks_in_queue;
+            return string.Format(statusMessage, pendingItemCount);
         }
 
         private void Started()
         {
-            ResetProgressStatus();
+            _lastProgressData = default;
 
-            // if there is any pending one. make sure it is finished.
-            _currentTask?.TrySetResult(default);
-
-            var taskHandler = _taskCenterService.PreRegister(_options, data: default);
+            
 
             _currentTask = new TaskCompletionSource<VoidResult>();
-            taskHandler.RegisterTask(_currentTask.Task);
+            _taskHandler.RegisterTask(_currentTask.Task);
 
             // report initial progress
-            ChangeProgress(taskHandler, message: null);
+            ChangeProgress(message: null);
 
             // set handler
             _taskHandler = taskHandler;
@@ -131,16 +173,10 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
 
             _taskHandler = null;
 
-            ResetProgressStatus();
+            _lastProgressData = default;
         }
 
-        private void ResetProgressStatus()
-        {
-            _lastPendingItemCount = 0;
-            _lastProgressStatus = ProgressStatus.Paused;
-        }
-
-        private static void ChangeProgress(ITaskHandler? taskHandler, string? message)
+        private static void ChangeProgress(string? message)
         {
             var data = new TaskProgressData
             {
@@ -149,7 +185,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics
                 PercentComplete = null,
             };
 
-            taskHandler?.Progress.Report(data);
+            _taskHandler.Progress.Report(data);
         }
     }
 }
