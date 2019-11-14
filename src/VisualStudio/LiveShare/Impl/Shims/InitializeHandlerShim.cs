@@ -24,6 +24,9 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
         {
             var initializeResult = await base.HandleAsync(param, requestContext, cancellationToken).ConfigureAwait(false);
             initializeResult.Capabilities.Experimental = new RoslynExperimentalCapabilities { SyntacticLspProvider = true };
+            initializeResult.Capabilities.DefinitionProvider = false;
+            initializeResult.Capabilities.ReferencesProvider = false;
+            initializeResult.Capabilities.CompletionProvider = null;
             return initializeResult;
         }
     }

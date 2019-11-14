@@ -98,10 +98,10 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client
                         CodeActionProvider = true,
                         ExecuteCommandProvider = new ExecuteCommandOptions(),
                         DocumentHighlightProvider = true,
-                        ReferencesProvider = true,
-                        DefinitionProvider = true,
+                        //ReferencesProvider = true,
+                        //DefinitionProvider = true,
                         SignatureHelpProvider = new SignatureHelpOptions() { },
-                        CompletionProvider = new CompletionOptions(),
+                        //CompletionProvider = new CompletionOptions(),
                         ImplementationProvider = true,
 
                         // Uses LSP SDK client.
