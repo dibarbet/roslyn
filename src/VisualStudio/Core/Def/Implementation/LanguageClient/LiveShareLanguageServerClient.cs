@@ -9,6 +9,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer;
 using Microsoft.CodeAnalysis.Remote;
 using Microsoft.VisualStudio.LanguageServer.Client;
@@ -104,7 +105,9 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
         public event AsyncEventHandler<EventArgs>? StopAsync;
 #pragma warning restore CS0067 // event never used
 
-        public LiveShareLanguageServerClient(LanguageServerProtocol languageServerProtocol, Workspace workspace)
+        [ImportingConstructor]
+        [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+        public LiveShareLanguageServerClient(LanguageServerProtocol languageServerProtocol, VisualStudioWorkspace workspace)
         {
             _languageServerProtocol = languageServerProtocol;
             _workspace = workspace;
