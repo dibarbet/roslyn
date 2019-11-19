@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.Host.Mef;
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.GotoDefinition
 {
 
-    [ExportLanguageService(typeof(IGoToDefinitionService), StringConstants.CSharpLspLanguageName), Shared]
+    //[ExportLanguageService(typeof(IGoToDefinitionService), StringConstants.CSharpLspLanguageName), Shared]
     internal class CSharpLspGotoDefinitionService : RoslynGotoDefinitionService
     {
         [ImportingConstructor]
@@ -19,7 +19,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.GotoDefinitio
             : base(streamingPresenter, csharpLspClientServiceFactory, remoteWorkspace, threadingContext) { }
     }
 
-    [ExportLanguageService(typeof(IGoToDefinitionService), StringConstants.VBLspLanguageName), Shared]
+    //[ExportLanguageService(typeof(IGoToDefinitionService), StringConstants.VBLspLanguageName), Shared]
     internal class VBLspGotoDefinitionService : RoslynGotoDefinitionService
     {
         [ImportingConstructor]
@@ -28,7 +28,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.GotoDefinitio
             : base(streamingPresenter, vbLspClientServiceFactory, remoteWorkspace, threadingContext) { }
     }
 
-    [ExportLanguageService(typeof(IGoToDefinitionService), StringConstants.TypeScriptLanguageName, WorkspaceKind.AnyCodeRoslynWorkspace), Shared]
+    //[ExportLanguageService(typeof(IGoToDefinitionService), StringConstants.TypeScriptLanguageName, WorkspaceKind.AnyCodeRoslynWorkspace), Shared]
     internal class TypeScriptLspGotoDefinitionService : RoslynGotoDefinitionService
     {
         [ImportingConstructor]
