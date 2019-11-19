@@ -23,6 +23,8 @@ using StreamJsonRpc;
 namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
 {
     [ContentType("C#_LSP")]
+    [ContentType("CSharp")]
+    [ExportMetadata("Capabilities", "WorkspaceStreamingSymbolProvider")]
     [Export(typeof(ILanguageClient))]
     internal class LiveShareLanguageServerClient : ILanguageClient
     {
@@ -32,11 +34,11 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             private readonly LanguageServerProtocol _protocol;
             private readonly Workspace _workspace;
 
-            public InProcLanguageServer(Stream clientStream, Stream serverStream, LanguageServerProtocol protocol, Workspace workspace)
+            public InProcLanguageServer(Stream inputStream, Stream outputStream, LanguageServerProtocol protocol, Workspace workspace)
             {
                 _protocol = protocol;
                 _workspace = workspace;
-                _jsonRpc = new JsonRpc(serverStream, clientStream, this);
+                _jsonRpc = new JsonRpc(outputStream, inputStream, this);
 
                 _jsonRpc.StartListening();
             }
@@ -51,6 +53,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                         DefinitionProvider = true,
                         ReferencesProvider = true,
                         CompletionProvider = new CompletionOptions { ResolveProvider = true, TriggerCharacters = new[] { "." } },
+                        WorkspaceStreamingSymbolProvider = true,
                     }
                 };
             }
@@ -116,7 +119,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
         public Task<Connection> ActivateAsync(CancellationToken token)
         {
             var (clientStream, serverStream) = FullDuplexStream.CreatePair();
-            var server = new InProcLanguageServer(clientStream, serverStream, _languageServerProtocol, _workspace);
+            var server = new InProcLanguageServer(serverStream, serverStream, _languageServerProtocol, _workspace);
             return Task.FromResult(new Connection(clientStream, clientStream));
         }
 
