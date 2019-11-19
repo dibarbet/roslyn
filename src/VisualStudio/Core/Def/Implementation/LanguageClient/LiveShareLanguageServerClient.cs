@@ -23,8 +23,7 @@ using StreamJsonRpc;
 namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
 {
     [ContentType("C#_LSP")]
-    [ContentType("CSharp")]
-    [ExportMetadata("Capabilities", "WorkspaceStreamingSymbolProvider")]
+    [ContentType("VB_LSP")]
     [Export(typeof(ILanguageClient))]
     internal class LiveShareLanguageServerClient : ILanguageClient
     {
@@ -53,7 +52,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                         DefinitionProvider = true,
                         ReferencesProvider = true,
                         CompletionProvider = new CompletionOptions { ResolveProvider = true, TriggerCharacters = new[] { "." } },
-                        WorkspaceStreamingSymbolProvider = true,
                     }
                 };
             }
