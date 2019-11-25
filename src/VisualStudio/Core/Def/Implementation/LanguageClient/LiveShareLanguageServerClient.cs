@@ -68,9 +68,10 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             }
 
             [JsonRpcMethod(Methods.TextDocumentDefinitionName)]
-            public async Task<object> TextDocumentDefinition(TextDocumentPositionParams input, ClientCapabilities capabilities, CancellationToken cancellationToken)
+            public async Task<object> TextDocumentDefinition(JToken input)
             {
-                return await _protocol.GoToDefinitionAsync(_workspace.CurrentSolution, input, capabilities, cancellationToken).ConfigureAwait(false);
+                var textDocumentPositionParams = input.ToObject<TextDocumentPositionParams>();
+                return await _protocol.GoToDefinitionAsync(_workspace.CurrentSolution, textDocumentPositionParams, null, CancellationToken.None).ConfigureAwait(false);
             }
         }
 
