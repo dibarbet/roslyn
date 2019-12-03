@@ -43,7 +43,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             }
 
             [JsonRpcMethod(Methods.InitializeName)]
-            public InitializeResult Initialize(JToken arg)
+            public InitializeResult Initialize(JToken input)
             {
                 return new InitializeResult
                 {
@@ -68,11 +68,31 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             }
 
             [JsonRpcMethod(Methods.TextDocumentDefinitionName)]
-            public async Task<object> TextDocumentDefinition(JToken input)
+            public async Task<object> GetTextDocumentDefinitionAsync(JToken input, CancellationToken cancellationToken)
             {
                 var textDocumentPositionParams = input.ToObject<TextDocumentPositionParams>();
-                return await _protocol.GoToDefinitionAsync(_workspace.CurrentSolution, textDocumentPositionParams, null, CancellationToken.None).ConfigureAwait(false);
+                return await _protocol.GoToDefinitionAsync(_workspace.CurrentSolution, textDocumentPositionParams, null, cancellationToken).ConfigureAwait(false);
             }
+
+            [JsonRpcMethod(Methods.TextDocumentCompletionName)]
+            public async Task<object> GetTextDocumentCompletionAsync(JToken input, CancellationToken cancellationToken)
+            {
+                var completionParams = input.ToObject<CompletionParams>();
+                return await _protocol.GetCompletionsAsync(_workspace.CurrentSolution, completionParams, null, cancellationToken).ConfigureAwait(false);
+            }
+
+            [JsonRpcMethod(Methods.TextDocumentCompletionResolveName)]
+            public async Task<object> ResolveCompletionItemAsync(JToken input, CancellationToken cancellationToken)
+            {
+                var completionItem = input.ToObject<CompletionItem>();
+                return await _protocol.ResolveCompletionItemAsync(_workspace.CurrentSolution, completionItem, null, cancellationToken).ConfigureAwait(false);
+            }
+
+            /*[JsonRpcMethod(Methods.TextDocumentReferencesName)]
+            public async Task<object> GetTextDocumentReferencesAsync(JToken input, CancellationToken cancellationToken)
+            {
+                return;
+            }*/
         }
 
         private readonly LanguageServerProtocol _languageServerProtocol;

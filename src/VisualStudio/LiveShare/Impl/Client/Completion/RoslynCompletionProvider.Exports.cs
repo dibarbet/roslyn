@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.Completion;
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.Completion
 {
-    [ExportCompletionProvider("CSharpLspCompletionProvider", StringConstants.CSharpLspLanguageName), Shared]
+    //[ExportCompletionProvider("CSharpLspCompletionProvider", StringConstants.CSharpLspLanguageName), Shared]
     internal class CSharpLspCompletionProvider : RoslynCompletionProvider
     {
         [ImportingConstructor]
@@ -15,7 +15,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.Completion
         }
     }
 
-    [ExportCompletionProvider("VBLspCompletionProvider", StringConstants.VBLspLanguageName), Shared]
+    //[ExportCompletionProvider("VBLspCompletionProvider", StringConstants.VBLspLanguageName), Shared]
     internal class VBLspCompletionProvider : RoslynCompletionProvider
     {
         [ImportingConstructor]

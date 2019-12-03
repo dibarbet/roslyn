@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Host.Mef;
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.Completion
 {
-    [ExportLanguageServiceFactory(typeof(CompletionService), StringConstants.CSharpLspLanguageName), Shared]
+    //[ExportLanguageServiceFactory(typeof(CompletionService), StringConstants.CSharpLspLanguageName), Shared]
     internal class CSharpLspCompletionServiceFactory : ILanguageServiceFactory
     {
         public ILanguageService CreateLanguageService(HostLanguageServices languageServices)
@@ -20,7 +20,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.Completion
         }
     }
 
-    [ExportLanguageServiceFactory(typeof(CompletionService), StringConstants.VBLspLanguageName), Shared]
+    //[ExportLanguageServiceFactory(typeof(CompletionService), StringConstants.VBLspLanguageName), Shared]
     internal class VBLspCompletionServiceFactory : ILanguageServiceFactory
     {
         public ILanguageService CreateLanguageService(HostLanguageServices languageServices)
