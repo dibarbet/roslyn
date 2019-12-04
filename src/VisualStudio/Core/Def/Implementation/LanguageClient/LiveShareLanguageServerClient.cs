@@ -33,7 +33,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             private readonly LanguageServerProtocol _protocol;
             private readonly Workspace _workspace;
 
-            private ClientCapabilities _clientCapabilities;
+            private VSClientCapabilities? _clientCapabilities;
 
             public InProcLanguageServer(Stream inputStream, Stream outputStream, LanguageServerProtocol protocol, Workspace workspace)
             {
@@ -52,8 +52,10 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             [JsonRpcMethod(Methods.InitializeName)]
             public InitializeResult Initialize(JToken input)
             {
-                var initializeParams = input.ToObject<InitializeParams>();
-                _clientCapabilities = initializeParams.Capabilities;
+                // InitializeParams only references ClientCapabilities, but the VS LSP client
+                // sends additional VS specific capabilities, so directly deserialize them into the VSClientCapabilities
+                // to avoid losing them.
+                var _clientCapabilities = input["capabilities"].ToObject<VSClientCapabilities>();
 
                 return new InitializeResult
                 {
