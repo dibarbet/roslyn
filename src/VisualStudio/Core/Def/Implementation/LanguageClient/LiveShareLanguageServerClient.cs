@@ -55,7 +55,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                 // InitializeParams only references ClientCapabilities, but the VS LSP client
                 // sends additional VS specific capabilities, so directly deserialize them into the VSClientCapabilities
                 // to avoid losing them.
-                var _clientCapabilities = input["capabilities"].ToObject<VSClientCapabilities>();
+                _clientCapabilities = input["capabilities"].ToObject<VSClientCapabilities>();
 
                 return new InitializeResult
                 {
