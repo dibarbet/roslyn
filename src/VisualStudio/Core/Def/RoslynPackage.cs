@@ -17,6 +17,7 @@ using Microsoft.CodeAnalysis.Notification;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Versions;
 using Microsoft.VisualStudio.ComponentModelHost;
+using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.LanguageServices.Experimentation;
 using Microsoft.VisualStudio.LanguageServices.Implementation;
 using Microsoft.VisualStudio.LanguageServices.Implementation.Diagnostics;
@@ -132,6 +133,8 @@ namespace Microsoft.VisualStudio.LanguageServices.Setup
             LoadAnalyzerNodeComponents();
 
             LoadComponentsBackgroundAsync(cancellationToken).Forget();
+
+
         }
 
         private async Task LoadComponentsBackgroundAsync(CancellationToken cancellationToken)
