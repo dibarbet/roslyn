@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Editor.Shared.Utilities;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer;
 using Microsoft.CodeAnalysis.Remote;
@@ -24,8 +25,8 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
     [Export(typeof(ILanguageClient))]
     internal class LiveShareLanguageServerClient : ILanguageClient
     {
-
         private readonly IDiagnosticService _diagnosticService;
+        private readonly IThreadingContext _threadingContext;
         private readonly LanguageServerProtocol _languageServerProtocol;
         private readonly Workspace _workspace;
 
@@ -60,17 +61,18 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
 
         [ImportingConstructor]
         [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-        public LiveShareLanguageServerClient(LanguageServerProtocol languageServerProtocol, VisualStudioWorkspace workspace, IDiagnosticService diagnosticService)
+        public LiveShareLanguageServerClient(LanguageServerProtocol languageServerProtocol, VisualStudioWorkspace workspace, IDiagnosticService diagnosticService, IThreadingContext threadingContext)
         {
             _languageServerProtocol = languageServerProtocol;
             _workspace = workspace;
             _diagnosticService = diagnosticService;
+            _threadingContext = threadingContext;
         }
 
         public Task<Connection> ActivateAsync(CancellationToken token)
         {
             var (clientStream, serverStream) = FullDuplexStream.CreatePair();
-            var server = new InProcLanguageServer(serverStream, serverStream, _languageServerProtocol, _workspace, _diagnosticService);
+            var server = new InProcLanguageServer(serverStream, serverStream, _languageServerProtocol, _workspace, _diagnosticService, _threadingContext);
             return Task.FromResult(new Connection(clientStream, clientStream));
         }
 

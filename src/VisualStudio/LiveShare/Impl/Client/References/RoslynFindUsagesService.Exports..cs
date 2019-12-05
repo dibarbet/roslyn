@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Host.Mef;
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.References
 {
-    [ExportLanguageService(typeof(IFindUsagesService), StringConstants.CSharpLspLanguageName), Shared]
+    //[ExportLanguageService(typeof(IFindUsagesService), StringConstants.CSharpLspLanguageName), Shared]
     internal class CSharpLspFindUsagesService : RoslynFindUsagesService
     {
         [ImportingConstructor]
@@ -16,7 +16,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.References
         }
     }
 
-    [ExportLanguageService(typeof(IFindUsagesService), StringConstants.VBLspLanguageName), Shared]
+    //[ExportLanguageService(typeof(IFindUsagesService), StringConstants.VBLspLanguageName), Shared]
     internal class VBLspFindUsagesService : RoslynFindUsagesService
     {
         [ImportingConstructor]
