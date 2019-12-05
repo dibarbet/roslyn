@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.Host.Mef;
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.Diagnostics
 {
-    [ExportLanguageService(typeof(IRemoteDiagnosticsService), StringConstants.CSharpLspLanguageName), Shared]
+    //[ExportLanguageService(typeof(IRemoteDiagnosticsService), StringConstants.CSharpLspLanguageName), Shared]
     internal class CSharpLspRemoteDiagnosticsService : RoslynRemoteDiagnosticsService
     {
         [ImportingConstructor]
@@ -15,7 +15,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare.Client.Diagnostics
         }
     }
 
-    [ExportLanguageService(typeof(IRemoteDiagnosticsService), StringConstants.VBLspLanguageName), Shared]
+    //[ExportLanguageService(typeof(IRemoteDiagnosticsService), StringConstants.VBLspLanguageName), Shared]
     internal class VBLspRemoteDiagnosticsService : RoslynRemoteDiagnosticsService
     {
         [ImportingConstructor]

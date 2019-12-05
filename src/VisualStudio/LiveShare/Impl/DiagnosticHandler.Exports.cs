@@ -10,12 +10,12 @@ using CustomMethods = Microsoft.VisualStudio.LiveShare.LanguageServices.Protocol
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare
 {
-    [Export(LiveShareConstants.RoslynContractName, typeof(ILspNotificationProvider))]
-    [ExportLspRequestHandler(LiveShareConstants.RoslynContractName, CustomMethods.GetDocumentDiagnosticsName)]
+    //[Export(LiveShareConstants.RoslynContractName, typeof(ILspNotificationProvider))]
+    //[ExportLspRequestHandler(LiveShareConstants.RoslynContractName, CustomMethods.GetDocumentDiagnosticsName)]
     [Obsolete("Used for backwards compatibility with old liveshare clients.")]
     internal class RoslynDiagnosticsHandler : DiagnosticsHandler
     {
-        [ImportingConstructor]
+        //[ImportingConstructor]
         public RoslynDiagnosticsHandler(IDiagnosticService diagnosticService)
             : base(diagnosticService)
         {
@@ -24,11 +24,11 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
         protected override ImmutableArray<string> SupportedLanguages => ImmutableArray.Create(LanguageNames.CSharp, LanguageNames.VisualBasic);
     }
 
-    [Export(LiveShareConstants.CSharpContractName, typeof(ILspNotificationProvider))]
-    [ExportLspRequestHandler(LiveShareConstants.CSharpContractName, CustomMethods.GetDocumentDiagnosticsName)]
+    //[Export(LiveShareConstants.CSharpContractName, typeof(ILspNotificationProvider))]
+    //[ExportLspRequestHandler(LiveShareConstants.CSharpContractName, CustomMethods.GetDocumentDiagnosticsName)]
     internal class CSharpDiagnosticsHandler : DiagnosticsHandler
     {
-        [ImportingConstructor]
+        //[ImportingConstructor]
         public CSharpDiagnosticsHandler(IDiagnosticService diagnosticService)
             : base(diagnosticService)
         {
@@ -37,11 +37,11 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
         protected override ImmutableArray<string> SupportedLanguages => ImmutableArray.Create(LanguageNames.CSharp);
     }
 
-    [Export(LiveShareConstants.VisualBasicContractName, typeof(ILspNotificationProvider))]
-    [ExportLspRequestHandler(LiveShareConstants.VisualBasicContractName, CustomMethods.GetDocumentDiagnosticsName)]
+    //[Export(LiveShareConstants.VisualBasicContractName, typeof(ILspNotificationProvider))]
+    //[ExportLspRequestHandler(LiveShareConstants.VisualBasicContractName, CustomMethods.GetDocumentDiagnosticsName)]
     internal class VisualBasicDiagnosticsHandler : DiagnosticsHandler
     {
-        [ImportingConstructor]
+        //[ImportingConstructor]
         public VisualBasicDiagnosticsHandler(IDiagnosticService diagnosticService)
             : base(diagnosticService)
         {
@@ -53,8 +53,8 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
     /// <summary>
     /// <see cref="LiveShareConstants.RoslynLSPSDKContractName"/> is only used for typescript.
     /// </summary>
-    [Export(LiveShareConstants.RoslynLSPSDKContractName, typeof(ILspNotificationProvider))]
-    [ExportLspRequestHandler(LiveShareConstants.RoslynLSPSDKContractName, CustomMethods.GetDocumentDiagnosticsName)]
+    //[Export(LiveShareConstants.RoslynLSPSDKContractName, typeof(ILspNotificationProvider))]
+    //[ExportLspRequestHandler(LiveShareConstants.RoslynLSPSDKContractName, CustomMethods.GetDocumentDiagnosticsName)]
     internal class RoslynLSPSDKDiagnosticsHandler : DiagnosticsHandler
     {
         [ImportingConstructor]
