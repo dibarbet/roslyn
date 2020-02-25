@@ -35,6 +35,12 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             private INavigationBarController? _navigationBarController;
             private IVsDropdownBarClient? _dropdownBarClient;
             private IOptionService? _optionService;
+
+            /// <summary>
+            /// The workspace registration can be null before <see cref="AddAdornments"/>
+            /// has been called or after <see cref="RemoveAdornments"/> is called.
+            /// It is used as a flag to indicate that adornments have been triggered.
+            /// </summary>
             private WorkspaceRegistration? _workspaceRegistration;
 
             public VsCodeWindowManager(TLanguageService languageService, IVsCodeWindow codeWindow)
@@ -65,7 +71,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                 // must be done from the main thread.
                 await _threadingContext.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                // If the workspace registration is missing, addornments have been removed.
+                // If the workspace registration is missing, addornments have been removed between when we got the event and when we jumped to the UI thread.
                 if (_workspaceRegistration == null)
                 {
                     return;
@@ -88,10 +94,9 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                     _optionService = null;
                 }
 
-                var optionService = newWorkspace?.Services.GetService<IOptionService>();
-                if (optionService != null)
+                _optionService = newWorkspace?.Services.GetService<IOptionService>();
+                if (_optionService != null)
                 {
-                    _optionService = optionService;
                     _optionService.OptionChanged += OnOptionChanged;
                 }
             }
@@ -107,7 +112,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
 
             private void OnOptionChanged(object sender, OptionChangedEventArgs e)
             {
-                // If the workspace registration is missing, addornments have been removed.
+                // If the workspace registration is missing, addornments have been removed between when we got the event and when we jumped to the UI thread.
                 if (_workspaceRegistration == null)
                 {
                     return;
@@ -287,11 +292,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             {
                 _sink.Unadvise();
 
-                if (_optionService != null)
-                {
-                    _optionService.OptionChanged -= OnOptionChanged;
-                    _optionService = null;
-                }
+                UpdateOptionChangedSource(newWorkspace: null);
 
                 if (_workspaceRegistration != null)
                 {
