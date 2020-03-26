@@ -6,6 +6,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -15,7 +16,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.LanguageServer;
-using Microsoft.CodeAnalysis.PooledObjects;
+using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
@@ -225,18 +226,58 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             }
         }
 
+        /// <summary>
+        /// Stores the possible mapped file paths that a particular documentid maps to.
+        /// E.g. an underlying generated C# file with different areas that contribute to multiple razor files.
+        /// </summary>
+        private Dictionary<DocumentId, ImmutableArray<Uri>> _documentToMappedFiles = new Dictionary<DocumentId, ImmutableArray<Uri>>();
+
+        /// <summary>
+        /// Stores the possible documentids that contribute to a particular mapped files.
+        /// E.g. a razor file that has multiple underlying generated C# files that contribute to its content.
+        /// </summary>
+        private Dictionary<Uri, ImmutableArray<DocumentId>> _mappedFileToDocuments = new Dictionary<Uri, ImmutableArray<DocumentId>>();
+
         protected virtual async Task PublishDiagnosticsAsync(Document document)
         {
             var fileUriToDiagnostics = await GetDiagnosticsAsync(document, CancellationToken.None).ConfigureAwait(false);
-
-            foreach (var fileUri in fileUriToDiagnostics.Keys)
+            if (!fileUriToDiagnostics.Keys.Any())
             {
-                var publishDiagnosticsParams = new PublishDiagnosticParams { Diagnostics = fileUriToDiagnostics[fileUri], Uri = fileUri };
-                await _jsonRpc.NotifyWithParameterObjectAsync(Methods.TextDocumentPublishDiagnosticsName, publishDiagnosticsParams).ConfigureAwait(false);
+                
+
+                // When there are no diagnostics we have to publish a diagnostic notification with an empty list
+                // for the document to ensure we clear out any previously sent diagnostics.
+                if (_documentToMappedFiles.ContainsKey(document.Id))
+                {
+                    // Get diagnostics for all documents that a particular mapped file could be contributing to.
+
+                    foreach (var fileUri in _documentToMappedFiles[document.Id])
+                    {
+                        await SendDiagnosticsNotificationAsync(fileUri, ImmutableArray<LanguageServer.Protocol.Diagnostic>.Empty).ConfigureAwait(false);
+                    }
+                }
             }
+            else
+            {
+                foreach (var fileUri in fileUriToDiagnostics.Keys)
+                {
+                    await SendDiagnosticsNotificationAsync(fileUri, fileUriToDiagnostics[fileUri]).ConfigureAwait(false);
+                }
+            }
+
+            // Update the mapping to ensure that once the diagnostics for the document are cleared out
+            // we are able to find the razor files we need to publish empty diagnostics for.
+            _documentToMappedFiles[document.Id] = fileUriToDiagnostics.Keys.ToImmutableArray();
         }
 
-        private async Task<Dictionary<Uri, LanguageServer.Protocol.Diagnostic[]>> GetDiagnosticsAsync(Document document, CancellationToken cancellationToken)
+        protected async Task SendDiagnosticsNotificationAsync(Uri uri, ImmutableArray<LanguageServer.Protocol.Diagnostic> diagnostics)
+        {
+            var publishDiagnosticsParams = new PublishDiagnosticParams { Diagnostics = diagnostics.ToArray(), Uri = uri };
+            await _jsonRpc.NotifyWithParameterObjectAsync(Methods.TextDocumentPublishDiagnosticsName, publishDiagnosticsParams).ConfigureAwait(false);
+        }
+
+
+        protected async Task<Dictionary<Uri, ImmutableArray<LanguageServer.Protocol.Diagnostic>>> GetDiagnosticsAsync(Document document, CancellationToken cancellationToken)
         {
             var diagnostics = _diagnosticService.GetDiagnostics(document.Project.Solution.Workspace, document.Project.Id, document.Id, null, false, cancellationToken)
                                                 .Where(IncludeDiagnostic);
@@ -256,7 +297,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             // and which are just imported.  So we publish them all and let them get de-duped.
             var fileUriToDiagnostics = diagnostics.GroupBy(diagnostic => GetDiagnosticUri(document, diagnostic)).ToDictionary(
                 group => group.Key,
-                group => group.Select(diagnostic => ConvertToLspDiagnostic(diagnostic, text)).ToArray());
+                group => group.Select(diagnostic => ConvertToLspDiagnostic(diagnostic, text)).ToImmutableArray());
             return fileUriToDiagnostics;
 
             static Uri GetDiagnosticUri(Document document, DiagnosticData diagnosticData)
