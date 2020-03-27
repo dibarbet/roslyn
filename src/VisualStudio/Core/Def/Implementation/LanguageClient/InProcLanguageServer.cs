@@ -249,7 +249,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
         /// </summary>
         private readonly Dictionary<DocumentId, ImmutableHashSet<Uri>> _documentsToPublishedUris = new Dictionary<DocumentId, ImmutableHashSet<Uri>>();
 
-        private async Task PublishDiagnosticsAsync(Document document)
+        internal async Task PublishDiagnosticsAsync(Document document)
         {
             // Retrieve all diagnostics for the current document grouped by their actual file uri.
             var fileUriToDiagnostics = await GetDiagnosticsAsync(document, CancellationToken.None).ConfigureAwait(false);
@@ -257,7 +257,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             // Get the list of file uris with diagnostics (for the document).
             // We need to join the uris from current diagnostics with those previously published
             // so that we clear out any diagnostics in mapped files that are no longer a part
-            // of the current diagnostics set (because the diagnostics was fixed).
+            // of the current diagnostics set (because the diagnostics were fixed).
             var urisForCurrentDocument = GetOrValue(_documentsToPublishedUris, document.Id, ImmutableHashSet<Uri>.Empty).Union(fileUriToDiagnostics.Keys);
 
             // Update the mapping for this document to be the uris we're about to publish diagnostics for.
