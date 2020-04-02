@@ -138,8 +138,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         /// <param name="clientCapabilities">the client capabilities for the request.</param>
         /// <param name="cancellationToken">a cancellation token.</param>
         /// <returns>a list of completions.</returns>
-        public Task<LSP.SumType<LSP.CompletionItem[], LSP.CompletionList>?> GetCompletionsAsync(Solution solution, LSP.CompletionParams request, LSP.ClientCapabilities clientCapabilities, CancellationToken cancellationToken)
-            => ExecuteRequestAsync<LSP.CompletionParams, LSP.SumType<LSP.CompletionItem[], LSP.CompletionList>?>(LSP.Methods.TextDocumentCompletionName, solution, request, clientCapabilities, cancellationToken);
+        public Task<LSP.CompletionItem[]> GetCompletionsAsync(Solution solution, LSP.CompletionParams request, LSP.ClientCapabilities clientCapabilities, CancellationToken cancellationToken)
+            => ExecuteRequestAsync<LSP.CompletionParams, LSP.CompletionItem[]>(LSP.Methods.TextDocumentCompletionName, solution, request, clientCapabilities, cancellationToken);
 
         /// <summary>
         /// Answers a document highlights request by returning the highlights for a given document location.

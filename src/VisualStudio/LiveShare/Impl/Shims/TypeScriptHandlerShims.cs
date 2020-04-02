@@ -30,26 +30,15 @@ using Newtonsoft.Json.Linq;
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare
 {
     [ExportLspRequestHandler(LiveShareConstants.TypeScriptContractName, Methods.TextDocumentCompletionName)]
-    internal class TypeScriptCompletionHandlerShim : CompletionHandler, ILspRequestHandler<object, object?, Solution>
+    internal class TypeScriptCompletionHandlerShim : CompletionHandler, ILspRequestHandler<CompletionParams, LanguageServer.Protocol.CompletionItem[], Solution>
     {
         [ImportingConstructor]
         public TypeScriptCompletionHandlerShim()
         {
         }
 
-        public async Task<object?> HandleAsync(object input, RequestContext<Solution> requestContext, CancellationToken cancellationToken)
-        {
-            // The VS LSP client supports streaming using IProgress<T> on various requests.
-            // However, this is not yet supported through Live Share, so deserialization fails on the IProgress<T> property.
-            // https://devdiv.visualstudio.com/DevDiv/_workitems/edit/1043376 tracks Live Share support for this (committed for 16.6).
-            var request = ((JObject)input).ToObject<CompletionParams>(InProcLanguageServer.JsonSerializer);
-            // The return definition for TextDocumentCompletionName is SumType<CompletionItem[], CompletionList>.
-            // However Live Share is unable to handle a SumType return when using ILspRequestHandler.
-            // So instead we just return the actual value from the SumType.
-            // https://devdiv.visualstudio.com/DevDiv/_workitems/edit/1059193 tracks the fix.
-            var result = await base.HandleRequestAsync(requestContext.Context, request, requestContext.GetClientCapabilities(), cancellationToken).ConfigureAwait(false);
-            return result?.Value;
-        }
+        public async Task<LanguageServer.Protocol.CompletionItem[]> HandleAsync(CompletionParams input, RequestContext<Solution> requestContext, CancellationToken cancellationToken)
+            => await base.HandleRequestAsync(requestContext.Context, input, requestContext.GetClientCapabilities(), cancellationToken).ConfigureAwait(false);
     }
 
     [ExportLspRequestHandler(LiveShareConstants.TypeScriptContractName, Methods.TextDocumentCompletionResolveName)]

@@ -5,8 +5,10 @@
 #nullable enable
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -120,11 +122,25 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
             return _protocol.RenameAsync(_workspace.CurrentSolution, renameParams, _clientCapabilities, cancellationToken);
         }
 
-        [JsonRpcMethod(Methods.TextDocumentCompletionName)]
-        public Task<SumType<CompletionItem[], CompletionList>?> GetTextDocumentCompletionAsync(JToken input, CancellationToken cancellationToken)
+        [JsonRpcMethod(Methods.TextDocumentCompletionName, UseSingleObjectParameterDeserialization = true)]
+        public async Task<CompletionItem[]> GetTextDocumentCompletionAsync(CompletionParams completionParams, CancellationToken cancellationToken)
         {
-            var completionParams = input.ToObject<CompletionParams>(JsonSerializer);
-            return _protocol.GetCompletionsAsync(_workspace.CurrentSolution, completionParams, _clientCapabilities, cancellationToken);
+            var completions = await _protocol.GetCompletionsAsync(_workspace.CurrentSolution, completionParams, _clientCapabilities, cancellationToken).ConfigureAwait(false);
+            if (completionParams.PartialResultToken != null)
+            {
+                // Send the results via progress so that we at least pop up the completion list quickly.
+                // TODO we should support streaming from the providers themselves and/or reconsider json for this request.
+                for (var i = 0; i < completions.Length; i += 20)
+                {
+                    completionParams.PartialResultToken.Report(completions.Skip(i).Take(20).ToArray());
+                }
+
+                return Array.Empty<CompletionItem>();
+            }
+            else
+            {
+                return completions;
+            }
         }
 
         [JsonRpcMethod(Methods.TextDocumentCompletionResolveName)]
