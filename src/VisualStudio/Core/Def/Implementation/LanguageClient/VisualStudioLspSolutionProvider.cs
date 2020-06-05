@@ -43,6 +43,18 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageClient
             {
                 // If there's none in the VS workspace, then check the misc files workspace.
                 documents = _miscellaneousFilesWorkspace.CurrentSolution.GetDocuments(documentUri);
+
+                if (documents.IsEmpty)
+                {
+                    foreach(var workspaceRegistration in _miscellaneousFilesWorkspace._monikerToWorkspaceRegistration.Values)
+                    {
+                        var documentsInOtherWorkspaces = workspaceRegistration?.Workspace?.CurrentSolution.GetDocuments(documentUri);
+                        if (documentsInOtherWorkspaces.HasValue && !documentsInOtherWorkspaces.Value.IsEmpty)
+                        {
+                            return documentsInOtherWorkspaces.Value;
+                        }
+                    }
+                }
             }
 
             return documents;

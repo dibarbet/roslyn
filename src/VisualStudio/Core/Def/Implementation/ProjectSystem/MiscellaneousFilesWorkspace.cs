@@ -38,7 +38,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.ProjectSystem
         /// <see cref="WorkspaceRegistration"/> instances for all open buffers being tracked by by this object
         /// for possible inclusion into this workspace.
         /// </summary>
-        private IBidirectionalMap<string, WorkspaceRegistration> _monikerToWorkspaceRegistration = BidirectionalMap<string, WorkspaceRegistration>.Empty;
+        public IBidirectionalMap<string, WorkspaceRegistration> _monikerToWorkspaceRegistration = BidirectionalMap<string, WorkspaceRegistration>.Empty;
 
         /// <summary>
         /// The mapping of all monikers in the RDT and the <see cref="ProjectId"/> of the project and <see cref="SourceTextContainer"/> of the open
@@ -60,7 +60,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.ProjectSystem
             SVsServiceProvider serviceProvider)
             : base(visualStudioWorkspace.Services.HostServices, WorkspaceKind.MiscellaneousFiles)
         {
-            _foregroundThreadAffinitization = new ForegroundThreadAffinitizedObject(threadingContext, assertIsForeground: true);
+            _foregroundThreadAffinitization = new ForegroundThreadAffinitizedObject(threadingContext, assertIsForeground: false);
 
             _fileTrackingMetadataAsSourceService = fileTrackingMetadataAsSourceService;
             _textManager = (IVsTextManager)serviceProvider.GetService(typeof(SVsTextManager));
