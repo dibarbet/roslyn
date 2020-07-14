@@ -351,7 +351,8 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
         private async Task<Dictionary<Uri, ImmutableArray<LanguageServer.Protocol.Diagnostic>>> GetDiagnosticsAsync(CodeAnalysis.Document document, CancellationToken cancellationToken)
         {
             var diagnostics = _diagnosticService.GetDiagnostics(document.Project.Solution.Workspace, document.Project.Id, document.Id, null, false, cancellationToken)
-                                                .Where(IncludeDiagnostic);
+                                                .Where(IncludeDiagnostic)
+                                                .Where(diagnosticData => !IsHelperDiagnostic(diagnosticData));
 
             var text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
 
@@ -388,6 +389,17 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageService
                         ? new DiagnosticTag[] { DiagnosticTag.Unnecessary }
                         : Array.Empty<DiagnosticTag>()
                 };
+            }
+
+            // Roslyn has many helper diagnostics that are hidden from tool tips and/or squiggles, but do additional things
+            // like fading a specific location.  LSP does not yet support these, so we exclude these to avoid
+            // showing empty tool tips and squiggling extra locations.  We cannot exclude all hidden diagnostics as then
+            // some diagnostics (like unnecessary usings) would not show up at all.
+            // Support for these in LSP is tracked with
+            // https://devdiv.visualstudio.com/DevDiv/_workitems/edit/1118215
+            static bool IsHelperDiagnostic(DiagnosticData diagnostic)
+            {
+                return diagnostic.Severity == CodeAnalysis.DiagnosticSeverity.Hidden && string.IsNullOrEmpty(diagnostic.Message);
             }
         }
 
