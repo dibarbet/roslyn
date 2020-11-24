@@ -101,7 +101,7 @@ namespace Roslyn.Test.Utilities
                 ImmutableArray<MappedSpanResult> mappedResult = default;
                 if (document.Name == GeneratedFileName)
                 {
-                    mappedResult = spans.Select(span => new MappedSpanResult(s_mappedFilePath, s_mappedLinePosition, new TextSpan(0, 5))).ToImmutableArray();
+                    mappedResult = ImmutableArray.Create(new MappedSpanResult(s_mappedFilePath, s_mappedLinePosition, new TextSpan(0, 5)));
                 }
 
                 return Task.FromResult(mappedResult);
