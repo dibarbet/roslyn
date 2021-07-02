@@ -113,9 +113,10 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.LanguageClient
         {
             Contract.ThrowIfNull(_clientCapabilities, $"{nameof(InitializeAsync)} has not been called.");
 
-            return RequestDispatcher.ExecuteRequestAsync<WorkspaceDocumentDiagnosticsParams, WorkspaceDiagnosticReport[]?>(
+            return Task.FromResult<WorkspaceDiagnosticReport[]?>(null);
+            /*return RequestDispatcher.ExecuteRequestAsync<WorkspaceDocumentDiagnosticsParams, WorkspaceDiagnosticReport[]?>(
                 Queue, MSLSPMethods.WorkspacePullDiagnosticName,
-                diagnosticsParams, _clientCapabilities, ClientName, cancellationToken);
+                diagnosticsParams, _clientCapabilities, ClientName, cancellationToken);*/
         }
 
         [JsonRpcMethod(MSLSPMethods.ProjectContextsName, UseSingleObjectParameterDeserialization = true)]

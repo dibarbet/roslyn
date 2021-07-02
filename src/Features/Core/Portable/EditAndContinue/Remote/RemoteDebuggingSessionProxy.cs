@@ -6,7 +6,9 @@ using System;
 using System.Collections.Immutable;
 using System.Composition;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -14,11 +16,60 @@ using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Remote;
+using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.VisualStudio.Debugger.Contracts.EditAndContinue;
 
 namespace Microsoft.CodeAnalysis.EditAndContinue
 {
+    internal class FileLogger
+    {
+        private readonly string _logFilePath;
+        private readonly Timer _timer;
+
+        public static FileLogger Instance => s_fileLoggerInstance;
+        private static readonly FileLogger s_fileLoggerInstance = new FileLogger(@"C:\Users\dabarbet\Documents\fileloggerdata.txt");
+
+        public FileLogger(string logFilePath)
+        {
+            _logFilePath = logFilePath;
+            _timer = new Timer((e) => WriteLogs(), null, TimeSpan.Zero, TimeSpan.FromSeconds(10));
+        }
+
+        private StringBuilder _stringBuilder = new StringBuilder();
+
+        public void LogLine(string message, string? id = null)
+        {
+            string logline;
+            if (id != null)
+            {
+                logline = $"[{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}][{id}] {message}";
+            }
+            else
+            {
+                logline = $"[{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}] {message}";
+            }
+
+            lock (_stringBuilder)
+            {
+                _stringBuilder.AppendLine(logline);
+            }
+        }
+
+        private void WriteLogs()
+        {
+            string lines;
+            lock (_stringBuilder)
+            {
+                lines = _stringBuilder.ToString();
+                _stringBuilder = new StringBuilder();
+                _stringBuilder.AppendLine();
+            }
+
+            File.AppendAllText(_logFilePath, lines);
+        }
+    }
+
     internal sealed class RemoteDebuggingSessionProxy : IActiveStatementSpanProvider, IDisposable
     {
         private readonly IDisposable? _connection;
@@ -78,6 +129,24 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                     cancellationToken).ConfigureAwait(false);
 
                 documentsToReanalyze = documentsToReanalyzeOpt.HasValue ? documentsToReanalyzeOpt.Value : ImmutableArray<DocumentId>.Empty;
+            }
+
+            Document? docToAdd = null;
+            foreach (var doc in documentsToReanalyze)
+            {
+                FileLogger.Instance.LogLine($"Triggering re-analyze for {doc.DebugName}");
+
+                var fileName = doc.Id;
+                var fp = _workspace.CurrentSolution.GetDocument(doc)?.FilePath;
+                docToAdd = _workspace.CurrentSolution.GetProject(doc.ProjectId)?.Documents.FirstOrDefault(d => d.FilePath?.Contains("Counter.razor.g.cs") == true);
+                if (docToAdd != null)
+                {
+                    FileLogger.Instance.LogLine($"reanalyze {docToAdd.FilePath}");
+                }
+            }
+            if (docToAdd != null)
+            {
+                documentsToReanalyze = documentsToReanalyze.Add(docToAdd.Id);
             }
 
             // clear all reported rude edits:

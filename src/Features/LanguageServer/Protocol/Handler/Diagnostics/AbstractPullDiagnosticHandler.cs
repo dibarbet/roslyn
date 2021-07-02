@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading;
@@ -14,6 +15,9 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 using Roslyn.Utilities;
 using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
+using System.Text;
+using System.IO;
+using Microsoft.CodeAnalysis.EditAndContinue;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
 {
@@ -49,16 +53,21 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
         /// </summary>
         private long _nextDocumentResultId;
 
+        private readonly SemaphoreSlim _semaphore = new(1);
+
         public abstract string Method { get; }
 
         public bool MutatesSolutionState => false;
         public bool RequiresLSPSolution => true;
+
+        private readonly FileLogger _fileLogger;
 
         protected AbstractPullDiagnosticHandler(
             IDiagnosticService diagnosticService)
         {
             DiagnosticService = diagnosticService;
             DiagnosticService.DiagnosticsUpdated += OnDiagnosticsUpdated;
+            _fileLogger = FileLogger.Instance;
         }
 
         public abstract TextDocumentIdentifier? GetTextDocumentIdentifier(TDiagnosticsParams diagnosticsParams);
@@ -98,7 +107,16 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
         private void OnDiagnosticsUpdated(object? sender, DiagnosticsUpdatedArgs updateArgs)
         {
             if (updateArgs.DocumentId == null)
+            {
+                _fileLogger.LogLine($"Skipping diagnostic event: kind={updateArgs.Kind}, id={updateArgs.Id}, project={updateArgs.ProjectId?.DebugName}, source={sender?.GetType()}");
+                if (updateArgs.Id is LiveDiagnosticUpdateArgsId liveId)
+                {
+                    var docId = liveId.ProjectOrDocumentId as DocumentId;
+                    var projId = liveId.ProjectOrDocumentId as ProjectId;
+                    _fileLogger.LogLine($"Live id: kind={liveId.Kind}, proj={projId?.DebugName}, doc={docId?.DebugName}, analyzer={liveId.Analyzer}");
+                }
                 return;
+            }
 
             // Ensure we do not clear the cached results while the handler is reading (and possibly then writing)
             // to the cached results.
@@ -106,13 +124,18 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
             {
                 // Whenever we hear about changes to a document, drop the data we've stored for it.  We'll recompute it as
                 // necessary on the next request.
-                _documentIdToLastResultId.Remove((updateArgs.Workspace, updateArgs.DocumentId));
+                _fileLogger.LogLine($"Clearing diagnostics for {updateArgs.DocumentId.DebugName}, current keys = {_documentIdToLastResultId.Keys.Count}");
+                var result = _documentIdToLastResultId.Remove((updateArgs.Workspace, updateArgs.DocumentId));
+                _fileLogger.LogLine($"Cleared diagnostics for {updateArgs.DocumentId.DebugName}, succeeded = {result}, remaining keys = {_documentIdToLastResultId.Keys.Count}");
             }
         }
 
         public async Task<TReport[]?> HandleRequestAsync(
             TDiagnosticsParams diagnosticsParams, RequestContext context, CancellationToken cancellationToken)
         {
+            var requestId = Guid.NewGuid();
+
+            _fileLogger.LogLine("Beginning request", requestId.ToString());
             context.TraceInformation($"{this.GetType()} started getting diagnostics");
 
             // The progress object we will stream reports to.
@@ -156,6 +179,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
                 {
                     if (DiagnosticsAreUnchanged(documentToPreviousDiagnosticParams, document))
                     {
+                        _fileLogger.LogLine("Using cached diagnostics", requestId.ToString());
                         context.TraceInformation($"Diagnostics were unchanged for document: {document.FilePath}");
 
                         // Nothing changed between the last request and this one.  Report a (null-diagnostics,
@@ -166,8 +190,9 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
                     }
                     else
                     {
+                        _fileLogger.LogLine("Calculating diagnostics", requestId.ToString());
                         context.TraceInformation($"Diagnostics were changed for document: {document.FilePath}");
-                        report = await ComputeAndReportCurrentDiagnosticsAsync(context, document, cancellationToken).ConfigureAwait(false);
+                        report = await ComputeAndReportCurrentDiagnosticsAsync(context, document, requestId, cancellationToken).ConfigureAwait(false);
                     }
                 }
 
@@ -213,6 +238,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
         private async Task<TReport> ComputeAndReportCurrentDiagnosticsAsync(
             RequestContext context,
             Document document,
+            Guid requestId,
             CancellationToken cancellationToken)
         {
             // Being asked about this document for the first time.  Or being asked again and we have different
@@ -234,13 +260,14 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
             {
                 var text = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
                 var diagnostics = await GetDiagnosticsAsync(context, document, diagnosticMode, cancellationToken).ConfigureAwait(false);
+                _fileLogger.LogLine($"Calculated diagnostics(has ENC = { diagnostics.Any(d => d.Id.Contains("ENC"))}", requestId.ToString());
                 context.TraceInformation($"Got {diagnostics.Length} diagnostics");
 
                 foreach (var diagnostic in diagnostics)
                     result.Add(ConvertDiagnostic(document, text, diagnostic));
             }
 
-            return RecordDiagnosticReport(document, result.ToArray());
+            return RecordDiagnosticReport(document, result.ToArray(), requestId);
         }
 
         private void HandleRemovedDocuments(RequestContext context, DiagnosticParams[] previousResults, BufferedProgress<TReport> progress)
@@ -282,7 +309,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
         /// <summary>
         /// Reports diagnostics and caches report, called under <see cref="_gate"/>
         /// </summary>
-        private TReport RecordDiagnosticReport(Document document, VSDiagnostic[] diagnostics)
+        private TReport RecordDiagnosticReport(Document document, VSDiagnostic[] diagnostics, Guid requestId)
         {
             // Keep track of the diagnostics we reported here so that we can short-circuit producing diagnostics for
             // the same diagnostic set in the future.  Use a custom result-id per type (doc diagnostics or workspace
@@ -291,6 +318,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
             // doc-diagnostics.  The two systems are different and cannot share results, or do things like report
             // what changed between each other.
             var resultId = $"{GetType().Name}:{_nextDocumentResultId++}";
+            _fileLogger.LogLine($"Updating cached diagnostics (has ENC = {diagnostics.Any(d => d.Code?.Second?.Contains("ENC") == true)}), for {document.FilePath}", requestId.ToString());
             _documentIdToLastResultId[(document.Project.Solution.Workspace, document.Id)] = resultId;
             return CreateReport(ProtocolConversions.DocumentToTextDocumentIdentifier(document), diagnostics, resultId);
         }
