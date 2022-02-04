@@ -6,6 +6,7 @@ using System;
 using System.Collections.Immutable;
 using System.ComponentModel.Composition;
 using System.Linq;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Editor.Shared.Utilities;
 using Microsoft.CodeAnalysis.Host.Mef;
@@ -46,6 +47,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.LanguageClient
             : base(csharpVBRequestDispatcherFactory, globalOptions, diagnosticService: null, listenerProvider, lspWorkspaceRegistrationService, lspLoggerFactory, threadingContext, diagnosticsClientName: null)
         {
             _defaultCapabilitiesProvider = defaultCapabilitiesProvider;
+            Console.WriteLine("activating always active server");
         }
 
         protected override ImmutableArray<string> SupportedLanguages => ProtocolConstants.RoslynLspLanguages;
@@ -55,12 +57,13 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.LanguageClient
         public override ServerCapabilities GetCapabilities(ClientCapabilities clientCapabilities)
         {
             var serverCapabilities = new VSInternalServerCapabilities();
-
+            Console.WriteLine("getting capabilities");
             // If the LSP editor feature flag is enabled advertise support for LSP features here so they are available locally and remote.
             var isLspEditorEnabled = GlobalOptions.GetOption(LspOptions.LspEditorFeatureFlag);
             if (isLspEditorEnabled)
             {
                 serverCapabilities = (VSInternalServerCapabilities)_defaultCapabilitiesProvider.GetCapabilities(clientCapabilities);
+                Console.WriteLine("setting all on with feature flag on");
             }
             else
             {
@@ -70,6 +73,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.LanguageClient
                     Change = TextDocumentSyncKind.Incremental,
                     OpenClose = true,
                 };
+                Console.WriteLine("setting only text document sync");
             }
 
             serverCapabilities.ProjectContextProvider = true;
@@ -108,6 +112,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.LanguageClient
                 };
             }
 
+            Console.WriteLine("sent capabilities");
             return serverCapabilities;
         }
 

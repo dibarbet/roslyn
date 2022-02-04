@@ -29,7 +29,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             new FeatureFlagStorageLocation("Roslyn.LSP.Completion"));
 
         // Flag is defined in VisualStudio\Core\Def\PackageRegistration.pkgdef.
-        public static readonly Option2<bool> LspEditorFeatureFlag = new(FeatureName, nameof(LspEditorFeatureFlag), defaultValue: false,
+        public static readonly Option2<bool> LspEditorFeatureFlag = new(FeatureName, nameof(LspEditorFeatureFlag), defaultValue: true,
             new FeatureFlagStorageLocation("Roslyn.LSP.Editor"));
 
         // Flag is defined in VisualStudio\Core\Def\PackageRegistration.pkgdef.
