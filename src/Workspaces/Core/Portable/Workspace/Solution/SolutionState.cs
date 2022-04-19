@@ -110,9 +110,28 @@ namespace Microsoft.CodeAnalysis
 
             CheckInvariants();
 
+#if DEBUG
+            FilePathsMatchSolutionState(filePathToDocumentIdsMap, idToProjectStateMap);
+#endif
+
             // make sure we don't accidentally capture any state but the list of references:
             static Lazy<HostDiagnosticAnalyzers> CreateLazyHostDiagnosticAnalyzers(IReadOnlyList<AnalyzerReference> analyzerReferences)
                 => new(() => new HostDiagnosticAnalyzers(analyzerReferences));
+        }
+
+        static void FilePathsMatchSolutionState(ImmutableDictionary<string, ImmutableArray<DocumentId>> filePathsToDocumentIds, ImmutableDictionary<ProjectId, ProjectState> idToProjectStateMap)
+        {
+            foreach(var kvp in filePathsToDocumentIds)
+            {
+                foreach(var documentId in kvp.Value)
+                {
+                    var project = idToProjectStateMap[documentId.ProjectId];
+                    if (!project.DocumentStates.Ids.Contains(documentId))
+                    {
+                        Debugger.Launch();
+                    }
+                }
+            }
         }
 
         public SolutionState(
