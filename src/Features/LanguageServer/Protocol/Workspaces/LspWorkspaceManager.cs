@@ -47,6 +47,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker
 {
     /// <summary>
     /// A cache from workspace to the last solution we returned for LSP.
+    /// When this solution comes from a fork operation we store the workspace version it was forked from.
     /// 
     /// The forkedFromVersion is not null when the solution was created from a fork of the workspace with LSP text applied on top.
     /// It is null when LSP reuses the workspace solution (the LSP text matches the contents of the workspace).
