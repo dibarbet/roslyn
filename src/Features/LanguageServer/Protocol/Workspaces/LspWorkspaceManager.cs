@@ -7,10 +7,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Security.Policy;
 using System.Threading;
-using Microsoft.CodeAnalysis.Elfie.Diagnostics;
-using Microsoft.CodeAnalysis.Internal.Log;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges;
 using Microsoft.CodeAnalysis.Shared.Collections;
@@ -251,7 +248,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         var registeredWorkspaces = _lspWorkspaceRegistrationService.GetAllRegistrations();
         foreach (var workspace in registeredWorkspaces)
         {
-            // Get the cached solution for this workspace if we have one.
+            // Get the cached solution for this workspace if available.
             _cachedLspSolutions.TryGetValue(workspace, out var cachedSolution);
 
             if (cachedSolution == null || cachedSolution.WorkspaceVersion != workspace.CurrentSolution.WorkspaceVersion)
@@ -339,6 +336,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         // If our workspace's current solution has all the same text as LSP, we can just re-use the workspace solution.
         if (DoesAllLspTextMatchSolution(documentsToReplace, workspaceSolution))
         {
+            _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(isSameSolution: true);
             return workspaceSolution;
         }
 
@@ -352,10 +350,12 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         if (previousWorkspaceSolution != null && DoesAllLspTextMatchSolution(documentsToReplace, previousWorkspaceSolution))
         {
             // All the LSP documents that are a part of this solution match the previous solution for this workspace.
+            _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(isSameSolution: true);
             return previousWorkspaceSolution;
         }
 
         _logger.TraceWarning($"Workspace {workspaceSolution.Workspace.Kind} text did not match LSP text");
+        _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(isSameSolution: false);
 
         // Neither the workspace's current solution or the previous solution matches the LSP text we have.
         // This means we need to fork from the workspace current solution and apply the LSP text on top of it.

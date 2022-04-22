@@ -44,6 +44,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 
             private readonly LogAggregator _findDocumentResults;
 
+            private readonly LogAggregator _sameAsWorkspaceSolution;
+
             private int _disposed;
 
             public RequestTelemetryLogger(string serverTypeName)
@@ -51,6 +53,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                 _serverTypeName = serverTypeName;
                 _requestCounters = new();
                 _findDocumentResults = new();
+                _sameAsWorkspaceSolution = new();
 
                 // Buckets queued duration into 10ms buckets with the last bucket starting at 1000ms.
                 // Queue times are relatively short and fall under 50ms, so tracking past 1000ms is not useful.
@@ -69,6 +72,11 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                 {
                     _findDocumentResults.IncreaseCount(workspaceKindTelemetryProperty);
                 }
+            }
+
+            public void UpdateSameAsWorkspaceSolutionTelemetryData(bool isSameSolution)
+            {
+                _sameAsWorkspaceSolution.IncreaseCount(isSameSolution);
             }
 
             public void UpdateTelemetryData(
@@ -148,6 +156,16 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                 {
                     m["server"] = _serverTypeName;
                     foreach (var kvp in _findDocumentResults)
+                    {
+                        var info = kvp.Key.ToString()!;
+                        m[info] = kvp.Value.GetCount();
+                    }
+                }));
+
+                Logger.Log(FunctionId.LSP_SameAsWorkspaceSolution, KeyValueLogMessage.Create(LogType.Trace, m =>
+                {
+                    m["server"] = _serverTypeName;
+                    foreach (var kvp in _sameAsWorkspaceSolution)
                     {
                         var info = kvp.Key.ToString()!;
                         m[info] = kvp.Value.GetCount();
