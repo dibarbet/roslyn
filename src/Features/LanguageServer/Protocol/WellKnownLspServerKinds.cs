@@ -41,6 +41,8 @@ internal enum WellKnownLspServerKinds
     /// LSP server for TypeScript
     /// </summary>
     RoslynTypeScriptLspServer,
+
+    EditorConfigLspServer,
 }
 
 internal static class WellKnownLspServerExtensions
@@ -58,6 +60,7 @@ internal static class WellKnownLspServerExtensions
             WellKnownLspServerKinds.XamlLspServer => "XAML Language Server Client (Experimental)",
             WellKnownLspServerKinds.XamlLspServerDisableUX => "XAML Language Server Client for LiveShare and Codespaces",
             WellKnownLspServerKinds.RoslynTypeScriptLspServer => "Roslyn TypeScript Language Server Client",
+            WellKnownLspServerKinds.EditorConfigLspServer => "Roslyn EditorConfig Language Server Client",
             _ => throw ExceptionUtilities.UnexpectedValue(server),
         };
     }
@@ -85,6 +88,8 @@ internal static class WellKnownLspServerExtensions
             WellKnownLspServerKinds.XamlLspServerDisableUX => "XamlInProcLanguageClientDisableUX",
 
             WellKnownLspServerKinds.RoslynTypeScriptLspServer => "RoslynTypeScriptLspServer",
+
+            WellKnownLspServerKinds.EditorConfigLspServer => "RoslynEditorConfigLspServer",
             _ => throw ExceptionUtilities.UnexpectedValue(server),
         };
     }
