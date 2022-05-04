@@ -10,6 +10,7 @@ using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges;
+using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Shared.Collections;
 using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.CodeAnalysis.Text;
@@ -57,7 +58,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
     /// 
     /// Access to this is gauranteed to be serial by the <see cref="RequestExecutionQueue"/>
     /// </summary>
-    private readonly Dictionary<Workspace, CachedSolution?> _cachedLspSolutions = new();
+    private readonly Dictionary<Workspace, CachedSolution> _cachedLspSolutions = new();
 
     /// <summary>
     /// Stores the current source text for each URI that is being tracked by LSP.
@@ -70,6 +71,20 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
     /// Access to this is gauranteed to be serial by the <see cref="RequestExecutionQueue"/>
     /// </summary>
     private ImmutableDictionary<Uri, SourceText> _trackedDocuments = ImmutableDictionary<Uri, SourceText>.Empty;
+
+    /// <summary>
+    /// Gate to guard access to <see cref="_workspaceToPreviousSolution"/> since we access this
+    /// via workspace change events and from the LSP request queue.
+    /// </summary>
+    private readonly object _gate = new();
+
+    /// <summary>
+    /// Cache to store the previous solution from the registered LSP workspace.
+    /// We match the LSP text against the workspace current solution and
+    /// the previous solution (the LSP text is often behind the workspace) to
+    /// avoid forking solutions as much as possible for LSP requests.
+    /// </summary>
+    private readonly Dictionary<Workspace, Solution> _workspaceToPreviousSolution = new();
 
     private readonly string _hostWorkspaceKind;
     private readonly ILspLogger _logger;
@@ -99,20 +114,6 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         _lspWorkspaceRegistrationService.LspSolutionChanged -= OnLspWorkspaceSolutionChanged;
     }
 
-    /// <summary>
-    /// Gate to guard access to <see cref="_workspaceToPreviousSolution"/> since we access this
-    /// via workspace change events and from the LSP request queue.
-    /// </summary>
-    private readonly object _gate = new();
-
-    /// <summary>
-    /// Cache to store the previous solution from the registered LSP workspace.
-    /// We match the LSP text against the workspace current solution and
-    /// the previous solution (the LSP text is often behind the workspace) to
-    /// avoid forking solutions as much as possible for LSP requests.
-    /// </summary>
-    private readonly Dictionary<Workspace, Solution> _workspaceToPreviousSolution = new();
-
     private void OnLspWorkspaceSolutionChanged(object? sender, WorkspaceChangeEventArgs e)
     {
         // A registered workspace has changed its current solution.
@@ -135,7 +136,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         _trackedDocuments = _trackedDocuments.Add(uri, documentText);
 
         // If LSP changed, we need to compare against the workspace again to get the updated solution.
-        ClearCachedLspSolutions();
+        _cachedLspSolutions.Clear();
     }
 
     /// <summary>
@@ -148,7 +149,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         _trackedDocuments = _trackedDocuments.Remove(uri);
 
         // If LSP changed, we need to compare against the workspace again to get the updated solution.
-        ClearCachedLspSolutions();
+        _cachedLspSolutions.Clear();
 
         // Also remove it from our loose files workspace if it is still there.
         _lspMiscellaneousFilesWorkspace?.TryRemoveMiscellaneousDocument(uri);
@@ -164,7 +165,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         _trackedDocuments = _trackedDocuments.SetItem(uri, newSourceText);
 
         // If LSP changed, we need to compare against the workspace again to get the updated solution.
-        ClearCachedLspSolutions();
+        _cachedLspSolutions.Clear();
     }
 
     public ImmutableDictionary<Uri, SourceText> GetTrackedLspText() => _trackedDocuments;
@@ -180,7 +181,7 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
     public Solution? TryGetHostLspSolution()
     {
         // Ensure we have the latest lsp solutions
-        var updatedSolutions = ComputeLspSolutions();
+        var updatedSolutions = GetLspSolutions();
 
         var hostWorkspaceSolution = updatedSolutions.FirstOrDefault(s => s.Workspace.Kind == _hostWorkspaceKind);
         return hostWorkspaceSolution;
@@ -191,209 +192,137 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
     /// </summary>
     public Document? GetLspDocument(TextDocumentIdentifier textDocumentIdentifier)
     {
-        // Ensure we have the latest lsp solutions
-        var currentLspSolutions = ComputeLspSolutions();
-
         var uri = textDocumentIdentifier.Uri;
 
-        // Search through the latest lsp solutions to find the document with matching uri and client name.
-        var findDocumentResult = FindDocuments(uri, currentLspSolutions, _requestTelemetryLogger, _logger);
+        // Get the LSP view of all the workspace solutions.
+        var lspSolutions = GetLspSolutions();
 
-        Document? document;
-        if (findDocumentResult.IsEmpty)
+        // Find the matching document from the LSP solutions.
+        foreach (var lspSolution in lspSolutions)
         {
-            // We didn't find a document, if the document is open, return one from our loose files workspace.
-            document = _trackedDocuments.ContainsKey(uri) ? _lspMiscellaneousFilesWorkspace?.AddMiscellaneousDocument(uri, _trackedDocuments[uri]) : null;
-        }
-        else
-        {
-            // Filter the matching documents by project context.
-            document = findDocumentResult.FindDocumentInProjectContext(textDocumentIdentifier);
-        }
-
-        // We found a document in a normal workspace.  If so we can remove from our loose files workspace.
-        if (document != null && document.Project.Solution.Workspace is not LspMiscellaneousFilesWorkspace)
-        {
-            _lspMiscellaneousFilesWorkspace?.TryRemoveMiscellaneousDocument(textDocumentIdentifier.Uri);
-        }
-
-        return document;
-    }
-
-    #endregion
-
-    /// <summary>
-    /// Helper to clear out the cached LSP solutions when the LSP text changes.
-    /// </summary>
-    private void ClearCachedLspSolutions()
-    {
-        var workspaces = _cachedLspSolutions.Keys.ToImmutableArray();
-        foreach (var workspace in workspaces)
-        {
-            _cachedLspSolutions[workspace] = null;
-        }
-    }
-
-    /// <summary>
-    /// Helper to get LSP solutions for all the registered workspaces.
-    /// If the cached lsp solution is missing, this will retrieve the updated workspace solution (if LSP text matches)
-    /// or will re-fork from the workspace (if the LSP text does not match).
-    /// </summary>
-    private ImmutableArray<Solution> ComputeLspSolutions()
-    {
-        var workspacePairs = _cachedLspSolutions.ToImmutableArray();
-        using var updatedSolutions = TemporaryArray<Solution>.Empty;
-
-        // Get the latest registered workspaces.
-        var registeredWorkspaces = _lspWorkspaceRegistrationService.GetAllRegistrations();
-        foreach (var workspace in registeredWorkspaces)
-        {
-            // Get the cached solution for this workspace if available.
-            _cachedLspSolutions.TryGetValue(workspace, out var cachedSolution);
-
-            if (cachedSolution == null || cachedSolution.WorkspaceVersion != workspace.CurrentSolution.WorkspaceVersion)
+            var documents = lspSolution.GetDocuments(uri);
+            if (documents.Any())
             {
-                // We don't have a cached solution or the workspace's current solution has moved on from when we last checked.
-                // We need to get the new workspace solution and re-use (if the LSP doc text matches) or fork from it.
-                var workspaceSolution = workspace.CurrentSolution;
-                var newSolution = GetSolutionWithReplacedDocuments(workspaceSolution, _trackedDocuments.Select(k => (k.Key, k.Value)).ToImmutableArray());
+                var document = documents.FindDocumentInProjectContext(textDocumentIdentifier);
 
-                // Store this as our most recent LSP solution along with the workspace current solution version it came from.
-                _cachedLspSolutions[workspace] = new(workspaceSolution.WorkspaceVersion, newSolution);
-                updatedSolutions.Add(newSolution);
+                // Record telemetry that we successfully found the document.
+                var workspaceKind = document.Project.Solution.Workspace.Kind;
+                _requestTelemetryLogger.UpdateFindDocumentTelemetryData(success: true, workspaceKind);
+                _logger.TraceInformation($"{document.FilePath} found in workspace {workspaceKind}");
+
+                return document;
             }
-            else
-            {
-                updatedSolutions.Add(cachedSolution.CachedLspSolution);
-            }
-        }
-
-        return updatedSolutions.ToImmutableAndClear();
-    }
-
-    /// <summary>
-    /// Looks for document(s - e.g. linked docs) from a single solution matching the input URI in the set of passed in solutions.
-    /// </summary>
-    private static ImmutableArray<Document> FindDocuments(
-        Uri uri,
-        ImmutableArray<Solution> registeredSolutions,
-        RequestTelemetryLogger telemetryLogger,
-        ILspLogger logger)
-    {
-        logger.TraceInformation($"Finding document corresponding to {uri}");
-
-        // Ensure we search the lsp misc files solution last if it is present.
-        registeredSolutions = registeredSolutions
-            .Where(solution => solution.Workspace is not LspMiscellaneousFilesWorkspace)
-            .Concat(registeredSolutions.Where(solution => solution.Workspace is LspMiscellaneousFilesWorkspace)).ToImmutableArray();
-
-        // First search the registered workspaces for documents with a matching URI.
-        if (TryGetDocumentsForUri(uri, registeredSolutions, out var documents, out var solution))
-        {
-            telemetryLogger.UpdateFindDocumentTelemetryData(success: true, solution.Workspace.Kind);
-            logger.TraceInformation($"{documents.Value.First().FilePath} found in workspace {solution.Workspace.Kind}");
-
-            return documents.Value;
         }
 
         // We didn't find the document in any workspace, record a telemetry notification that we did not find it.
-        var searchedWorkspaceKinds = string.Join(";", registeredSolutions.SelectAsArray(s => s.Workspace.Kind));
-        logger.TraceError($"Could not find '{uri}'.  Searched {searchedWorkspaceKinds}");
-        telemetryLogger.UpdateFindDocumentTelemetryData(success: false, workspaceKind: null);
+        var searchedWorkspaceKinds = string.Join(";", lspSolutions.SelectAsArray(s => s.Workspace.Kind));
+        _logger.TraceError($"Could not find '{uri}'.  Searched {searchedWorkspaceKinds}");
+        _requestTelemetryLogger.UpdateFindDocumentTelemetryData(success: false, workspaceKind: null);
 
-        return ImmutableArray<Document>.Empty;
+        // Add the document to our loose files workspace if its open.
+        var miscDocument = _trackedDocuments.ContainsKey(uri) ? _lspMiscellaneousFilesWorkspace?.AddMiscellaneousDocument(uri, _trackedDocuments[uri]) : null;
+        return miscDocument;
+    }
 
-        static bool TryGetDocumentsForUri(
-            Uri uri,
-            ImmutableArray<Solution> registeredSolutions,
-            [NotNullWhen(true)] out ImmutableArray<Document>? documents,
-            [NotNullWhen(true)] out Solution? solution)
+    /// <summary>
+    /// Gets the LSP view of all the registered workspaces' current solutions.
+    /// We try to re-use the workspaces' current solutions when the LSP text matches to
+    /// avoid forking whenever possible (re-use parsed trees, compilations, etc).
+    /// </summary>
+    /// <returns></returns>
+    private ImmutableArray<Solution> GetLspSolutions()
+    {
+        // Ensure that the loose files workspace is searched last.
+        var registeredWorkspaces = _lspWorkspaceRegistrationService.GetAllRegistrations();
+        registeredWorkspaces = registeredWorkspaces
+            .Where(workspace => workspace is not LspMiscellaneousFilesWorkspace)
+            .Concat(registeredWorkspaces.Where(workspace => workspace is LspMiscellaneousFilesWorkspace)).ToImmutableArray();
+
+        using var _ = ArrayBuilder<Solution>.GetInstance(out var solutions);
+        foreach (var workspace in registeredWorkspaces)
         {
-            foreach (var registeredSolution in registeredSolutions)
+            var workspaceCurrentSolution = workspace.CurrentSolution;
+
+            // Check if we have already created an LSP solution for this exact set of LSP text and this exact workspace current solution.
+            if (_cachedLspSolutions.TryGetValue(workspace, out var cachedLspSolution) && cachedLspSolution.WorkspaceVersion == workspaceCurrentSolution.WorkspaceVersion)
             {
-                var matchingDocuments = registeredSolution.GetDocuments(uri);
-                if (matchingDocuments.Any())
-                {
-                    documents = matchingDocuments;
-                    solution = registeredSolution;
-                    return true;
-                }
+                solutions.Add(cachedLspSolution.CachedLspSolution);
+            }
+            else
+            {
+                // Cached solution does not match - get the up to date solution and cache it.
+                var lspSolution = GetLspSolutionForWorkspace(workspaceCurrentSolution);
+                _cachedLspSolutions[workspace] = new CachedSolution(workspaceCurrentSolution.WorkspaceVersion, lspSolution);
+                solutions.Add(lspSolution);
+            }
+        }
+
+        return solutions.ToImmutable();
+
+        Solution GetLspSolutionForWorkspace(Solution workspaceCurrentSolution)
+        {
+            // Map the LSP text to the corresponding workspace document (if present in this workspace).
+            var documentsInWorkspace = GetDocumentsForUris(_trackedDocuments.Keys.ToImmutableArray(), workspaceCurrentSolution);
+
+            // First we check to see if the text that the workspace current solution has matches our LSP text.
+            if (DoesAllTextMatchWorkspaceSolution(documentsInWorkspace))
+            {
+                _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(cacheLevel: 1);
+                return workspaceCurrentSolution;
             }
 
-            documents = null;
-            solution = null;
-            return false;
+            // The workspace's current solution text doesn't match, so lets see if the previous workspace solution we've cached matches.
+            Solution? previousWorkspaceSolution;
+            lock (_gate)
+            {
+                _workspaceToPreviousSolution.TryGetValue(workspaceCurrentSolution.Workspace, out previousWorkspaceSolution);
+            }
+
+            if (previousWorkspaceSolution != null && DoesAllTextMatchPreviousWorkspaceSolution(documentsInWorkspace, previousWorkspaceSolution))
+            {
+                _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(cacheLevel: 2);
+                _logger.TraceInformation($"Using the cached previous solution for {workspaceCurrentSolution.Workspace.Kind}");
+                return previousWorkspaceSolution;
+            }
+
+            // Neither the workspace solution or the previous workspace solution matches.
+            // We must fork from the workspace and apply the LSP text on top.
+
+            _logger.TraceWarning($"Workspace {workspaceCurrentSolution.Workspace.Kind} text did not match LSP text");
+            _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(cacheLevel: -1);
+
+            var lspSolution = workspaceCurrentSolution;
+            foreach (var (uri, workspaceDocuments) in documentsInWorkspace)
+            {
+                lspSolution = lspSolution.WithDocumentText(workspaceDocuments.Select(d => d.Id), _trackedDocuments[uri]);
+            }
+
+            return lspSolution;
         }
     }
 
     /// <summary>
-    /// Gets a solution that represents the workspace view of the world (as passed in via the solution parameter)
-    /// but with document text for any open documents updated to match the LSP view of the world (if different). This makes
-    /// the LSP server the source of truth for all document text, but all other changes come from the workspace
+    /// Given a set of documents from the workspace's current solution, verify that the previous workspace solution
+    /// has the same set of documents and that the LSP text matches what is in the previous workspace solution.
     /// </summary>
-    private Solution GetSolutionWithReplacedDocuments(Solution workspaceSolution, ImmutableArray<(Uri DocumentUri, SourceText Text)> documentsToReplace)
+    private bool DoesAllTextMatchPreviousWorkspaceSolution(ImmutableDictionary<Uri, ImmutableArray<Document>> documentsInWorkspace, Solution previousWorkspaceSolution)
     {
-        // If our workspace's current solution has all the same text as LSP, we can just re-use the workspace solution.
-        if (DoesAllLspTextMatchSolution(documentsToReplace, workspaceSolution))
+        foreach (var (uriInWorkspace, workspaceDocumentsForUri) in documentsInWorkspace)
         {
-            _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(isSameSolution: true);
-            return workspaceSolution;
-        }
-
-        Solution? previousWorkspaceSolution;
-        lock (_gate)
-        {
-            _workspaceToPreviousSolution.TryGetValue(workspaceSolution.Workspace, out previousWorkspaceSolution);
-        }
-
-        // If the previous workspace current solution has all the same text as LSP, we can re-use that solution.
-        if (previousWorkspaceSolution != null && DoesAllLspTextMatchSolution(documentsToReplace, previousWorkspaceSolution))
-        {
-            // All the LSP documents that are a part of this solution match the previous solution for this workspace.
-            _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(isSameSolution: true);
-            return previousWorkspaceSolution;
-        }
-
-        _logger.TraceWarning($"Workspace {workspaceSolution.Workspace.Kind} text did not match LSP text");
-        _requestTelemetryLogger.UpdateSameAsWorkspaceSolutionTelemetryData(isSameSolution: false);
-
-        // Neither the workspace's current solution or the previous solution matches the LSP text we have.
-        // This means we need to fork from the workspace current solution and apply the LSP text on top of it.
-        var forkedSolution = ForkSolution(workspaceSolution, documentsToReplace);
-        return forkedSolution;
-
-        static Solution ForkSolution(Solution workspaceSolution, ImmutableArray<(Uri DocumentUri, SourceText Text)> documentsToReplace)
-        {
-            var forkedSolution = workspaceSolution;
-            foreach (var (uri, text) in documentsToReplace)
+            var previousWorkspaceSolutionDocumentsForUri = previousWorkspaceSolution.GetDocuments(uriInWorkspace);
+            if (previousWorkspaceSolutionDocumentsForUri.Length != workspaceDocumentsForUri.Length || !previousWorkspaceSolutionDocumentsForUri.All(doc => workspaceDocumentsForUri.Any(workspaceDoc => doc.Id == workspaceDoc.Id)))
             {
-                var documentIds = forkedSolution.GetDocumentIds(uri);
-                if (!documentIds.Any())
-                {
-                    continue;
-                }
-
-                forkedSolution = forkedSolution.WithDocumentText(documentIds, text);
+                // The documents in the previous solution for the URI don't match what the current workspace solution has.
+                // This means we can't re-use this solution as it is not up to date.
+                _logger.TraceInformation($"Documents in previous solution for {uriInWorkspace} did not match.");
+                return false;
             }
 
-            return forkedSolution;
-        }
-    }
-
-    private bool DoesAllLspTextMatchSolution(ImmutableArray<(Uri DocumentUri, SourceText Text)> documentsToReplace, Solution solution)
-    {
-        foreach (var (uri, text) in documentsToReplace)
-        {
-            var documentIds = solution.GetDocumentIds(uri);
-            if (!documentIds.Any())
+            var isTextEquivalent = AreChecksumsEqual(previousWorkspaceSolutionDocumentsForUri.First(), _trackedDocuments[uriInWorkspace]);
+            if (!isTextEquivalent)
             {
-                // The document is not part of the solution.
-                continue;
-            }
-
-            if (!DoesTextMatchSolution(documentIds, text, solution))
-            {
-                _logger.TraceInformation($"Text mismatch in workspace {solution.Workspace.Kind} for {uri}");
+                // The text does not match for this document, we cannot re-use this solution.
+                _logger.TraceInformation($"Text for {uriInWorkspace} did not match text in workspace's previous solution");
                 return false;
             }
         }
@@ -401,15 +330,51 @@ internal class LspWorkspaceManager : IDocumentChangeTracker, IDisposable
         return true;
     }
 
-    private static bool DoesTextMatchSolution(ImmutableArray<DocumentId> documentIds, SourceText lspText, Solution solution)
+    /// <summary>
+    /// Given a set of documents from the workspace current solution, verify that the LSP text for the same documents match the workspace contents.
+    /// </summary>
+    private bool DoesAllTextMatchWorkspaceSolution(ImmutableDictionary<Uri, ImmutableArray<Document>> documentsInWorkspace)
     {
-        // We just want the text, so pick any of the documentIds to get the text for the document.
-        var workspaceDocument = solution.GetRequiredDocument(documentIds.First());
-        var workspaceText = workspaceDocument.GetTextSynchronously(CancellationToken.None);
-        var workspaceChecksum = workspaceText.GetChecksum();
+        foreach (var (uriInWorkspace, documentsForUri) in documentsInWorkspace)
+        {
+            var isTextEquivalent = AreChecksumsEqual(documentsForUri.First(), _trackedDocuments[uriInWorkspace]);
 
-        var lspChecksum = lspText.GetChecksum();
-        return lspChecksum.SequenceEqual(workspaceChecksum);
+            if (!isTextEquivalent)
+            {
+                _logger.TraceInformation($"Text for {uriInWorkspace} did not match text in workspace's current solution");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AreChecksumsEqual(Document document, SourceText lspText)
+    {
+        var documentText = document.GetTextSynchronously(CancellationToken.None);
+        var documentTextChecksum = documentText.GetChecksum();
+        var lspTextChecksum = lspText.GetChecksum();
+        return lspTextChecksum.SequenceEqual(documentTextChecksum);
+    }
+
+    #endregion
+
+    /// <summary>
+    /// Using the workspace's current solutions, find the matching documents in for each URI.
+    /// </summary>
+    private static ImmutableDictionary<Uri, ImmutableArray<Document>> GetDocumentsForUris(ImmutableArray<Uri> trackedDocuments, Solution workspaceCurrentSolution)
+    {
+        using var _ = PooledDictionary<Uri, ImmutableArray<Document>>.GetInstance(out var documentsInSolution);
+        foreach (var trackedDoc in trackedDocuments)
+        {
+            var documents = workspaceCurrentSolution.GetDocuments(trackedDoc);
+            if (documents.Any())
+            {
+                documentsInSolution[trackedDoc] = documents;
+            }
+        }
+
+        return documentsInSolution.ToImmutableDictionary();
     }
 
     internal TestAccessor GetTestAccessor()

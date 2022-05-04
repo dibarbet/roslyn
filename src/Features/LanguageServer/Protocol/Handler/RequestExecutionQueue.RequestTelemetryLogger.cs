@@ -74,9 +74,9 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                 }
             }
 
-            public void UpdateSameAsWorkspaceSolutionTelemetryData(bool isSameSolution)
+            public void UpdateSameAsWorkspaceSolutionTelemetryData(int cacheLevel)
             {
-                _sameAsWorkspaceSolution.IncreaseCount(isSameSolution);
+                _sameAsWorkspaceSolution.IncreaseCount(cacheLevel);
             }
 
             public void UpdateTelemetryData(
