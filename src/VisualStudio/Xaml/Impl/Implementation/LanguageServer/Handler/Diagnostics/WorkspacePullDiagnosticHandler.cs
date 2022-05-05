@@ -19,7 +19,7 @@ using Roslyn.Utilities;
 
 namespace Microsoft.VisualStudio.LanguageServices.Xaml.Implementation.LanguageServer.Handler.Diagnostics
 {
-    [ExportXamlLspRequestHandlerProvider(typeof(WorkspacePullDiagnosticHandler)), Shared]
+    [ExportXamlLspRequestHandlerProvider(typeof(WorkspacePullDiagnosticHandler))]
     [Method(VSInternalMethods.WorkspacePullDiagnosticName)]
     internal class WorkspacePullDiagnosticHandler : AbstractPullDiagnosticHandler<VSInternalWorkspaceDiagnosticsParams, VSInternalWorkspaceDiagnosticReport>
     {

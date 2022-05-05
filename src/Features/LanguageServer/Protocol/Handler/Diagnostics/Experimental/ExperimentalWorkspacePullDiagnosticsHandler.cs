@@ -4,12 +4,14 @@
 
 using System;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.EditAndContinue;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 
@@ -17,16 +19,20 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Experimental
 
 using WorkspaceDocumentDiagnosticReport = SumType<WorkspaceFullDocumentDiagnosticReport, WorkspaceUnchangedDocumentDiagnosticReport>;
 
+[ExportRoslynLspService(typeof(ExperimentalWorkspacePullDiagnosticsHandler))]
 [Method(ExperimentalMethods.WorkspaceDiagnostic)]
 internal class ExperimentalWorkspacePullDiagnosticsHandler : AbstractPullDiagnosticHandler<WorkspaceDiagnosticParams, WorkspaceDiagnosticReport, WorkspaceDiagnosticReport?>
 {
     private readonly IDiagnosticAnalyzerService _analyzerService;
 
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     public ExperimentalWorkspacePullDiagnosticsHandler(
         IDiagnosticService diagnosticService,
         IDiagnosticAnalyzerService analyzerService,
-        EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource)
-        : base(diagnosticService, editAndContinueDiagnosticUpdateSource)
+        EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource,
+        IGlobalOptionService globalOptions)
+        : base(diagnosticService, editAndContinueDiagnosticUpdateSource, globalOptions)
     {
         _analyzerService = analyzerService;
     }

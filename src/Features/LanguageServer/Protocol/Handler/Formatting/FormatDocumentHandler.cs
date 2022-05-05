@@ -12,7 +12,7 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 {
-    [ExportRoslynLanguagesLspRequestHandlerProvider(typeof(FormatDocumentHandler)), Shared]
+    [ExportRoslynLspService(typeof(FormatDocumentHandler))]
     [Method(LSP.Methods.TextDocumentFormattingName)]
     internal sealed class FormatDocumentHandler : AbstractFormatDocumentHandlerBase<LSP.DocumentFormattingParams, LSP.TextEdit[]?>
     {

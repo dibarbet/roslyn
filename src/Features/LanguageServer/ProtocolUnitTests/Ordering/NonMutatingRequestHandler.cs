@@ -13,9 +13,11 @@ using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.RequestOrdering
 {
-    [Shared, ExportRoslynLanguagesLspRequestHandlerProvider(typeof(NonMutatingRequestHandler)), PartNotDiscoverable]
+#pragma warning disable RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+    [ExportRoslynLspService(typeof(NonMutatingRequestHandler)), PartNotDiscoverable]
+#pragma warning restore RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
     [Method(MethodName)]
-    internal class NonMutatingRequestHandler : AbstractStatelessRequestHandler<TestRequest, TestResponse>
+    internal class NonMutatingRequestHandler : IRequestHandler<TestRequest, TestResponse>
     {
         public const string MethodName = nameof(NonMutatingRequestHandler);
         private const int Delay = 100;
@@ -26,12 +28,12 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.RequestOrdering
         {
         }
 
-        public override bool MutatesSolutionState => false;
-        public override bool RequiresLSPSolution => true;
+        public bool MutatesSolutionState => false;
+        public bool RequiresLSPSolution => true;
 
-        public override TextDocumentIdentifier GetTextDocumentIdentifier(TestRequest request) => null;
+        public TextDocumentIdentifier GetTextDocumentIdentifier(TestRequest request) => null;
 
-        public override async Task<TestResponse> HandleRequestAsync(TestRequest request, RequestContext context, CancellationToken cancellationToken)
+        public async Task<TestResponse> HandleRequestAsync(TestRequest request, RequestContext context, CancellationToken cancellationToken)
         {
             var response = new TestResponse();
 

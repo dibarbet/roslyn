@@ -11,8 +11,9 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 
-[Shared]
-[ExportLspRequestHandlerProvider(ProtocolConstants.TypeScriptLanguageContract, typeof(DidChangeHandler))]
+#pragma warning disable RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+[ExportLspService(typeof(DidChangeHandler), ProtocolConstants.TypeScriptLanguageContract)]
+#pragma warning restore RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
 internal class VSTypeScriptDidChangeHandler : DidChangeHandler
 {
     [ImportingConstructor]

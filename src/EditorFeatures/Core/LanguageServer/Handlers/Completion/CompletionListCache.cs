@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
+using System.Composition;
 using Microsoft.CodeAnalysis.Completion;
 using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
@@ -12,7 +13,10 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Completion
     /// Caches completion lists in between calls to CompletionHandler and
     /// CompletionResolveHandler. Used to avoid unnecessary recomputation.
     /// </summary>
-    internal class CompletionListCache
+#pragma warning disable RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+    [ExportRoslynLspService(typeof(CompletionListCache))]
+#pragma warning restore RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+    internal class CompletionListCache : ILspService
     {
         /// <summary>
         /// Maximum number of completion lists allowed in cache. Must be >= 1.
@@ -37,6 +41,11 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Completion
         /// completion list.
         /// </summary>
         private readonly List<CacheEntry> _resultIdToCompletionList = new();
+
+        [ImportingConstructor]
+        public CompletionListCache()
+        {
+        }
         #endregion
 
         /// <summary>

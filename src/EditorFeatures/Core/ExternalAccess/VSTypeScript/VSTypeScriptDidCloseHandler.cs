@@ -11,8 +11,7 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 
-[Shared]
-[ExportLspRequestHandlerProvider(ProtocolConstants.TypeScriptLanguageContract, typeof(DidCloseHandler))]
+[ExportLspService(typeof(DidCloseHandler), ProtocolConstants.TypeScriptLanguageContract)]
 internal class VSTypeScriptDidCloseHandler : DidCloseHandler
 {
     [ImportingConstructor]

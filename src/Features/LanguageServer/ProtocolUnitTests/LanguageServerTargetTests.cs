@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges;
 using Microsoft.CodeAnalysis.Test.Utilities;
 using Roslyn.Test.Utilities;
 using Xunit;
@@ -44,6 +45,23 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
             server.GetServerAccessor().GetServerRpc().Dispose();
             await AssertServerQueueClosed(server).ConfigureAwait(false);
             Assert.True(server.GetServerAccessor().GetServerRpc().IsDisposed);
+        }
+
+        [Fact]
+        public async Task LanguageServerHasSeparateServiceInstances()
+        {
+            using var serverOne = await CreateTestLspServerAsync("");
+            using var serverTwo = await CreateTestLspServerAsync("");
+
+            // Get an LSP service and verify each server has its own instance per server.
+            Assert.NotSame(serverOne.GetRequiredLspService<LspWorkspaceManager>(), serverTwo.GetRequiredLspService<LspWorkspaceManager>());
+            Assert.Same(serverOne.GetRequiredLspService<LspWorkspaceManager>(), serverOne.GetRequiredLspService<LspWorkspaceManager>());
+            Assert.Same(serverTwo.GetRequiredLspService<LspWorkspaceManager>(), serverTwo.GetRequiredLspService<LspWorkspaceManager>());
+
+            // Get a request handler and verify each server has its own instance per server.
+            Assert.NotSame(serverOne.GetRequiredLspService<DidOpenHandler>(), serverTwo.GetRequiredLspService<DidOpenHandler>());
+            Assert.Same(serverOne.GetRequiredLspService<DidOpenHandler>(), serverOne.GetRequiredLspService<DidOpenHandler>());
+            Assert.Same(serverTwo.GetRequiredLspService<DidOpenHandler>(), serverTwo.GetRequiredLspService<DidOpenHandler>());
         }
 
         private static void AssertServerAlive(TestLspServer server)

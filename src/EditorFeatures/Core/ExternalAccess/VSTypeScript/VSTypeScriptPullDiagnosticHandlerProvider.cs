@@ -11,19 +11,36 @@ using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics;
+using Microsoft.CodeAnalysis.Options;
+using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript
 {
-    [Shared]
-    [ExportLspRequestHandlerProvider(ProtocolConstants.TypeScriptLanguageContract, typeof(DocumentPullDiagnosticHandler), typeof(WorkspacePullDiagnosticHandler))]
-    internal class VSTypeScriptPullDiagnosticHandlerProvider : PullDiagnosticHandlerProvider
+    [ExportLspService(typeof(DocumentPullDiagnosticHandler), ProtocolConstants.TypeScriptLanguageContract)]
+    [Method(VSInternalMethods.DocumentPullDiagnosticName)]
+    internal class VSTypeScriptDocumentPullDiagnosticHandler : DocumentPullDiagnosticHandler
     {
         [ImportingConstructor]
         [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-        public VSTypeScriptPullDiagnosticHandlerProvider(
+        public VSTypeScriptDocumentPullDiagnosticHandler(
             IDiagnosticService diagnosticService,
             IDiagnosticAnalyzerService analyzerService,
-            EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource) : base(diagnosticService, analyzerService, editAndContinueDiagnosticUpdateSource)
+            EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource,
+            IGlobalOptionService globalOptions) : base(diagnosticService, analyzerService, editAndContinueDiagnosticUpdateSource, globalOptions)
+        {
+        }
+    }
+
+    [ExportLspService(typeof(WorkspacePullDiagnosticHandler), ProtocolConstants.TypeScriptLanguageContract)]
+    [Method(VSInternalMethods.WorkspacePullDiagnosticName)]
+    internal class VSTypeScriptWorkspacePullDiagnosticHandler : WorkspacePullDiagnosticHandler
+    {
+        [ImportingConstructor]
+        [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+        public VSTypeScriptWorkspacePullDiagnosticHandler(
+            IDiagnosticService diagnosticService,
+            EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource,
+            IGlobalOptionService globalOptions) : base(diagnosticService, editAndContinueDiagnosticUpdateSource, globalOptions)
         {
         }
     }

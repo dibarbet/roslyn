@@ -15,9 +15,11 @@ using Xunit.Sdk;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.RequestOrdering
 {
-    [Shared, ExportRoslynLanguagesLspRequestHandlerProvider(typeof(LongRunningNonMutatingRequestHandler)), PartNotDiscoverable]
+#pragma warning disable RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+    [ExportRoslynLspService(typeof(LongRunningNonMutatingRequestHandler)), PartNotDiscoverable]
+#pragma warning restore RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
     [Method(MethodName)]
-    internal class LongRunningNonMutatingRequestHandler : AbstractStatelessRequestHandler<TestRequest, TestResponse>
+    internal class LongRunningNonMutatingRequestHandler : IRequestHandler<TestRequest, TestResponse>
     {
         public const string MethodName = nameof(LongRunningNonMutatingRequestHandler);
 
@@ -27,13 +29,13 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.RequestOrdering
         {
         }
 
-        public override bool MutatesSolutionState => false;
+        public bool MutatesSolutionState => false;
 
-        public override bool RequiresLSPSolution => true;
+        public bool RequiresLSPSolution => true;
 
-        public override TextDocumentIdentifier GetTextDocumentIdentifier(TestRequest request) => null;
+        public TextDocumentIdentifier GetTextDocumentIdentifier(TestRequest request) => null;
 
-        public override Task<TestResponse> HandleRequestAsync(TestRequest request, RequestContext context, CancellationToken cancellationToken)
+        public Task<TestResponse> HandleRequestAsync(TestRequest request, RequestContext context, CancellationToken cancellationToken)
         {
             do
             {

@@ -28,7 +28,7 @@ using Xunit;
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests;
 public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
 {
-    protected override TestComposition Composition => base.Composition.AddParts(typeof(TypeScriptHandlerProvider));
+    protected override TestComposition Composition => base.Composition.AddParts(typeof(TypeScriptHandler));
 
     [Fact]
     public async Task TestExternalAccessTypeScriptHandlerInvoked()
@@ -85,25 +85,18 @@ public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
 
     private static LanguageServerTarget CreateLanguageServer(Stream inputStream, Stream outputStream, TestWorkspace workspace)
     {
-        var dispatcherFactory = workspace.ExportProvider.GetExportedValue<VSTypeScriptRequestDispatcherFactory>();
         var listenerProvider = workspace.ExportProvider.GetExportedValue<IAsynchronousOperationListenerProvider>();
-        var lspWorkspaceRegistrationService = workspace.ExportProvider.GetExportedValue<LspWorkspaceRegistrationService>();
         var capabilitiesProvider = workspace.ExportProvider.GetExportedValue<DefaultCapabilitiesProvider>();
+        var servicesProvider = workspace.ExportProvider.GetExportedValue<ILspServiceProvider>();
 
         var jsonRpc = new JsonRpc(new HeaderDelimitedMessageHandler(outputStream, inputStream))
         {
             ExceptionStrategy = ExceptionProcessing.ISerializable,
         };
 
-        var globalOptions = workspace.GetService<IGlobalOptionService>();
-
         var languageServer = new LanguageServerTarget(
-            dispatcherFactory,
-            jsonRpc,
+            servicesProvider, jsonRpc,
             capabilitiesProvider,
-            lspWorkspaceRegistrationService,
-            new LspMiscellaneousFilesWorkspace(NoOpLspLogger.Instance),
-            globalOptions,
             listenerProvider,
             NoOpLspLogger.Instance,
             ImmutableArray.Create(InternalLanguageNames.TypeScript),
@@ -116,11 +109,20 @@ public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
     internal record TSRequest(Uri Document, string Project);
 
     [VSTypeScriptMethod(MethodName)]
+#pragma warning disable RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+    [ExportTypeScriptLspRequestHandler(typeof(TypeScriptHandler)), PartNotDiscoverable]
+#pragma warning restore RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
     internal class TypeScriptHandler : AbstractVSTypeScriptRequestHandler<TSRequest, int>
     {
         internal static int Response = 1;
 
         internal const string MethodName = "testMethod";
+
+        [ImportingConstructor]
+        [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+        public TypeScriptHandler()
+        {
+        }
 
         protected override bool MutatesSolutionState => false;
 
@@ -137,21 +139,6 @@ public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
             AssertEx.NotNull(context.Document);
             Assert.Equal(context.Document.GetURI(), request.Document);
             return Task.FromResult(Response);
-        }
-    }
-
-    [ExportTypeScriptLspRequestHandlerProvider(typeof(TypeScriptHandler)), Shared, PartNotDiscoverable]
-    internal class TypeScriptHandlerProvider : AbstractVSTypeScriptRequestHandlerProvider
-    {
-        [ImportingConstructor]
-        [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-        public TypeScriptHandlerProvider()
-        {
-        }
-
-        protected override ImmutableArray<IVSTypeScriptRequestHandler> CreateRequestHandlers()
-        {
-            return ImmutableArray.Create<IVSTypeScriptRequestHandler>(new TypeScriptHandler());
         }
     }
 }
