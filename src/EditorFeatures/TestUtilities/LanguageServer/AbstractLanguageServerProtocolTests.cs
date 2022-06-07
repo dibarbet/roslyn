@@ -340,6 +340,11 @@ namespace Roslyn.Test.Utilities
                 solution = solution.WithDocumentText(document.Id, SourceText.From(documentText.ToString(), System.Text.Encoding.UTF8));
             }
 
+            foreach (var project in workspace.Projects)
+            {
+                solution = solution.WithProjectFilePath(project.Id, GetDocumentFilePathFromName(project.FilePath));
+            }
+
             workspace.ChangeSolution(solution);
 
             // Important: We must wait for workspace creation operations to finish.
