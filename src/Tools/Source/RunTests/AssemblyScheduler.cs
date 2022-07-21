@@ -77,7 +77,7 @@ namespace RunTests
 
             // Now for our current set of test methods we got from the assemblies we built, match them to tests from our test run history
             // so that we can extract an estimate of the test execution time for each test.
-            orderedTypeInfos = UpdateTestsWithExecutionTimes(orderedTypeInfos, testHistory);
+            //orderedTypeInfos = UpdateTestsWithExecutionTimes(orderedTypeInfos, testHistory);
 
             // Our execution time limit is 4 minutes.  We really want to run tests under 5 minutes, but we need to limit test execution time
             // to 4 minutes to account for overhead in things like downloading assets, setting up the test host for each assembly, etc.
@@ -86,14 +86,15 @@ namespace RunTests
             // Create work items by partitioning tests by historical execution time with the goal of running under our time limit.
             // While we do our best to run tests from the same assembly together (by building work items in assembly order) it is expected
             // that some work items will run tests from multiple assemblies due to large variances in test execution time.
-            var workItems = BuildWorkItems(orderedTypeInfos, executionTimeLimit);
+            //var workItems = BuildWorkItems(orderedTypeInfos, executionTimeLimit);
 
-            ConsoleUtil.WriteLine($"Built {workItems.Length} work items");
-            LogWorkItems(workItems);
-            return workItems;
+            //ConsoleUtil.WriteLine($"Built {workItems.Length} work items");
+            //LogWorkItems(workItems);
+            //return workItems;
+            return ImmutableArray<WorkItemInfo>.Empty;
         }
 
-        private static ImmutableSortedDictionary<AssemblyInfo, ImmutableArray<TypeInfo>> UpdateTestsWithExecutionTimes(
+        /*private static ImmutableSortedDictionary<AssemblyInfo, ImmutableArray<TypeInfo>> UpdateTestsWithExecutionTimes(
             ImmutableSortedDictionary<AssemblyInfo, ImmutableArray<TypeInfo>> assemblyTypes,
             ImmutableDictionary<string, TimeSpan> testHistory)
         {
@@ -143,9 +144,9 @@ namespace RunTests
                 var totalExpectedRunTime = TimeSpan.FromMilliseconds(updated.Values.SelectMany(types => types).Sum(test => test.ExecutionTime.TotalMilliseconds));
                 ConsoleUtil.WriteLine($"Matched {matchedLocalTypes.Count} types with historical data.  {extraLocalTypes.Count} types were missing historical data.  {extraRemoteTypes.Count()} types were missing in local assemblies.  Estimate of total execution time for tests is {totalExpectedRunTime}.");
             }
-        }
+        }*/
 
-        private static ImmutableArray<WorkItemInfo> BuildWorkItems(ImmutableSortedDictionary<AssemblyInfo, ImmutableArray<TypeInfo>> typeInfos, TimeSpan executionTimeLimit)
+        /*private static ImmutableArray<WorkItemInfo> BuildWorkItems(ImmutableSortedDictionary<AssemblyInfo, ImmutableArray<TypeInfo>> typeInfos, TimeSpan executionTimeLimit)
         {
             var workItems = new List<WorkItemInfo>();
 
@@ -207,12 +208,12 @@ namespace RunTests
                 currentExecutionTime = TimeSpan.Zero;
                 currentAssemblyTests = new();
             }
-        }
+        }*/
 
 
         private static void LogWorkItems(ImmutableArray<WorkItemInfo> workItems)
         {
-            Logger.Log("==== Work Item List ====");
+            /*Logger.Log("==== Work Item List ====");
             foreach (var workItem in workItems)
             {
                 var types = workItem.TypesToTest.SelectMany(group => group.Types);
@@ -223,7 +224,7 @@ namespace RunTests
                     var typeExecutionTime = TimeSpan.FromMilliseconds(group.Types.Sum(test => test.ExecutionTime.TotalMilliseconds));
                     Logger.Log($"    - {group.Assembly.AssemblyName} with {group.Types.Length} types, runtime {typeExecutionTime}");
                 }
-            }
+            }*/
         }
 
         private static ImmutableArray<TypeInfo> GetTypeInfoList(AssemblyInfo assemblyInfo)
@@ -254,12 +255,37 @@ namespace RunTests
                     continue;
                 }
 
-                list.Add(new TypeInfo(typeName, fullyQualifiedTypeName, methodCount, TimeSpan.Zero));
+                var methodList = new List<MethodInfo>();
+                GetMethods(reader, type, methodList, fullyQualifiedTypeName);
+
+                list.Add(new TypeInfo(typeName, fullyQualifiedTypeName, methodList.ToImmutableArray()));
             }
 
             // Ensure we get classes back in a deterministic order.
             list.Sort((x, y) => x.FullyQualifiedName.CompareTo(y.FullyQualifiedName));
             return list.ToImmutableArray();
+        }
+
+        private static bool IsPublicType(TypeDefinition type)
+        {
+            // See https://docs.microsoft.com/en-us/dotnet/api/system.reflection.typeattributes?view=net-6.0#examples
+            // for extracting this information from the TypeAttributes.
+            var visibility = type.Attributes & TypeAttributes.VisibilityMask;
+            var isPublic = visibility == TypeAttributes.Public || visibility == TypeAttributes.NestedPublic;
+            return isPublic;
+        }
+
+        private static bool IsClass(TypeDefinition type)
+        {
+            var classSemantics = type.Attributes & TypeAttributes.ClassSemanticsMask;
+            var isClass = classSemantics == TypeAttributes.Class;
+            return isClass;
+        }
+
+        private static bool IsAbstract(TypeDefinition type)
+        {
+            var isAbstract = (type.Attributes & TypeAttributes.Abstract) != 0;
+            return isAbstract;
         }
 
         /// <summary>
@@ -269,18 +295,8 @@ namespace RunTests
         /// </summary>
         private static bool ShouldIncludeType(MetadataReader reader, TypeDefinition type, int testMethodCount)
         {
-            // See https://docs.microsoft.com/en-us/dotnet/api/system.reflection.typeattributes?view=net-6.0#examples
-            // for extracting this information from the TypeAttributes.
-            var visibility = type.Attributes & TypeAttributes.VisibilityMask;
-            var isPublic = visibility == TypeAttributes.Public || visibility == TypeAttributes.NestedPublic;
-
-            var classSemantics = type.Attributes & TypeAttributes.ClassSemanticsMask;
-            var isClass = classSemantics == TypeAttributes.Class;
-
-            var isAbstract = (type.Attributes & TypeAttributes.Abstract) != 0;
-
             // xunit only handles public, non-abstract classes
-            if (!isPublic || isAbstract || !isClass)
+            if (!IsPublicType(type) || IsAbstract(type) || !IsClass(type))
             {
                 return false;
             }
@@ -304,14 +320,59 @@ namespace RunTests
             return !InheritsFromFrameworkBaseType(reader, type);
         }
 
+        private static void GetMethods(MetadataReader reader, TypeDefinition type, List<MethodInfo> methodList, string originalFullyQualifiedTypeName)
+        {
+            var methods = type.GetMethods();
+
+            foreach (var methodHandle in methods)
+            {
+                var method = reader.GetMethodDefinition(methodHandle);
+                var methodInfo = GetMethodInfo(reader, method, originalFullyQualifiedTypeName);
+                if (ShouldIncludeMethod(reader, method))
+                {
+                    methodList.Add(methodInfo);
+                }
+            }
+
+            var baseTypeHandle = type.BaseType;
+            if (!baseTypeHandle.IsNil && baseTypeHandle.Kind is HandleKind.TypeDefinition)
+            {
+                var baseType = reader.GetTypeDefinition((TypeDefinitionHandle)baseTypeHandle);
+
+                // We only want to look for test methods in public base types.
+                if (IsPublicType(baseType) && IsClass(baseType) && !InheritsFromFrameworkBaseType(reader, type))
+                {
+                    Debugger.Launch();
+                    GetMethods(reader, baseType, methodList, originalFullyQualifiedTypeName);
+                }
+            }
+        }
+
+        private static bool ShouldIncludeMethod(MetadataReader reader, MethodDefinition method)
+        {
+            var visibility = method.Attributes & MethodAttributes.MemberAccessMask;
+            var isPublic = visibility == MethodAttributes.Public;
+
+            var hasMethodAttributes = method.GetCustomAttributes().Count > 0;
+
+            var isValidIdentifier = IsValidIdentifier(reader, method.Name);
+
+            return isPublic && hasMethodAttributes && isValidIdentifier;
+        }
+
+        private static MethodInfo GetMethodInfo(MetadataReader reader, MethodDefinition method, string fullyQualifiedTypeName)
+        {
+            var methodName = reader.GetString(method.Name);
+            return new MethodInfo(methodName, $"{fullyQualifiedTypeName}.{methodName}", TimeSpan.Zero);
+        }
+
         private static int GetMethodCount(MetadataReader reader, TypeDefinition type)
         {
             var count = 0;
             foreach (var handle in type.GetMethods())
             {
                 var methodDefinition = reader.GetMethodDefinition(handle);
-                if (methodDefinition.GetCustomAttributes().Count == 0 ||
-                    !IsValidIdentifier(reader, methodDefinition.Name))
+                if (!ShouldIncludeMethod(reader, methodDefinition))
                 {
                     continue;
                 }
