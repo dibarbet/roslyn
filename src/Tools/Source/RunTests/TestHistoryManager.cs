@@ -95,17 +95,17 @@ internal class TestHistoryManager
                     continue;
                 }
 
-                //var testName = CleanTestName(testResult.AutomatedTestName);
+                var testName = CleanTestName(testResult.AutomatedTestName);
 
-                if (!testInfos.TryAdd(testResult.AutomatedTestName, TimeSpan.FromMilliseconds(testResult.DurationInMs)))
+                if (!testInfos.TryAdd(testName, TimeSpan.FromMilliseconds(testResult.DurationInMs)))
                 {
                     // We can get duplicate tests if a test file is included in multiple assemblies (e.g. analyzer codestyle tests).
-                    // This is fine, we'll just use capture one of the run times since it is the same test being run in both cases.
+                    // This is fine, we'll just use capture one of the run times since it is the same test being run in both cases and unlikely to have different run times.
                     //
                     // Another case that can happen is if a test is incorrectly authored to have the same name and namespace as a test in another assembly.  For example
                     // a test that applies to both VB and C#, but the tests in both the C# and VB assembly accidentally use the C# namespace.
                     // It may have a different run time, but ADO does not let us differentiate by assembly name, so we just have to pick one.
-                    Logger.Log($"Found tests with duplicate fully qualified name {testResult.AutomatedTestName}.");
+                    Logger.Log($"Found tests with duplicate fully qualified name {testName}.");
                 }
             }
         }
@@ -119,7 +119,7 @@ internal class TestHistoryManager
 
     private static string CleanTestName(string fullyQualifiedTestName)
     {
-        // Some test names contain test arguments, so take everything before the first paren (since they are not valid in identifiers).
+        // Some test names contain test arguments, so take everything before the first paren (since they are not valid in the fully qualified test name).
         var beforeMethodArgs = fullyQualifiedTestName.Split('(')[0];
         return beforeMethodArgs;
     }
