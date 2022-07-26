@@ -208,11 +208,36 @@ namespace RunTests
 
                 AddRehydrateTestFoldersCommand(command, workItemInfo, isUnix);
 
-                var commandLineArguments = _testExecutor.GetCommandLineArguments(workItemInfo, isUnix, options);
-                // XML escape the arguments as the commands are output into the helix project xml file.
-                commandLineArguments = SecurityElement.Escape(commandLineArguments);
-                var dotnetTestCommand = $"dotnet {commandLineArguments}";
-                command.AppendLine(dotnetTestCommand);
+                // Build an rsp file to send to dotnet test that contains all the assemblies and tests to run.
+                // This gets around command line length limitations and avoids weird escaping issues.
+                // See https://docs.microsoft.com/en-us/dotnet/standard/commandline/syntax#response-files
+                var rspFileContents = ProcessTestExecutor.BuildRspFileContents(workItemInfo, options);
+                var rspFileName = $"vstest_{workItemInfo.PartitionIndex}.rsp";
+                File.WriteAllText(Path.Combine(payloadDirectory, rspFileName), rspFileContents);
+
+                // Build the command to run the rsp file.
+                // dotnet test does not pass rsp files correctly the vs test console, so we have to manually invoke vs test console.
+                // See https://github.com/microsoft/vstest/issues/3513
+                // The dotnet sdk includes the vstest.console.dll executable in the sdk folder in the installed version, so we look it up using the
+                // DOTNET_ROOT environment variable set by helix.
+                if (isUnix)
+                {
+                    command.AppendLine("vstestConsolePath=$(find ${DOTNET_ROOT} -name \"vstest.console.dll\")");
+                    command.AppendLine("echo ${vstestConsolePath}");
+                    command.AppendLine($"dotnet exec \"${{vstestConsolePath}}\" @{rspFileName}");
+                }
+                else
+                {
+                    // Windows cmd doesn't have an easy way to set the output of a command to a variable.
+                    // So send the output of the command to a file, then set the variable based on the file.
+                    command.AppendLine("where /r %DOTNET_ROOT% vstest.console.dll > temp.txt");
+                    command.AppendLine("set /p vstestConsolePath=<temp.txt");
+                    command.AppendLine("echo %vstestConsolePath%");
+                    command.AppendLine($"dotnet exec \"%vstestConsolePath%\" @{rspFileName}");
+                }
+
+                // The command string contains characters like % which are not valid XML to pass into the helix csproj.
+                var escapedCommand = SecurityElement.Escape(command.ToString());
 
                 // We want to collect any dumps during the post command step here; these commands are ran after the
                 // return value of the main command is captured; a Helix Job is considered to fail if the main command returns a
@@ -236,7 +261,7 @@ namespace RunTests
         <HelixWorkItem Include=""{workItemInfo.DisplayName}"">
             <PayloadDirectory>{payloadDirectory}</PayloadDirectory>
             <Command>
-                {command}
+                {escapedCommand}
             </Command>
             <PostCommands>
                 {postCommands}
