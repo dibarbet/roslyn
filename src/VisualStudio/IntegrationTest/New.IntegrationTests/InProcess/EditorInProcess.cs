@@ -36,6 +36,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Text.Outlining;
 using Microsoft.VisualStudio.Text.Tagging;
 using Microsoft.VisualStudio.TextManager.Interop;
@@ -273,6 +274,35 @@ namespace Microsoft.VisualStudio.Extensibility.Testing
 
             activeSession.Collapse();
             return Array.Empty<ClassificationSpan>();
+        }
+
+        public async Task<string[]> GetCurrentClassificationsAsync(CancellationToken cancellationToken)
+        {
+            IClassifier? classifier = null;
+            try
+            {
+                var textView = await TestServices.Editor.GetActiveTextViewAsync(cancellationToken);
+                var selectionSpan = textView.Selection.StreamSelectionSpan.SnapshotSpan;
+                if (selectionSpan.Length == 0)
+                {
+                    var textStructureNavigatorSelectorService = await TestServices.Shell.GetComponentModelServiceAsync<ITextStructureNavigatorSelectorService>(cancellationToken);
+                    selectionSpan = textStructureNavigatorSelectorService
+                        .GetTextStructureNavigator(textView.TextBuffer)
+                        .GetExtentOfWord(selectionSpan.Start).Span;
+                }
+
+                var classifierAggregatorService = await TestServices.Shell.GetComponentModelServiceAsync<IViewClassifierAggregatorService>(cancellationToken);
+                classifier = classifierAggregatorService.GetClassifier(textView);
+                var classifiedSpans = classifier.GetClassificationSpans(selectionSpan);
+                return classifiedSpans.Select(x => x.ClassificationType.Classification).ToArray();
+            }
+            finally
+            {
+                if (classifier is IDisposable classifierDispose)
+                {
+                    classifierDispose.Dispose();
+                }
+            }
         }
 
         public async Task ActivateAsync(CancellationToken cancellationToken)

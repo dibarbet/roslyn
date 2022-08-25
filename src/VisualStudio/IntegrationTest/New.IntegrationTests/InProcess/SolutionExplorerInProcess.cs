@@ -6,6 +6,7 @@ using System;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +15,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.IntegrationTest.Utilities;
+using Microsoft.VisualStudio.Progression.CodeSchema.Api;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
@@ -120,6 +122,15 @@ namespace Microsoft.VisualStudio.Extensibility.Testing
 
             var project = await GetProjectAsync(projectName, cancellationToken);
             ((VSProject3)project.Object).References.Add(filePath);
+        }
+
+        public async Task RemoveDllReferenceAsync(string projectName, string filePath, CancellationToken cancellationToken)
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+            var project = await GetProjectAsync(projectName, cancellationToken);
+            var reference = ((VSProject3)project.Object).References.Cast<Reference>().Where(x => x.Name == filePath).First();
+            reference.Remove();
         }
 
         private async Task CreateSolutionAsync(string solutionPath, string solutionName, CancellationToken cancellationToken)
