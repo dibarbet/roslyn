@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.Contracts;
@@ -18,14 +19,10 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 public abstract class AbstractLanguageServer<TRequestContext> : ILifeCycleManager, IAsyncDisposable
 {
     private readonly JsonRpc _jsonRpc;
+    private readonly ILspServices _lspServices;
+    private readonly IHandlerProvider _handlerProvider;
+    private readonly IRequestExecutionQueue<TRequestContext> _queue;
     protected readonly ILspLogger _logger;
-
-    /// <summary>
-    /// These are lazy to allow implementations to define custom variables that are used by
-    /// <see cref="ConstructRequestExecutionQueue"/> or <see cref="ConstructLspServices"/>
-    /// </summary>
-    private readonly Lazy<IRequestExecutionQueue<TRequestContext>> _queue;
-    private readonly Lazy<ILspServices> _lspServices;
 
     public bool IsInitialized { get; private set; }
 
@@ -36,43 +33,28 @@ public abstract class AbstractLanguageServer<TRequestContext> : ILifeCycleManage
 
     protected AbstractLanguageServer(
         JsonRpc jsonRpc,
-        ILspLogger logger)
+        ILspServices lspServices,
+        ILspLogger logger,
+        IRequestExecutionQueue<TRequestContext>? requestExecutionQueue = null,
+        IHandlerProvider? handlerProvider = null)
     {
         _logger = logger;
 
         _jsonRpc = jsonRpc;
         _jsonRpc.AddLocalRpcTarget(this);
         _jsonRpc.Disconnected += JsonRpc_Disconnected;
-        _lspServices = new Lazy<ILspServices>(() => ConstructLspServices());
-        _queue = new Lazy<IRequestExecutionQueue<TRequestContext>>(() => ConstructRequestExecutionQueue());
+        _lspServices = lspServices;
+
+        _handlerProvider = handlerProvider ?? new HandlerProvider(_lspServices);
+        SetupRequestDispatcher(_handlerProvider);
+
+        _queue = requestExecutionQueue ?? new RequestExecutionQueue<TRequestContext>(_logger, _handlerProvider);
+        _queue.Start();
     }
 
-    /// <summary>
-    /// Initializes the LanguageServer.
-    /// </summary>
-    /// <remarks>Should be called at the bottom of the implementing constructor or immedietly after construction.</remarks>
-    public void Initialize()
-    {
-        GetRequestExecutionQueue();
-    }
+    public ILspServices GetLspServices() => _lspServices;
 
-    /// <summary>
-    /// Extension point to allow creation of <see cref="ILspServices"/> since that can't always be handled in the constructor.
-    /// </summary>
-    /// <returns>An <see cref="ILspServices"/> instance for this server.</returns>
-    /// <remarks>This should only be called once, and then cached.</remarks>
-    protected abstract ILspServices ConstructLspServices();
-
-    protected virtual IHandlerProvider GetHandlerProvider()
-    {
-        var lspServices = _lspServices.Value;
-        var handlerProvider = new HandlerProvider(lspServices);
-        SetupRequestDispatcher(handlerProvider);
-
-        return handlerProvider;
-    }
-
-    public ILspServices GetLspServices() => _lspServices.Value;
+    protected IRequestExecutionQueue<TRequestContext> GetRequestExecutionQueue() => _queue;
 
     protected virtual void SetupRequestDispatcher(IHandlerProvider handlerProvider)
     {
@@ -127,29 +109,13 @@ public abstract class AbstractLanguageServer<TRequestContext> : ILifeCycleManage
     [JsonRpcMethod("exit")]
     public Task HandleExitNotificationAsync(CancellationToken _)
     {
-        var lspServices = _lspServices.Value;
-        var lifeCycleManager = lspServices.GetRequiredService<ILifeCycleManager>();
+        var lifeCycleManager = _lspServices.GetRequiredService<ILifeCycleManager>();
         return lifeCycleManager.ExitAsync();
     }
 
     public virtual void OnInitialized()
     {
         IsInitialized = true;
-    }
-
-    protected virtual IRequestExecutionQueue<TRequestContext> ConstructRequestExecutionQueue()
-    {
-        var handlerProvider = GetHandlerProvider();
-        var queue = new RequestExecutionQueue<TRequestContext>(_logger, handlerProvider);
-
-        queue.Start();
-
-        return queue;
-    }
-
-    protected IRequestExecutionQueue<TRequestContext> GetRequestExecutionQueue()
-    {
-        return _queue.Value;
     }
 
     /// <summary>

@@ -47,7 +47,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
 
         protected override IRequestExecutionQueue<RequestContext> ConstructRequestExecutionQueue()
         {
-            var handlerProvider = GetHandlerProvider();
+            var handlerProvider = CreateDefaultHandlerProvider();
             var queue = new RoslynRequestExecutionQueue(_logger, handlerProvider);
 
             queue.Start();
