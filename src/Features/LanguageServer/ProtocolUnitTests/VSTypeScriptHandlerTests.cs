@@ -120,7 +120,7 @@ public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
 
     internal record TSRequest(Uri Document, string Project);
 
-    [ExportTypeScriptLspServiceFactory(typeof(TypeScriptHandler)), PartNotDiscoverable, Shared]
+    [ExportLspServiceFactory(typeof(TypeScriptHandler), ProtocolConstants.TypeScriptLanguageContract), PartNotDiscoverable, Shared]
     internal class TypeScriptHandlerFactory : AbstractVSTypeScriptRequestHandlerFactory
     {
         [ImportingConstructor]

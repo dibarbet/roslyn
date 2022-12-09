@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Linq;
 using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CommonLanguageServerProtocol.Framework;
@@ -14,6 +15,9 @@ namespace Microsoft.CodeAnalysis.LanguageServer;
 
 internal class LspServices : ILspServices
 {
+    private readonly Export<IEnumerable<Lazy<ILspService, LspServiceMetadataView>>> _serviceExport;
+    private readonly Export<IEnumerable<Lazy<ILspServiceFactory, LspServiceMetadataView>>> _factoryExport;
+
     private readonly ImmutableDictionary<Type, Lazy<ILspService, LspServiceMetadataView>> _lazyMefLspServices;
 
     /// <summary>
@@ -22,7 +26,7 @@ internal class LspServices : ILspServices
     /// so these are manually created in <see cref="RoslynLanguageServer"/>.
     /// TODO - cleanup once https://github.com/dotnet/roslyn/issues/63555 is resolved.
     /// </summary>
-    private readonly ImmutableDictionary<Type, ImmutableArray<Func<ILspServices, object>>> _baseServices;
+    private readonly ImmutableDictionary<Type, ImmutableArray<Lazy<object>>> _baseServices;
 
     /// <summary>
     /// Gates access to <see cref="_servicesToDispose"/>.
@@ -31,15 +35,20 @@ internal class LspServices : ILspServices
     private readonly HashSet<IDisposable> _servicesToDispose = new(ReferenceEqualityComparer.Instance);
 
     public LspServices(
-        ImmutableArray<Lazy<ILspService, LspServiceMetadataView>> mefLspServices,
-        ImmutableArray<Lazy<ILspServiceFactory, LspServiceMetadataView>> mefLspServiceFactories,
+        ExportFactory<IEnumerable<Lazy<ILspService, LspServiceMetadataView>>> mefLspServices,
+        ExportFactory<IEnumerable<Lazy<ILspServiceFactory, LspServiceMetadataView>>> mefLspServiceFactories,
         WellKnownLspServerKinds serverKind,
-        ImmutableDictionary<Type, ImmutableArray<Func<ILspServices, object>>> baseServices)
+        ImmutableDictionary<Type, ImmutableArray<Lazy<object>>> baseServices)
     {
-        // Convert MEF exported service factories to the lazy LSP services that they create.
-        var servicesFromFactories = mefLspServiceFactories.Select(lz => new Lazy<ILspService, LspServiceMetadataView>(() => lz.Value.CreateILspService(this, serverKind), lz.Metadata));
+        _factoryExport = mefLspServiceFactories.CreateExport();
+        _serviceExport = mefLspServices.CreateExport();
 
-        var services = mefLspServices.Concat(servicesFromFactories);
+        // Convert MEF exported service factories to the lazy LSP services that they create.
+        var servicesFromFactories = _factoryExport.Value
+            .Select(lz => new Lazy<ILspService, LspServiceMetadataView>(() => lz.Value.CreateILspService(this, serverKind), lz.Metadata));
+
+        // Services exported as ILspService do not require us to dispose of them manually - MEF will handle it when we dipose of the Export.
+        var services = _serviceExport.Value.ToImmutableArray().Concat(servicesFromFactories);
 
         // Make sure that we only include services exported for the specified server kind (or NotSpecified).
         services = services.Where(lazyService => lazyService.Metadata.ServerKind == serverKind || lazyService.Metadata.ServerKind == WellKnownLspServerKinds.Any);
@@ -47,8 +56,8 @@ internal class LspServices : ILspServices
         // This will throw if the same service is registered twice
         _lazyMefLspServices = services.ToImmutableDictionary(lazyService => lazyService.Metadata.Type, lazyService => lazyService);
 
-        // Bit cheaky, but lets make an this ILspService available on the base services to make constructors that take an ILspServices instance possible.
-        _baseServices = baseServices.Add(typeof(ILspServices), ImmutableArray.Create<Func<ILspServices, object>>((_) => this));
+        // Base services don't necessarily inherit from ILSPService (e.g. Clasp services), so these are objects.
+        _baseServices = baseServices;
     }
 
     public T GetRequiredService<T>() where T : notnull
@@ -84,11 +93,16 @@ internal class LspServices : ILspServices
         object? lspService;
         if (_lazyMefLspServices.TryGetValue(type, out var lazyService))
         {
-            // If we are creating a stateful LSP service for the first time, we need to check
+            // If we are creating a LSP service from a factory for the first time, we need to check
             // if it is disposable after creation and keep it around to dispose of on shutdown.
-            // Stateless LSP services will be disposed of on MEF container disposal.
-            var checkDisposal = !lazyService.Metadata.IsStateless && !lazyService.IsValueCreated;
+            // Non-factory services and the factory instance itself will be disposed of when we dispose of the Export.
+            var checkDisposal = lazyService.Metadata.FromFactory && !lazyService.IsValueCreated;
 
+            // TODO
+            // TODO
+            // TODO
+            // Need this ?  or just dispose of all IDisposable services then dispose of the container
+            // might double dispose but that could be fine for mef services
             lspService = lazyService.Value;
             if (checkDisposal && lspService is IDisposable disposable)
             {
@@ -98,6 +112,7 @@ internal class LspServices : ILspServices
                 }
             }
 
+            lspService = lazyService.Value;
             return lspService;
         }
 
@@ -116,7 +131,7 @@ internal class LspServices : ILspServices
     {
         if (_baseServices.TryGetValue(typeof(T), out var baseServices))
         {
-            return baseServices.Select(creatorFunc => (T)creatorFunc(this)).ToImmutableArray();
+            return baseServices.Select(lazyService => (T)lazyService.Value).ToImmutableArray();
         }
 
         return ImmutableArray<T>.Empty;
@@ -169,5 +184,10 @@ internal class LspServices : ILspServices
             {
             }
         }
+
+        _factoryExport.Dispose();
+        _serviceExport.Dispose();
+        
+        foreach (var baseService in _baseServices)
     }
 }

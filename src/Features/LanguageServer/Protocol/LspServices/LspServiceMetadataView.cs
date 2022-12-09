@@ -13,7 +13,7 @@ internal class LspServiceMetadataView
 
     public WellKnownLspServerKinds ServerKind { get; set; }
 
-    public bool IsStateless { get; set; }
+    public bool FromFactory { get; set; }
 
     public LspServiceMetadataView(IDictionary<string, object> metadata)
     {
@@ -21,13 +21,13 @@ internal class LspServiceMetadataView
         Type = handlerMetadata;
 
         ServerKind = (WellKnownLspServerKinds)metadata[nameof(ServerKind)];
-        IsStateless = (bool)metadata[nameof(IsStateless)];
+        FromFactory = (bool)metadata[nameof(FromFactory)];
     }
 
     public LspServiceMetadataView(Type type)
     {
         Type = type;
         ServerKind = WellKnownLspServerKinds.Any;
-        IsStateless = false;
+        FromFactory = false;
     }
 }

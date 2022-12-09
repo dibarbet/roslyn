@@ -5,12 +5,15 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Collections;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Microsoft.CodeAnalysis.Shared.Utilities;
+using Microsoft.CommonLanguageServerProtocol.Framework;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 using Roslyn.Utilities;
 
@@ -21,6 +24,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens;
 /// </summary>
 /// <remarks>This implements <see cref="IOnInitialized"/> to avoid race conditions
 /// related to creating the queue on the first request.</remarks>
+[ExportCSharpVisualBasicLspService(typeof(SemanticTokensRefreshQueue)), Shared]
 internal class SemanticTokensRefreshQueue :
     IOnInitialized,
     ILspService,
@@ -42,9 +46,6 @@ internal class SemanticTokensRefreshQueue :
     /// </summary>
     private readonly Dictionary<ProjectId, Checksum> _projectIdToLastComputedChecksum = new();
 
-    private readonly LspWorkspaceManager _lspWorkspaceManager;
-    private readonly IClientLanguageServerManager _notificationManager;
-
     private readonly IAsynchronousOperationListener _asyncListener;
     private readonly CancellationTokenSource _disposalTokenSource;
 
@@ -57,25 +58,24 @@ internal class SemanticTokensRefreshQueue :
 
     private readonly LspWorkspaceRegistrationService _lspWorkspaceRegistrationService;
 
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     public SemanticTokensRefreshQueue(
         IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
-        LspWorkspaceRegistrationService lspWorkspaceRegistrationService,
-        LspWorkspaceManager lspWorkspaceManager,
-        IClientLanguageServerManager notificationManager)
+        LspWorkspaceRegistrationService lspWorkspaceRegistrationService)
     {
         _asyncListener = asynchronousOperationListenerProvider.GetListener(FeatureAttribute.Classification);
 
         _lspWorkspaceRegistrationService = lspWorkspaceRegistrationService;
         _disposalTokenSource = new();
-
-        _lspWorkspaceManager = lspWorkspaceManager;
-        _notificationManager = notificationManager;
     }
 
-    public Task OnInitializedAsync(ClientCapabilities clientCapabilities, CancellationToken _)
+    public Task OnInitializedAsync(ClientCapabilities clientCapabilities, RequestContext requestContext, CancellationToken _)
     {
         if (_semanticTokenRefreshQueue is null && clientCapabilities.Workspace?.SemanticTokens?.RefreshSupport is true)
         {
+            var lspWorkspaceManager = requestContext.GetRequiredService<LspWorkspaceManager>();
+            var notificationManager = requestContext.GetRequiredService<IClientLanguageServerManager>();
             // Only send a refresh notification to the client every 2s (if needed) in order to avoid
             // sending too many notifications at once.  This ensures we batch up workspace notifications,
             // but also means we send soon enough after a compilation-computation to not make the user wait
@@ -83,7 +83,7 @@ internal class SemanticTokensRefreshQueue :
             _semanticTokenRefreshQueue = new AsyncBatchingWorkQueue<Uri?>(
                 delay: TimeSpan.FromMilliseconds(2000),
                 processBatchAsync: (documentUris, cancellationToken)
-                    => FilterLspTrackedDocumentsAsync(_lspWorkspaceManager, _notificationManager, documentUris, cancellationToken),
+                    => FilterLspTrackedDocumentsAsync(lspWorkspaceManager, notificationManager, documentUris, cancellationToken),
                 equalityComparer: EqualityComparer<Uri?>.Default,
                 asyncListener: _asyncListener,
                 _disposalTokenSource.Token);

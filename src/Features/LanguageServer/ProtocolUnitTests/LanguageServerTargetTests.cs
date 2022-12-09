@@ -107,8 +107,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
             Assert.True(queueAccessor.IsComplete());
         }
 
-        [ExportCSharpVisualBasicLspServiceFactory(typeof(StatefulLspService)), Shared]
-        internal class StatefulLspServiceFactory : ILspServiceFactory
+        [ExportLspServiceFactory(typeof(StatefulLspService), ProtocolConstants.RoslynLspLanguagesContract), Shared]
+        internal class LspServiceFactory : ILspServiceFactory
         {
             [ImportingConstructor]
             [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -116,10 +116,10 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
             {
             }
 
-            public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind) => new StatefulLspService();
+            public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind) => new LspServiceFromFactory();
         }
 
-        internal class StatefulLspService : ILspService, IDisposable
+        internal class LspServiceFromFactory : ILspService, IDisposable
         {
             public bool IsDisposed { get; private set; } = false;
             public void Dispose()
@@ -128,12 +128,12 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
             }
         }
 
-        [ExportCSharpVisualBasicStatelessLspService(typeof(StatelessLspService)), Shared]
-        internal class StatelessLspService : ILspService, IDisposable
+        [ExportCSharpVisualBasicLspService(typeof(LspService)), Shared]
+        internal class LspService : ILspService, IDisposable
         {
             [ImportingConstructor]
             [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-            public StatelessLspService()
+            public LspService()
             {
             }
 

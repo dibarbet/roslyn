@@ -11,12 +11,12 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 namespace Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer
 {
-    [ExportLspServiceFactory(typeof(RequestTelemetryLogger), StringConstants.XamlLspLanguagesContract), Shared]
-    internal class XamlRequestTelemetryLoggerFactory : RequestTelemetryLoggerFactory
+    [ExportXamlLspServiceAttribute(typeof(RequestTelemetryLogger)), Shared]
+    internal class XamlRequestTelemetryLogger : RequestTelemetryLogger
     {
         [ImportingConstructor]
         [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-        public XamlRequestTelemetryLoggerFactory()
+        public XamlRequestTelemetryLogger()
         {
         }
     }

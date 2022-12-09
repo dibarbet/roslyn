@@ -19,7 +19,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
     internal class RoslynLanguageServer : AbstractLanguageServer<RequestContext>, IClientCapabilitiesProvider
     {
         private readonly AbstractLspServiceProvider _lspServiceProvider;
-        private readonly ImmutableDictionary<Type, ImmutableArray<Func<ILspServices, object>>> _baseServices;
+        private readonly ImmutableDictionary<Type, ImmutableArray<Lazy<object>>> _baseServices;
         private readonly WellKnownLspServerKinds _serverKind;
 
         public RoslynLanguageServer(
@@ -56,7 +56,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             return queue;
         }
 
-        private ImmutableDictionary<Type, ImmutableArray<Func<ILspServices, object>>> GetBaseServices(
+        private ImmutableDictionary<Type, ImmutableArray<Lazy<object>>> GetBaseServices(
             JsonRpc jsonRpc,
             IClientCapabilitiesProvider clientCapabilitiesProvider,
             ILspServiceLogger logger,
@@ -65,7 +65,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             WellKnownLspServerKinds serverKind,
             ImmutableArray<string> supportedLanguages)
         {
-            var baseServices = new Dictionary<Type, ImmutableArray<Func<ILspServices, object>>>();
+            var baseServices = new Dictionary<Type, ImmutableArray<Lazy<object>>>();
             var clientLanguageServerManager = new ClientLanguageServerManager(jsonRpc);
             var lifeCycleManager = new LspServiceLifeCycleManager(clientLanguageServerManager);
 
@@ -77,22 +77,23 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             AddBaseService<ICapabilitiesProvider>(capabilitiesProvider);
             AddBaseService<ILifeCycleManager>(lifeCycleManager);
             AddBaseService(new ServerInfoProvider(serverKind, supportedLanguages));
-            AddBaseServiceFromFunc<IRequestContextFactory<RequestContext>>((lspServices) => new RequestContextFactory(lspServices));
-            AddBaseServiceFromFunc<IRequestExecutionQueue<RequestContext>>((_) => GetRequestExecutionQueue());
+            AddBaseService<IRequestContextFactory<RequestContext>>(new RequestContextFactory());
+            AddLazyBaseService<IRequestExecutionQueue<RequestContext>>(new Lazy<object>(GetRequestExecutionQueue));
             AddBaseService<IClientCapabilitiesManager>(new ClientCapabilitiesManager());
             AddBaseService<IMethodHandler>(new InitializeHandler());
             AddBaseService<IMethodHandler>(new InitializedHandler());
+            AddBaseService(new RequestTelemetryLogger(serverKind.ToTelemetryString()));
 
             return baseServices.ToImmutableDictionary();
 
             void AddBaseService<T>(T instance) where T : class
             {
-                AddBaseServiceFromFunc<T>((_) => instance);
+                AddLazyBaseService<T>(new Lazy<object>(() => instance));
             }
 
-            void AddBaseServiceFromFunc<T>(Func<ILspServices, object> creatorFunc)
+            void AddLazyBaseService<T>(Lazy<object> lazyService)
             {
-                var added = baseServices.GetValueOrDefault(typeof(T), ImmutableArray<Func<ILspServices, object>>.Empty).Add(creatorFunc);
+                var added = baseServices.GetValueOrDefault(typeof(T), ImmutableArray<Lazy<object>>.Empty).Add(lazyService);
                 baseServices[typeof(T)] = added;
             }
         }

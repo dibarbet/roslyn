@@ -24,7 +24,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer.Handler
     /// <summary>
     /// Handle a completion request.
     /// </summary>
-    [ExportStatelessXamlLspService(typeof(CompletionHandler)), Shared]
+    [ExportXamlLspServiceAttribute(typeof(CompletionHandler)), Shared]
     [Method(Methods.TextDocumentCompletionName)]
     internal class CompletionHandler : ILspServiceDocumentRequestHandler<CompletionParams, CompletionList?>
     {

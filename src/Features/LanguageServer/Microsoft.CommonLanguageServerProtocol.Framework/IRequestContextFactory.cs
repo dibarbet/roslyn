@@ -29,5 +29,5 @@ public interface IRequestContextFactory<TRequestContext>
     /// <param name="cancellationToken"></param>
     /// <returns>The <typeparamref name="TRequestContext"/> for this request.</returns>
     /// <remarks>This method is called on the queue thread to allow context to be retrieved serially, without the posibility of race conditions from Mutating requests.</remarks>
-    Task<TRequestContext> CreateRequestContextAsync<TRequestParam>(IQueueItem<TRequestContext> queueItem, TRequestParam requestParam, CancellationToken cancellationToken);
+    Task<TRequestContext> CreateRequestContextAsync<TRequestParam>(IQueueItem<TRequestContext> queueItem, TRequestParam requestParam, ILspServices services, CancellationToken cancellationToken);
 }

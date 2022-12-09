@@ -12,19 +12,12 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 internal class RequestContextFactory : IRequestContextFactory<RequestContext>, ILspService
 {
-    private readonly ILspServices _lspServices;
-
-    public RequestContextFactory(ILspServices lspServices)
+    public Task<RequestContext> CreateRequestContextAsync<TRequestParam>(IQueueItem<RequestContext> queueItem, TRequestParam requestParam, ILspServices services, CancellationToken cancellationToken)
     {
-        _lspServices = lspServices;
-    }
-
-    public Task<RequestContext> CreateRequestContextAsync<TRequestParam>(IQueueItem<RequestContext> queueItem, TRequestParam requestParam, CancellationToken cancellationToken)
-    {
-        var clientCapabilitiesManager = _lspServices.GetRequiredService<IClientCapabilitiesManager>();
+        var clientCapabilitiesManager = services.GetRequiredService<IClientCapabilitiesManager>();
         var clientCapabilities = clientCapabilitiesManager.TryGetClientCapabilities();
-        var logger = _lspServices.GetRequiredService<ILspServiceLogger>();
-        var serverInfoProvider = _lspServices.GetRequiredService<ServerInfoProvider>();
+        var logger = services.GetRequiredService<ILspServiceLogger>();
+        var serverInfoProvider = services.GetRequiredService<ServerInfoProvider>();
 
         if (clientCapabilities is null && queueItem.MethodName != Methods.InitializeName)
         {

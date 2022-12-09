@@ -5,17 +5,17 @@
 using System;
 using System.Composition;
 using Microsoft.CodeAnalysis.Host.Mef;
+using Microsoft.CodeAnalysis.LanguageServer;
+using Microsoft.CodeAnalysis.LanguageServer.Handler;
 
-namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions;
+namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(CodeActionsCache)), Shared]
-internal class CodeActionsCacheFactory : ILspServiceFactory
+[ExportLspService(typeof(RequestTelemetryLogger), ProtocolConstants.TypeScriptLanguageContract), Shared]
+internal class VSTypeScriptRequestTelemetryLogger : RequestTelemetryLogger
 {
     [ImportingConstructor]
     [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public CodeActionsCacheFactory()
+    public VSTypeScriptRequestTelemetryLogger()
     {
     }
-
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind) => new CodeActionsCache();
 }

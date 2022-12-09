@@ -29,7 +29,7 @@ internal class InitializedHandler : ILspServiceNotificationHandler<InitializedPa
 
         foreach (var onInitialize in onInitializeList)
         {
-            await onInitialize.OnInitializedAsync(clientCapabilities, cancellationToken).ConfigureAwait(false);
+            await onInitialize.OnInitializedAsync(clientCapabilities, requestContext, cancellationToken).ConfigureAwait(false);
         }
     }
 }

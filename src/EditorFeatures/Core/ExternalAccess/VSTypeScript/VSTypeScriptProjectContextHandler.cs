@@ -11,7 +11,7 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 
-[ExportStatelessLspService(typeof(GetTextDocumentWithContextHandler), ProtocolConstants.TypeScriptLanguageContract), Shared]
+[ExportLspService(typeof(GetTextDocumentWithContextHandler), ProtocolConstants.TypeScriptLanguageContract), Shared]
 internal class VSTypeScriptProjectContextHandler : GetTextDocumentWithContextHandler
 {
     [ImportingConstructor]

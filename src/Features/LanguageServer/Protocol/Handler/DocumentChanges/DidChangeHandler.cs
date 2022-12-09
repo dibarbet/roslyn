@@ -14,7 +14,7 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(DidChangeHandler)), Shared]
+    [ExportCSharpVisualBasicLspService(typeof(DidChangeHandler)), Shared]
     [Method(LSP.Methods.TextDocumentDidChangeName)]
     internal class DidChangeHandler : ILspServiceDocumentRequestHandler<LSP.DidChangeTextDocumentParams, object?>
     {

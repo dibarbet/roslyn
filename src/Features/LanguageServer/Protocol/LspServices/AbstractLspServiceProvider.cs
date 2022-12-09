@@ -5,24 +5,25 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 using Microsoft.CommonLanguageServerProtocol.Framework;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
 internal class AbstractLspServiceProvider
 {
-    private readonly ImmutableArray<Lazy<ILspService, LspServiceMetadataView>> _lspServices;
-    private readonly ImmutableArray<Lazy<ILspServiceFactory, LspServiceMetadataView>> _lspServiceFactories;
+    private readonly ExportFactory<IEnumerable<Lazy<ILspService, LspServiceMetadataView>>> _lspServices;
+    private readonly ExportFactory<IEnumerable<Lazy<ILspServiceFactory, LspServiceMetadataView>>> _lspServiceFactories;
 
     public AbstractLspServiceProvider(
-        IEnumerable<Lazy<ILspService, LspServiceMetadataView>> specificLspServices,
-        IEnumerable<Lazy<ILspServiceFactory, LspServiceMetadataView>> specificLspServiceFactories)
+        ExportFactory<IEnumerable<Lazy<ILspService, LspServiceMetadataView>>> specificLspServices,
+        ExportFactory<IEnumerable<Lazy<ILspServiceFactory, LspServiceMetadataView>>> specificLspServiceFactories)
     {
-        _lspServices = specificLspServices.ToImmutableArray();
-        _lspServiceFactories = specificLspServiceFactories.ToImmutableArray();
+        _lspServices = specificLspServices;
+        _lspServiceFactories = specificLspServiceFactories;
     }
 
-    public LspServices CreateServices(WellKnownLspServerKinds serverKind, ImmutableDictionary<Type, ImmutableArray<Func<ILspServices, object>>> baseServices)
+    public LspServices CreateServices(WellKnownLspServerKinds serverKind, ImmutableDictionary<Type, ImmutableArray<Lazy<object>>> baseServices)
     {
         var lspServices = new LspServices(_lspServices, _lspServiceFactories, serverKind, baseServices);
 
