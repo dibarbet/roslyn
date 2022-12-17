@@ -692,6 +692,7 @@ function InitializeToolset() {
 
   $path = Get-Content $toolsetLocationFile -Encoding UTF8 -TotalCount 1
   if (!(Test-Path $path)) {
+    Write-Host "Invalid toolset path"
     throw "Invalid toolset path: $path"
   }
 
