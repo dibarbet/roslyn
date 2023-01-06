@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Internal.MicroBuild.NpmPack" PrivateAssets="all" Version="$(MicrosoftVisualStudioInternalMicroBuildNpmPackVersion)" />
+    <PackageReference Include="System.Composition" Version="$(SystemCompositionVersion)" />
+    <PackageReference Include="Nerdbank.GitVersioning" Version="$(NerdbankGitVersioningVersion)" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <StageForNpmPackDependsOn>$(StageForNpmPackDependsOn);CollectNpmInputs</StageForNpmPackDependsOn>
+  </PropertyGroup>
+  <Target Name="CollectNpmInputs" DependsOnTargets="Build">
+    <ItemGroup>
+      <NpmContent Include="$(TargetPath)" />
+      <NpmContent Include="@(AppConfigWithTargetPath->'$(OutDir)%(TargetPath)')" />
+      <NpmContent Include="$(ProjectDepsFilePath)" />
+      <NpmContent Include="@(ReferenceCopyLocalPaths->'$(OutDir)%(DestinationSubDirectory)%(Filename)%(Extension)')" PackagePath="%(ReferenceCopyLocalPaths.DestinationSubDirectory)" Condition="'%(Extension)'!='.xml'" />
+      <NpmContent Include="@(None)" PackagePath="%(None.TargetPath)" Condition="'%(None.CopyToOutputDirectory)'=='PreserveNewest'" />
+    </ItemGroup>
+  </Target>
+  <ItemGroup>
+    <Content Include="package.json" />
+  </ItemGroup>
+
+</Project>
