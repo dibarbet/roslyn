@@ -212,6 +212,17 @@ stages:
         arguments: '-configuration $(BuildConfiguration) -branchName "$(SourceBranchName)"'
       condition: succeeded()
 
+    # Publishes the NPM package to the internal AzDO feed.
+    # Feed: https://dev.azure.com/devdiv/DevDiv/_artifacts/feed/vs-green/Npm/@microsoft%2Fmicrosoft.visualstudio.projectsystem.managed.vscode/
+    # See: https://docs.npmjs.com/cli/v8/commands/npm-publish
+    # npmrc doc: https://docs.npmjs.com/cli/v9/using-npm/config#npmrc-files
+    - task: PowerShell@2
+      displayName: Publish NPM
+      targetType: inline
+      
+      - powershell: . '$(Build.SourcesDirectory)/eng/scripts/PublishNPMPackage.ps1' -npmrcPath '$(Build.SourcesDirectory)/src/Microsoft.VisualStudio.ProjectSystem.Managed.VSCode/.npmrc' -tgzPath ((Get-ChildItem -Path '$(Build.SourcesDirectory)/artifacts/$(BuildConfiguration)/packages/microsoft-microsoft.visualstudio.projectsystem.managed.vscode-*.tgz').FullName)
+      condition: succeeded()
+
     # Publish OptProf configuration files
     # The env variable is required to enable cross account access using PAT (dnceng -> devdiv)
     - task: ms-vscs-artifact.build-tasks.artifactDropTask-1.artifactDropTask@0
