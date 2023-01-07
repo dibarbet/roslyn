@@ -137,6 +137,13 @@ stages:
       inputs:
         nuGetServiceConnections: azure-public/vs-impl, azure-public/vssdk, devdiv/engineering, devdiv/dotnet-core-internal-tooling
 
+    # Authenticates the .npmrc file for publishing to the internal AzDO feed.
+    # See: https://learn.microsoft.com/azure/devops/pipelines/tasks/package/npm-authenticate?view=azure-devops
+    - task: npmAuthenticate@0
+      displayName: Authenticate NPM Feed
+      inputs:
+        workingFile: $(Build.SourcesDirectory)/eng/config/.npmrc
+
     # Needed for SBOM tool
     - task: UseDotNet@2
       displayName: 'Use .NET Core 3.1 runtime'
