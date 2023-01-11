@@ -49,6 +49,11 @@
 
     <!-- VS does not require Windows PDBs to be published anymore. -->
     <PublishWindowsPdb>false</PublishWindowsPdb>
+
+    <!-- NPM packaging settings -->
+    <NpmPackageOutputPath>$(ArtifactsDir)\packages\$(Configuration)\NPM\</NpmPackageOutputPath>
+    <!-- By default don't attempt to do npm packaging during pack since it requires NPM to be installed -->
+    <IsNpmPackable Condition="'$(IsNpmPackable)'==''">false</IsNpmPackable>
   </PropertyGroup>
 
   <!--

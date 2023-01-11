@@ -240,6 +240,8 @@ function BuildSolution() {
   $generateDocumentationFile = if ($skipDocumentation) { "/p:GenerateDocumentationFile=false" } else { "" }
   $roslynUseHardLinks = if ($ci) { "/p:ROSLYNUSEHARDLINKS=true" } else { "" }
 
+  $isNpmAvailable = IsNpmAvailable
+
   try {
     MSBuild $toolsetBuildProj `
       $bl `
@@ -262,6 +264,7 @@ function BuildSolution() {
       /p:RestoreUseStaticGraphEvaluation=true `
       /p:VisualStudioIbcDrop=$ibcDropName `
       /p:VisualStudioDropAccessToken=$officialVisualStudioDropAccessToken `
+      /p:IsNpmPackable=$isNpmAvailable `
       $suppressExtensionDeployment `
       $msbuildWarnAsError `
       $buildFromSource `
@@ -683,6 +686,14 @@ function List-Processes() {
   Get-Process -Name "vbcscompiler" -ErrorAction SilentlyContinue | Out-Host
   Get-Process -Name "dotnet" -ErrorAction SilentlyContinue | where { $_.Modules | select { $_.ModuleName -eq "VBCSCompiler.dll" } } | Out-Host
   Get-Process -Name "devenv" -ErrorAction SilentlyContinue | Out-Host
+}
+
+function IsNpmAvailable() {
+  if (Get-Command "npm" -ErrorAction SilentlyContinue) {
+    return $true
+  }
+
+  return $false;
 }
 
 try {
