@@ -208,7 +208,7 @@
     <MDbgVersion>0.1.0</MDbgVersion>
     <MonoOptionsVersion>6.6.0.161</MonoOptionsVersion>
     <MoqVersion>4.10.1</MoqVersion>
-    <NerdbankGitVersioningVersion>3.5.119</NerdbankGitVersioningVersion>
+    <NerdbankGitVersioningVersion>3.5.109</NerdbankGitVersioningVersion>
     <NerdbankStreamsVersion>2.9.112</NerdbankStreamsVersion>
     <NuGetVisualStudioVersion>6.0.0-preview.0.15</NuGetVisualStudioVersion>
     <NuGetSolutionRestoreManagerInteropVersion>4.8.0</NuGetSolutionRestoreManagerInteropVersion>
