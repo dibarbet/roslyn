@@ -132,6 +132,11 @@ stages:
       inputs:
         versionSpec: '4.9.2'
 
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '16.x'
+      displayName: 'Install Node.js'
+
     # Authenticate with service connections to be able to publish packages to external nuget feeds.
     - task: NuGetAuthenticate@0
       inputs:
