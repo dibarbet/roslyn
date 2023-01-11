@@ -10,14 +10,22 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Internal.MicroBuild.NpmPack" PrivateAssets="all" Version="$(MicrosoftVisualStudioInternalMicroBuildNpmPackVersion)" Condition="'$(IsNpmPackable)' == 'true'" />
     <PackageReference Include="System.Composition" Version="$(SystemCompositionVersion)" />
-    <PackageReference Include="Nerdbank.GitVersioning" Version="$(NerdbankGitVersioningVersion)" />
   </ItemGroup>
 
   <PropertyGroup>
     <StageForNpmPackDependsOn>$(StageForNpmPackDependsOn);CollectNpmInputs</StageForNpmPackDependsOn>
   </PropertyGroup>
 
+  <Target Name="GetBuildVersion">
+    <PropertyGroup>
+      <NpmPackageVersion>$(PackageVersion)</NpmPackageVersion>
+    </PropertyGroup>
+  </Target>
+
   <Target Name="CollectNpmInputs" DependsOnTargets="Build">
+    <Message Text="TESTINGONEDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD" Importance="high" />
+    <Message Text="Package version is $(PackageVersion)" Importance="high" />
+    <Message Text="Version is $(Version)" Importance="high" />
     <ItemGroup>
       <NpmContent Include="$(TargetPath)" />
       <NpmContent Include="@(AppConfigWithTargetPath->'$(OutDir)%(TargetPath)')" />
