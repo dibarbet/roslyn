@@ -10,7 +10,9 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(LspWorkspaceManager)), Shared]
+[ExportLspServiceFactory(typeof(LspWorkspaceManager), ProtocolConstants.RoslynLspLanguagesContract), Shared]
+[ExportLspServiceFactory(typeof(LspWorkspaceManager), ProtocolConstants.XamlLanguageContract)]
+[ExportLspServiceFactory(typeof(LspWorkspaceManager), ProtocolConstants.TypeScriptLanguageContract)]
 internal class LspWorkspaceManagerFactory : ILspServiceFactory
 {
     private readonly LspWorkspaceRegistrationService _workspaceRegistrationService;

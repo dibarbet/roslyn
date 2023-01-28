@@ -27,7 +27,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer.Handler
     /// <summary>
     /// Handle a completion resolve request to add description.
     /// </summary>
-    [ExportStatelessXamlLspService(typeof(CompletionResolveHandler)), Shared]
+    [ExportXamlLspService(typeof(CompletionResolveHandler)), Shared]
     [Method(LSP.Methods.TextDocumentCompletionResolveName)]
     internal class CompletionResolveHandler : ILspServiceRequestHandler<LSP.CompletionItem, LSP.CompletionItem>
     {

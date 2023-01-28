@@ -3,16 +3,19 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Composition;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 
-/// <summary>
-/// </summary>
-/// <remarks>This is not actually stateless, but we need to be sure it doesn't re-construct each time it is retrieved 
-/// and the only state will be wiped out on Server startup</remarks>
+[ExportLspService(typeof(IClientCapabilitiesManager), ProtocolConstants.RoslynLspLanguagesContract)]
+[ExportLspService(typeof(IClientCapabilitiesManager), ProtocolConstants.XamlLanguageContract)]
+[ExportLspService(typeof(IClientCapabilitiesManager), ProtocolConstants.TypeScriptLanguageContract)]
 internal class ClientCapabilitiesManager : IClientCapabilitiesManager
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     public ClientCapabilitiesManager()
     {
     }

@@ -35,6 +35,26 @@ public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
     protected override TestComposition Composition => base.Composition.AddParts(typeof(TypeScriptHandlerFactory));
 
     [Fact]
+    public async Task TestMultipleExport()
+    {
+        var workspaceXml =
+@$"<Workspace>
+    <Project Language=""TypeScript"" CommonReferences=""true"" AssemblyName=""TypeScriptProj"">
+        <Document FilePath=""C:\T.ts""></Document>
+    </Project>
+</Workspace>";
+
+        await using var testLspServer = await CreateTsTestLspServerAsync(workspaceXml);
+        await using var csharpLspServer = await CreateXmlTestLspServerAsync(workspaceXml);
+
+        //var document = testLspServer.GetCurrentSolution().Projects.Single().Documents.Single();
+        //var request = new TSRequest(document.GetURI(), ProtocolConversions.ProjectIdToProjectContextId(document.Project.Id));
+
+        //var response = await testLspServer.ExecuteRequestAsync<TSRequest, int>(TypeScriptHandler.MethodName, request, CancellationToken.None);
+        //Assert.Equal(TypeScriptHandler.Response, response);
+    }
+
+    [Fact]
     public async Task TestExternalAccessTypeScriptHandlerInvoked()
     {
         var workspaceXml =
@@ -97,6 +117,7 @@ public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
     private static RoslynLanguageServer CreateLanguageServer(Stream inputStream, Stream outputStream, TestWorkspace workspace)
     {
         var capabilitiesProvider = workspace.ExportProvider.GetExportedValue<ExperimentalCapabilitiesProvider>();
+        var d = workspace.Composition.GetCompositionErrorLog();
         var servicesProvider = workspace.ExportProvider.GetExportedValue<VSTypeScriptLspServiceProvider>();
 
         var jsonRpc = new JsonRpc(new HeaderDelimitedMessageHandler(outputStream, inputStream))

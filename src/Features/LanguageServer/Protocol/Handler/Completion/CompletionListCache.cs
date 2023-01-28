@@ -15,6 +15,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Completion
     /// Caches completion lists in between calls to CompletionHandler and
     /// CompletionResolveHandler. Used to avoid unnecessary recomputation.
     /// </summary>
+    [ExportCSharpVisualBasicLspService(typeof(CompletionListCache)), Shared]
     internal class CompletionListCache : ILspService
     {
         /// <summary>
@@ -42,6 +43,12 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Completion
         private readonly List<CacheEntry> _resultIdToCompletionList = new();
 
         #endregion
+
+        [ImportingConstructor]
+        [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+        public CompletionListCache()
+        {
+        }
 
         /// <summary>
         /// Adds a completion list to the cache. If the cache reaches its maximum size, the oldest completion

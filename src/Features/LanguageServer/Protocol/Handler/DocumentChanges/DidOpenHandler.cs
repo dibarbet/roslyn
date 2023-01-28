@@ -14,7 +14,8 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(DidOpenHandler)), Shared]
+    [ExportLspService(typeof(DidOpenHandler), ProtocolConstants.TypeScriptLanguageContract), Shared]
+    [ExportLspService(typeof(DidOpenHandler), ProtocolConstants.RoslynLspLanguagesContract)]
     [Method(LSP.Methods.TextDocumentDidOpenName)]
     internal class DidOpenHandler : ILspServiceNotificationHandler<LSP.DidOpenTextDocumentParams>, ITextDocumentIdentifierHandler<LSP.DidOpenTextDocumentParams, Uri>
     {

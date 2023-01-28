@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CommonLanguageServerProtocol.Framework;

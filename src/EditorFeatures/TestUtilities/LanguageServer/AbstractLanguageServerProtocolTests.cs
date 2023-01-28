@@ -368,6 +368,7 @@ namespace Roslyn.Test.Utilities
 
         internal TestWorkspace CreateWorkspace(InitializationOptions? options, string? workspaceKind)
         {
+            var compositonError = Composition.GetCompositionErrorLog();
             var workspace = new TestWorkspace(Composition, workspaceKind, configurationOptions: new WorkspaceConfigurationOptions(EnableOpeningSourceGeneratedFiles: true));
             options?.OptionUpdater?.Invoke(workspace.GetService<IGlobalOptionService>());
 

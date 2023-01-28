@@ -16,28 +16,28 @@ using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 
-[ExportLspServiceFactory(typeof(DocumentPullDiagnosticHandler), ProtocolConstants.TypeScriptLanguageContract), Shared]
-internal class VSTypeScriptDocumentPullDiagnosticHandlerFactory : DocumentPullDiagnosticHandlerFactory
-{
-    [ImportingConstructor]
-    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public VSTypeScriptDocumentPullDiagnosticHandlerFactory(
-        IDiagnosticAnalyzerService analyzerService,
-        EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource,
-        IGlobalOptionService globalOptions) : base(analyzerService, editAndContinueDiagnosticUpdateSource, globalOptions)
-    {
-    }
-}
+//[ExportLspService(typeof(DocumentPullDiagnosticHandler), ProtocolConstants.TypeScriptLanguageContract), Shared]
+//internal class VSTypeScriptDocumentPullDiagnosticHandler : DocumentPullDiagnosticHandler
+//{
+//    [ImportingConstructor]
+//    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+//    public VSTypeScriptDocumentPullDiagnosticHandler(
+//        IDiagnosticAnalyzerService analyzerService,
+//        EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource,
+//        IGlobalOptionService globalOptions) : base(analyzerService, editAndContinueDiagnosticUpdateSource, globalOptions)
+//    {
+//    }
+//}
 
-[ExportLspServiceFactory(typeof(WorkspacePullDiagnosticHandler), ProtocolConstants.TypeScriptLanguageContract), Shared]
-internal class VSTypeScriptWorkspacePullDiagnosticHandler : WorkspacePullDiagnosticHandlerFactory
-{
-    [ImportingConstructor]
-    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public VSTypeScriptWorkspacePullDiagnosticHandler(
-        IDiagnosticAnalyzerService analyzerService,
-        EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource,
-        IGlobalOptionService globalOptions) : base(analyzerService, editAndContinueDiagnosticUpdateSource, globalOptions)
-    {
-    }
-}
+//[ExportLspServiceFactory(typeof(WorkspacePullDiagnosticHandler), ProtocolConstants.TypeScriptLanguageContract), Shared]
+//internal class VSTypeScriptWorkspacePullDiagnosticHandler : WorkspacePullDiagnosticHandler
+//{
+//    [ImportingConstructor]
+//    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+//    public VSTypeScriptWorkspacePullDiagnosticHandler(
+//        IDiagnosticAnalyzerService analyzerService,
+//        EditAndContinueDiagnosticUpdateSource editAndContinueDiagnosticUpdateSource,
+//        IGlobalOptionService globalOptions) : base(analyzerService, editAndContinueDiagnosticUpdateSource, globalOptions)
+//    {
+//    }
+//}

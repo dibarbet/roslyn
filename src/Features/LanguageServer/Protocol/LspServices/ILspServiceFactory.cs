@@ -4,11 +4,12 @@
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
+/// <summary>
+/// Defines a factory that should create a new instance of an <see cref="ILspService"/>.
+/// This is typically used when the <see cref="ILspService"/> depends on other <see cref="ILspService"/>
+/// in its construction.
+/// </summary>
 internal interface ILspServiceFactory
 {
-    /// <summary>
-    /// Some LSP services need to know the client capabilities on construction or
-    /// need to know about other <see cref="ILspService"/> instances to be constructed.
-    /// </summary>
     ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind);
 }

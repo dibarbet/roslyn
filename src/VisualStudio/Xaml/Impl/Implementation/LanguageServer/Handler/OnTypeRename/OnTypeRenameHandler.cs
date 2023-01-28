@@ -17,7 +17,7 @@ using Roslyn.Utilities;
 
 namespace Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer.Handler
 {
-    [ExportStatelessXamlLspService(typeof(OnTypeRenameHandler)), Shared]
+    [ExportXamlLspService(typeof(OnTypeRenameHandler)), Shared]
     [Method(Methods.TextDocumentLinkedEditingRangeName)]
     internal class OnTypeRenameHandler : ILspServiceRequestHandler<LinkedEditingRangeParams, LinkedEditingRanges?>
     {

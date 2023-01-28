@@ -12,7 +12,7 @@ using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.RequestOrdering
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(FailingMutatingRequestHandler)), PartNotDiscoverable, Shared]
+    [ExportCSharpVisualBasicLspService(typeof(FailingMutatingRequestHandler)), PartNotDiscoverable, Shared]
     [Method(MethodName)]
     internal class FailingMutatingRequestHandler : ILspServiceRequestHandler<TestRequest, TestResponse>
     {

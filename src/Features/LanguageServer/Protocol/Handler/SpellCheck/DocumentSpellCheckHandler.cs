@@ -4,14 +4,23 @@
 
 using System;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Threading;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SpellCheck
 {
+    [ExportCSharpVisualBasicLspService(typeof(DocumentSpellCheckHandler)), Shared]
     [Method(VSInternalMethods.TextDocumentSpellCheckableRangesName)]
     internal class DocumentSpellCheckHandler : AbstractSpellCheckHandler<VSInternalDocumentSpellCheckableParams, VSInternalSpellCheckableRangeReport>
     {
+        [ImportingConstructor]
+        [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+        public DocumentSpellCheckHandler()
+        {
+        }
+
         public override TextDocumentIdentifier GetTextDocumentIdentifier(VSInternalDocumentSpellCheckableParams requestParams)
             => requestParams.TextDocument;
 

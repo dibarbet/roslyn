@@ -13,9 +13,14 @@ using Newtonsoft.Json;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 
+[ExportLspService(typeof(InitializeHandler), ProtocolConstants.RoslynLspLanguagesContract), Shared]
+[ExportLspService(typeof(InitializeHandler), ProtocolConstants.XamlLanguageContract)]
+[ExportLspService(typeof(InitializeHandler), ProtocolConstants.TypeScriptLanguageContract)]
 [Method(Methods.InitializeName)]
 internal class InitializeHandler : ILspServiceRequestHandler<InitializeParams, InitializeResult>
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     public InitializeHandler()
     {
     }

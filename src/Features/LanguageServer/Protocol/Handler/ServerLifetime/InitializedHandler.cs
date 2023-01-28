@@ -11,9 +11,14 @@ using Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 
+[ExportLspService(typeof(InitializedHandler), ProtocolConstants.RoslynLspLanguagesContract), Shared]
+[ExportLspService(typeof(InitializedHandler), ProtocolConstants.XamlLanguageContract)]
+[ExportLspService(typeof(InitializedHandler), ProtocolConstants.TypeScriptLanguageContract)]
 [Method(Methods.InitializedName)]
 internal class InitializedHandler : ILspServiceNotificationHandler<InitializedParams>
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     public InitializedHandler()
     {
     }

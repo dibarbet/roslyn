@@ -27,7 +27,7 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.VisualStudio.LanguageServices.Xaml.Implementation.LanguageServer.Handler.Definitions
 {
-    [ExportStatelessXamlLspService(typeof(GoToDefinitionHandler)), Shared]
+    [ExportXamlLspService(typeof(GoToDefinitionHandler)), Shared]
     [Method(Methods.TextDocumentDefinitionName)]
     internal class GoToDefinitionHandler : ILspServiceRequestHandler<TextDocumentPositionParams, LSP.Location[]>
     {

@@ -10,9 +10,9 @@ using Microsoft.CodeAnalysis.LanguageServer;
 namespace Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer
 {
     [AttributeUsage(AttributeTargets.Class), MetadataAttribute]
-    internal class ExportStatelessXamlLspServiceAttribute : ExportStatelessLspServiceAttribute
+    internal class ExportXamlLspServiceAttribute : ExportLspServiceAttribute
     {
-        public ExportStatelessXamlLspServiceAttribute(Type handlerType) : base(handlerType, StringConstants.XamlLspLanguagesContract, WellKnownLspServerKinds.XamlLspServer)
+        public ExportXamlLspServiceAttribute(Type handlerType) : base(handlerType, ProtocolConstants.XamlLanguageContract, WellKnownLspServerKinds.XamlLspServer)
         {
         }
     }

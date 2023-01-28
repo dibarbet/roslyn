@@ -13,7 +13,9 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(DidCloseHandler)), Shared]
+    [ExportLspService(typeof(DidCloseHandler), ProtocolConstants.RoslynLspLanguagesContract), Shared]
+    [ExportLspService(typeof(DidCloseHandler), ProtocolConstants.XamlLanguageContract)]
+    [ExportLspService(typeof(DidCloseHandler), ProtocolConstants.TypeScriptLanguageContract)]
     [Method(LSP.Methods.TextDocumentDidCloseName)]
     internal class DidCloseHandler : ILspServiceNotificationHandler<LSP.DidCloseTextDocumentParams>, ITextDocumentIdentifierHandler<LSP.DidCloseTextDocumentParams, TextDocumentIdentifier>
     {

@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.Options;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 {
-    [ExportCSharpVisualBasicLspServiceFactory(typeof(CompletionResolveHandler)), Shared]
+    [ExportLspServiceFactory(typeof(CompletionResolveHandler), ProtocolConstants.RoslynLspLanguagesContract), Shared]
     internal sealed class CompletionResolveHandlerFactory : ILspServiceFactory
     {
         private readonly IGlobalOptionService _globalOptions;

@@ -19,7 +19,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
     /// TODO - This must be moved to the MS.CA.LanguageServer.Protocol project once
     /// we no longer reference VS icon types.
     /// </summary>
-    [ExportCSharpVisualBasicStatelessLspService(typeof(WorkspaceSymbolsHandler)), Shared]
+    [ExportCSharpVisualBasicLspService(typeof(WorkspaceSymbolsHandler)), Shared]
     [Method(Methods.WorkspaceSymbolName)]
     internal sealed class WorkspaceSymbolsHandler : ILspServiceRequestHandler<WorkspaceSymbolParams, SymbolInformation[]?>
     {

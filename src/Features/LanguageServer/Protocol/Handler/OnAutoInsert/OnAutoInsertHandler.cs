@@ -24,7 +24,7 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(OnAutoInsertHandler)), Shared]
+    [ExportCSharpVisualBasicLspService(typeof(OnAutoInsertHandler)), Shared]
     [Method(LSP.VSInternalMethods.OnAutoInsertName)]
     internal sealed class OnAutoInsertHandler : ILspServiceDocumentRequestHandler<LSP.VSInternalDocumentOnAutoInsertParams, LSP.VSInternalDocumentOnAutoInsertResponseItem?>
     {

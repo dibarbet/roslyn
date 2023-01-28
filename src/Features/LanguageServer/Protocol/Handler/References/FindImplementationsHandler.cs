@@ -15,7 +15,7 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(FindImplementationsHandler)), Shared]
+    [ExportCSharpVisualBasicLspService(typeof(FindImplementationsHandler)), Shared]
     [Method(LSP.Methods.TextDocumentImplementationName)]
     internal sealed class FindImplementationsHandler : ILspServiceDocumentRequestHandler<LSP.TextDocumentPositionParams, LSP.Location[]>
     {

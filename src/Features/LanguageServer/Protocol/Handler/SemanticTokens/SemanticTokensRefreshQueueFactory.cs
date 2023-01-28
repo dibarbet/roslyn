@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Shared.TestHooks;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens
 {
-    [ExportCSharpVisualBasicLspServiceFactory(typeof(SemanticTokensRefreshQueue)), Shared]
+    [ExportLspServiceFactory(typeof(SemanticTokensRefreshQueue), ProtocolConstants.RoslynLspLanguagesContract), Shared]
     internal sealed class SemanticTokensRefreshQueueFactory : ILspServiceFactory
     {
         private readonly IAsynchronousOperationListenerProvider _asyncListenerProvider;

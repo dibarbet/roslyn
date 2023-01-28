@@ -19,7 +19,7 @@ using Microsoft.VisualStudio.LanguageServices.Xaml.Features.Formatting;
 
 namespace Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer.Handler
 {
-    [ExportStatelessXamlLspService(typeof(FormatDocumentOnTypeHandler)), Shared]
+    [ExportXamlLspService(typeof(FormatDocumentOnTypeHandler)), Shared]
     [Method(Methods.TextDocumentOnTypeFormattingName)]
     internal class FormatDocumentOnTypeHandler : ILspServiceRequestHandler<DocumentOnTypeFormattingParams, TextEdit[]>
     {

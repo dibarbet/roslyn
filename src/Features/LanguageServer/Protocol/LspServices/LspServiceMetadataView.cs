@@ -4,30 +4,53 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using Microsoft.CodeAnalysis.PooledObjects;
+using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
+/// <summary>
+/// Parses the MEF export metadata for <see cref="ExportLspServiceAttribute"/>
+/// and <see cref="ExportLspServiceFactoryAttribute"/>.  Since these attributes allow
+/// multiple exports per type, this takes care of aggregating the metadata for each attribute.
+/// </summary>
 internal class LspServiceMetadataView
 {
-    public Type Type { get; set; }
-
-    public WellKnownLspServerKinds ServerKind { get; set; }
-
-    public bool IsStateless { get; set; }
+    public ImmutableArray<LspServiceMetadata> ServiceMetadata;
 
     public LspServiceMetadataView(IDictionary<string, object> metadata)
     {
-        var handlerMetadata = (Type)metadata[nameof(Type)];
-        Type = handlerMetadata;
+        // The format of the metadata dictionary depends on whether the service was exported with one attribute or multiple
+        // If exported with one attribute, all the objects are single items.
+        //
+        // If exported with multiple attributes, each metadata item is an array.
+        // The index in the array corresponds to which export attribute the metadata applies to.
+        var contractMetadata = metadata[nameof(ExportLspServiceAttribute.ContractName)];
+        var contractNames = contractMetadata is string[] contractArray ? contractArray.ToImmutableArray() : ImmutableArray.Create((string)contractMetadata);
+        using var _ = ArrayBuilder<LspServiceMetadata>.GetInstance(out var metadataBuilder);
+        if (contractNames.Length == 1)
+        {
+            var type = (Type)metadata[nameof(ExportLspServiceAttribute.Type)];
+            var serverKind = (WellKnownLspServerKinds)metadata[nameof(ExportLspServiceAttribute.ServerKind)];
+            var fromFactory = (bool)metadata[nameof(ExportLspServiceAttribute.FromFactory)];
+            metadataBuilder.Add(new LspServiceMetadata(contractNames.Single(), type, serverKind, fromFactory));
+        }
+        else
+        {
+            
+            var types = (Type[])metadata[nameof(ExportLspServiceAttribute.Type)];
+            var serverKinds = (WellKnownLspServerKinds[])metadata[nameof(ExportLspServiceAttribute.ServerKind)];
+            var fromFactory = (bool[])metadata[nameof(ExportLspServiceAttribute.FromFactory)];
+            for (var i = 0; i < contractNames.Length; i++)
+            {
+                metadataBuilder.Add(new LspServiceMetadata(contractNames[i], types[i], serverKinds[i], fromFactory[i]));
+            }
+        }
 
-        ServerKind = (WellKnownLspServerKinds)metadata[nameof(ServerKind)];
-        IsStateless = (bool)metadata[nameof(IsStateless)];
+        ServiceMetadata = metadataBuilder.ToImmutable();
     }
 
-    public LspServiceMetadataView(Type type)
-    {
-        Type = type;
-        ServerKind = WellKnownLspServerKinds.Any;
-        IsStateless = false;
-    }
+    internal record LspServiceMetadata(string ContractName, Type Type, WellKnownLspServerKinds ServerKind, bool FromFactory);
 }

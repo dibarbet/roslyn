@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Options;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens
 {
-    [ExportCSharpVisualBasicLspServiceFactory(typeof(SemanticTokensRangeHandler)), Shared]
+    [ExportLspServiceFactory(typeof(SemanticTokensRangeHandler), ProtocolConstants.RoslynLspLanguagesContract), Shared]
     internal sealed class SemanticTokensRangeHandlerFactory : ILspServiceFactory
     {
         private readonly IGlobalOptionService _globalOptions;

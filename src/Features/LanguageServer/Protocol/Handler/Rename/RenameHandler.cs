@@ -17,7 +17,7 @@ using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(RenameHandler)), Shared]
+    [ExportCSharpVisualBasicLspService(typeof(RenameHandler)), Shared]
     [Method(LSP.Methods.TextDocumentRenameName)]
     internal class RenameHandler : ILspServiceDocumentRequestHandler<LSP.RenameParams, WorkspaceEdit?>
     {

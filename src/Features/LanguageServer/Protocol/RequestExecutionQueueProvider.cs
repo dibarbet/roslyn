@@ -10,7 +10,8 @@ using Microsoft.CommonLanguageServerProtocol.Framework;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(IRequestExecutionQueueProvider<RequestContext>)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(IRequestExecutionQueueProvider<RequestContext>)), Shared]
+[ExportLspService(typeof(IRequestExecutionQueueProvider<RequestContext>), ProtocolConstants.TypeScriptLanguageContract)]
 internal sealed class RequestExecutionQueueProvider : IRequestExecutionQueueProvider<RequestContext>
 {
     [ImportingConstructor]

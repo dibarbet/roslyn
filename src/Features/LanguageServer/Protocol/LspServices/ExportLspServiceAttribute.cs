@@ -10,14 +10,11 @@ using Roslyn.Utilities;
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
 /// <summary>
-/// Defines an attribute to export an instance of <see cref="ILspService"/> that is re-used across
-/// all server instances in the same mef container.  Services using this export attribute should not
-/// store any kind of server specific state in them.
-/// 
-/// MEF will dispose of these services when the container is disposed of.
+/// Defines an attribute to export an instance of <see cref="ILspService"/>.
+/// <see cref="ILspService"/> instances are re-created each time a server starts and disposed of when it shuts down.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false), MetadataAttribute]
-internal class ExportStatelessLspServiceAttribute : ExportAttribute
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = true), MetadataAttribute]
+internal class ExportLspServiceAttribute : ExportAttribute
 {
     /// <summary>
     /// The type of the service being exported.  Used during retrieval to find the matching service.
@@ -28,15 +25,14 @@ internal class ExportStatelessLspServiceAttribute : ExportAttribute
     /// The LSP server for which this service applies to.  If null, this service applies to any server
     /// with the matching contract name.
     /// </summary>
-    public WellKnownLspServerKinds? ServerKind { get; }
+    public WellKnownLspServerKinds ServerKind { get; }
 
     /// <summary>
-    /// Services MEF exported as <see cref="ILspService"/> must by definition be stateless as they are
-    /// shared amongst all LSP server instances through restarts.
+    /// Indicates this service was provided was not provided by a factory.
     /// </summary>
-    public bool IsStateless { get; } = true;
+    public bool FromFactory { get; } = false;
 
-    public ExportStatelessLspServiceAttribute(Type type, string contractName, WellKnownLspServerKinds serverKind = WellKnownLspServerKinds.Any) : base(contractName, typeof(ILspService))
+    public ExportLspServiceAttribute(Type type, string contractName, WellKnownLspServerKinds serverKind = WellKnownLspServerKinds.Any) : base(contractName, typeof(ILspService))
     {
         Contract.ThrowIfFalse(type.GetInterfaces().Contains(typeof(ILspService)), $"{type.Name} does not inherit from {nameof(ILspService)}");
         Type = type;

@@ -15,7 +15,9 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 {
-    [ExportCSharpVisualBasicStatelessLspService(typeof(GetTextDocumentWithContextHandler)), Shared]
+    [ExportLspService(typeof(GetTextDocumentWithContextHandler), ProtocolConstants.RoslynLspLanguagesContract), Shared]
+    [ExportLspService(typeof(GetTextDocumentWithContextHandler), ProtocolConstants.XamlLanguageContract)]
+    [ExportLspService(typeof(GetTextDocumentWithContextHandler), ProtocolConstants.TypeScriptLanguageContract)]
     [Method(VSMethods.GetProjectContextsName)]
     internal class GetTextDocumentWithContextHandler : ILspServiceDocumentRequestHandler<VSGetProjectContextsParams, VSProjectContextList?>
     {

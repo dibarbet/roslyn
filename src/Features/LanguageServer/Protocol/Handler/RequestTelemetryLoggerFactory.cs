@@ -8,8 +8,10 @@ using Microsoft.CodeAnalysis.Host.Mef;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(RequestTelemetryLogger)), Shared]
-internal class RequestTelemetryLoggerFactory : ILspServiceFactory
+[ExportLspServiceFactory(typeof(RequestTelemetryLogger), ProtocolConstants.RoslynLspLanguagesContract), Shared]
+[ExportLspServiceFactory(typeof(RequestTelemetryLogger), ProtocolConstants.XamlLanguageContract)]
+[ExportLspServiceFactory(typeof(RequestTelemetryLogger), ProtocolConstants.TypeScriptLanguageContract)]
+internal sealed class RequestTelemetryLoggerFactory : ILspServiceFactory
 {
     [ImportingConstructor]
     [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
