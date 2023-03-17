@@ -29,9 +29,10 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions
         /// <remarks>
         /// Used by CodeActionsHandler.
         /// </remarks>
-        public static async Task<VSInternalCodeAction[]> GetVSCodeActionsAsync(
+        public static async Task<LSP.CodeAction[]> GetVSCodeActionsAsync(
             CodeActionParams request,
             Document document,
+            bool supportsVSExtensions,
             CodeActionOptionsProvider fallbackOptions,
             ICodeFixService codeFixService,
             ICodeRefactoringService codeRefactoringService,
@@ -40,14 +41,14 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions
             var actionSets = await GetActionSetsAsync(
                 document, fallbackOptions, codeFixService, codeRefactoringService, request.Range, cancellationToken).ConfigureAwait(false);
             if (actionSets.IsDefaultOrEmpty)
-                return Array.Empty<VSInternalCodeAction>();
+                return Array.Empty<LSP.CodeAction>();
 
             var documentText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
 
             // Each suggested action set should have a unique set number, which is used for grouping code actions together.
             var currentHighestSetNumber = 0;
 
-            using var _ = ArrayBuilder<VSInternalCodeAction>.GetInstance(out var codeActions);
+            using var _ = ArrayBuilder<LSP.CodeAction>.GetInstance(out var codeActions);
             foreach (var set in actionSets)
             {
                 var currentSetNumber = ++currentHighestSetNumber;
@@ -69,6 +70,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions
                         setPriority: set.Priority,
                         applicableRange: set.ApplicableToSpan.HasValue ? ProtocolConversions.TextSpanToRange(set.ApplicableToSpan.Value, documentText) : null,
                         currentSetNumber: currentSetNumber,
+                        supportsVSExtensions: supportsVSExtensions,
                         currentHighestSetNumber: ref currentHighestSetNumber));
                 }
             }
@@ -84,6 +86,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions
             CodeActionPriority setPriority,
             LSP.Range? applicableRange,
             int currentSetNumber,
+            bool supportsVSExtensions,
             ref int currentHighestSetNumber,
             string currentTitle = "")
         {
@@ -98,26 +101,32 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions
 
             var diagnosticsForFix = GetApplicableDiagnostics(request.Context, suggestedAction);
 
-            // Nested code actions' unique identifiers consist of: parent code action unique identifier + '|' + title of code action
-            var nestedActions = GenerateNestedVSCodeActions(request, documentText, suggestedAction, codeActionKind, ref currentHighestSetNumber, currentTitle);
-
-            return new VSInternalCodeAction
+            var lspCodeAction = new VSInternalCodeAction
             {
                 Title = codeAction.Title,
                 Kind = codeActionKind,
                 Diagnostics = diagnosticsForFix,
-                Children = nestedActions,
-                Priority = UnifiedSuggestedActionSetPriorityToPriorityLevel(setPriority),
-                Group = $"Roslyn{currentSetNumber}",
-                ApplicableRange = applicableRange,
                 Data = new CodeActionResolveData(currentTitle, codeAction.CustomTags, request.Range, request.TextDocument)
             };
+
+            if (supportsVSExtensions)
+            {
+                // Nested code actions' unique identifiers consist of: parent code action unique identifier + '|' + title of code action
+                var nestedActions = GenerateNestedVSCodeActions(request, documentText, suggestedAction, codeActionKind, supportsVSExtensions, ref currentHighestSetNumber, currentTitle);
+                lspCodeAction.Children = nestedActions;
+                lspCodeAction.Priority = UnifiedSuggestedActionSetPriorityToPriorityLevel(setPriority);
+                lspCodeAction.Group = $"Roslyn{currentSetNumber}";
+                lspCodeAction.ApplicableRange = applicableRange;
+            }
+
+            return lspCodeAction;
 
             static VSInternalCodeAction[] GenerateNestedVSCodeActions(
                 CodeActionParams request,
                 SourceText documentText,
                 IUnifiedSuggestedAction suggestedAction,
                 CodeActionKind codeActionKind,
+                bool supportsVSExtensions,
                 ref int currentHighestSetNumber,
                 string currentTitle)
             {
@@ -137,7 +146,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions
                             request, documentText, nestedSuggestedAction, codeActionKind, nestedActionSet.Priority,
                             applicableRange: nestedActionSet.ApplicableToSpan.HasValue
                                 ? ProtocolConversions.TextSpanToRange(nestedActionSet.ApplicableToSpan.Value, documentText) : null,
-                            nestedSetNumber, ref currentHighestSetNumber, currentTitle));
+                            nestedSetNumber, supportsVSExtensions, ref currentHighestSetNumber, currentTitle));
                     }
                 }
 
