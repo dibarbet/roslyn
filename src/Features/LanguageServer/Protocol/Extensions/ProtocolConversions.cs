@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.DocumentHighlighting;
 using Microsoft.CodeAnalysis.ErrorReporting;
+using Microsoft.CodeAnalysis.Features.Workspaces;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.Indentation;
@@ -37,6 +38,17 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         private static readonly Uri SourceGeneratedDocumentBaseUri = new("gen://");
 
         private static readonly Regex s_markdownEscapeRegex = new(@"([\\`\*_\{\}\[\]\(\)#+\-\.!])", RegexOptions.Compiled);
+
+        private static readonly LanguageInformation s_csharpLanguageInformation = new(LanguageNames.CSharp, ".csx");
+        private static readonly LanguageInformation s_vbLanguageInformation = new(LanguageNames.VisualBasic, ".vbx");
+
+        private static readonly Dictionary<string, LanguageInformation> s_extensionToLanguageInformation = new()
+        {
+            { ".cs", s_csharpLanguageInformation },
+            { ".csx", s_csharpLanguageInformation },
+            { ".vb", s_vbLanguageInformation },
+            { ".vbx", s_vbLanguageInformation },
+        };
 
         // NOTE: While the spec allows it, don't use Function and Method, as both VS and VS Code display them the same
         // way which can confuse users
@@ -158,7 +170,12 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             if (filePath is null)
                 throw new ArgumentNullException(nameof(filePath));
 
-            return new Uri(filePath, UriKind.Absolute);
+            if (Uri.TryCreate(uriString, UriKind.Absolute, out var uri))
+            {
+                return uri;
+            }
+
+            return new Uri(uriString, UriKind.Relative);
         }
 
         public static Uri GetUriFromPartialFilePath(string? filePath)
@@ -821,6 +838,24 @@ namespace Microsoft.CodeAnalysis.LanguageServer
                     _ => text,
                 };
             }
+        }
+
+        public static LanguageInformation? GetLanguageInformation(LSP.TextDocumentItem textDocument)
+        {
+            if (s_extensionToLanguageInformation.TryGetValue(Path.GetExtension(textDocument.Uri.AbsolutePath), out var languageInformation))
+            {
+                return languageInformation;
+            }
+
+            // It is totally possible to not find language based on the file path (e.g. a newly created file that hasn't been saved to disk).
+            // In that case, we use the languageId that the client gave us.
+            var languageId = textDocument.LanguageId;
+            return languageId switch
+            {
+                "csharp" => s_csharpLanguageInformation,
+                "vb" => s_vbLanguageInformation,
+                _ => null,
+            };
         }
 
         private static async Task<ImmutableArray<MappedSpanResult>?> GetMappedSpanResultAsync(TextDocument textDocument, ImmutableArray<TextSpan> textSpans, CancellationToken cancellationToken)

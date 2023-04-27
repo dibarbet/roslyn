@@ -30,17 +30,6 @@ namespace Microsoft.CodeAnalysis.LanguageServer
     /// </summary>
     internal class LspMiscellaneousFilesWorkspace : Workspace, ILspService, ILspWorkspace
     {
-        private static readonly LanguageInformation s_csharpLanguageInformation = new(LanguageNames.CSharp, ".csx");
-        private static readonly LanguageInformation s_vbLanguageInformation = new(LanguageNames.VisualBasic, ".vbx");
-
-        private static readonly Dictionary<string, LanguageInformation> s_extensionToLanguageInformation = new()
-        {
-            { ".cs", s_csharpLanguageInformation },
-            { ".csx", s_csharpLanguageInformation },
-            { ".vb", s_vbLanguageInformation },
-            { ".vbx", s_vbLanguageInformation },
-        };
-
         public LspMiscellaneousFilesWorkspace(HostServices hostServices) : base(hostServices, WorkspaceKind.MiscellaneousFiles)
         {
         }
@@ -53,10 +42,10 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         /// Calls to this method and <see cref="TryRemoveMiscellaneousDocument(Uri)"/> are made
         /// from LSP text sync request handling which do not run concurrently.
         /// </summary>
-        public Document? AddMiscellaneousDocument(Uri uri, SourceText documentText, ILspLogger logger)
+        public Document? AddMiscellaneousDocument(Uri uri, SourceText documentText, LanguageInformation? languageInformation, ILspLogger logger)
         {
             var uriAbsolutePath = uri.AbsolutePath;
-            if (!s_extensionToLanguageInformation.TryGetValue(Path.GetExtension(uriAbsolutePath), out var languageInformation))
+            if (languageInformation == null)
             {
                 // Only log here since throwing here could take down the LSP server.
                 logger.LogError($"Could not find language information for {uri} with absolute path {uriAbsolutePath}");
@@ -76,7 +65,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         /// <summary>
         /// Removes a document with the matching file path from this workspace.
         /// 
-        /// Calls to this method and <see cref="AddMiscellaneousDocument(Uri, SourceText, ILspLogger)"/> are made
+        /// Calls to this method and <see cref="AddMiscellaneousDocument(Uri, SourceText, LanguageInformation?, ILspLogger)"/> are made
         /// from LSP text sync request handling which do not run concurrently.
         /// </summary>
         public void TryRemoveMiscellaneousDocument(Uri uri)

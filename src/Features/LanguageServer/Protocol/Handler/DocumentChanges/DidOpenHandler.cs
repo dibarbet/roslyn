@@ -38,8 +38,9 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges
             // TODO (https://github.com/dotnet/roslyn/issues/63583):
             // Create SourceText from binary representation of the document, retrieve encoding from the request and checksum algorithm from the project.
             var sourceText = SourceText.From(request.TextDocument.Text, System.Text.Encoding.UTF8, SourceHashAlgorithms.OpenDocumentChecksumAlgorithm);
+            var languageInformation = ProtocolConversions.GetLanguageInformation(request.TextDocument);
 
-            await context.StartTrackingAsync(request.TextDocument.Uri, sourceText, cancellationToken).ConfigureAwait(false);
+            await context.StartTrackingAsync(request.TextDocument.Uri, sourceText, languageInformation, cancellationToken).ConfigureAwait(false);
         }
     }
 }

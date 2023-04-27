@@ -8,6 +8,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.Features.Workspaces;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CommonLanguageServerProtocol.Framework;
 using Microsoft.VisualStudio.LanguageServer.Protocol;
@@ -269,8 +270,8 @@ internal readonly struct RequestContext
     /// Allows a mutating request to open a document and start it being tracked.
     /// Mutating requests are serialized by the execution queue in order to prevent concurrent access.
     /// </summary>
-    public ValueTask StartTrackingAsync(Uri uri, SourceText initialText, CancellationToken cancellationToken)
-        => _documentChangeTracker.StartTrackingAsync(uri, initialText, cancellationToken);
+    public ValueTask StartTrackingAsync(Uri uri, SourceText initialText, LanguageInformation? languageInformation, CancellationToken cancellationToken)
+        => _documentChangeTracker.StartTrackingAsync(uri, initialText, languageInformation, cancellationToken);
 
     /// <summary>
     /// Allows a mutating request to update the contents of a tracked document.
