@@ -373,7 +373,7 @@ stages:
         componentPassword: $(dn-bot-dnceng-build-e-code-full-release-e-packaging-r)
         componentBuildProjectName: internal
         sourceBranch: "$(ComponentBranchName)"
-        publishDataURI: "https://dnceng.visualstudio.com/7ea9116e-9fac-403d-b258-b31fcf1bb293/_apis/git/repositories/7b863b8d-8cc3-431d-b06b-7136cc32bbe6/Items?path=/eng/config/PublishData.json"
+        publishDataURI: "https://raw.githubusercontent.com/dibarbet/roslyn/dev/dibarbet/update_language_server_publishing/eng/config/PublishData.json"
         publishDataAccessToken: "$(System.AccessToken)"
         dropPath: '$(Pipeline.Workspace)\VSSetup'
 
