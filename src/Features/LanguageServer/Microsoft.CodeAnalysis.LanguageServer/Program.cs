@@ -73,6 +73,9 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
         }
     }
 
+    Environment.SetEnvironmentVariable("DOTNET_ROOT", null);
+    Environment.SetEnvironmentVariable("DOTNET_MULTILEVEL_LOOKUP", null);
+
     using var exportProvider = await ExportProviderBuilder.CreateExportProviderAsync(serverConfiguration.ExtensionAssemblyPaths, serverConfiguration.SharedDependenciesPath, loggerFactory);
 
     // The log file directory passed to us by VSCode might not exist yet, though its parent directory is guaranteed to exist.

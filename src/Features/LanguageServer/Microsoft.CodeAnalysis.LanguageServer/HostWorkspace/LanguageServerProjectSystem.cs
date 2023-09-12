@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Composition;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.Collections;
@@ -143,6 +144,11 @@ internal sealed class LanguageServerProjectSystem
             }
             else
             {
+                var envVars = Environment.GetEnvironmentVariables();
+                foreach (var key in envVars.Keys)
+                {
+                    _logger.LogInformation($"{key}:{envVars[key]}");
+                }
                 var msbuildDiscoveryOptions = new VisualStudioInstanceQueryOptions { DiscoveryTypes = DiscoveryType.DotNetSdk, WorkingDirectory = workingDirectory };
                 var msbuildInstances = MSBuildLocator.QueryVisualStudioInstances(msbuildDiscoveryOptions);
                 var msbuildInstance = msbuildInstances.FirstOrDefault();
