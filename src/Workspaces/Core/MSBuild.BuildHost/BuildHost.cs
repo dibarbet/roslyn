@@ -2,7 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -170,6 +172,17 @@ internal sealed class BuildHost : IBuildHost
     {
         EnsureMSBuildLoaded(projectFilePath);
         CreateBuildManager();
+
+        var timeout = TimeSpan.FromMinutes(1);
+#if NET6_0_OR_GREATER
+        _logger.LogCritical($"Server started with process ID {Environment.ProcessId}");
+#endif
+        _logger.LogCritical($"Waiting {timeout:g} for a debugger to attach");
+        using var timeoutSource = new CancellationTokenSource(timeout);
+        while (!Debugger.IsAttached && !timeoutSource.Token.IsCancellationRequested)
+        {
+            await Task.Delay(100, CancellationToken.None);
+        }
 
         var projectLoader = TryGetLoaderForPath(projectFilePath);
         Contract.ThrowIfNull(projectLoader, $"We don't support this project path; we should have called {nameof(IsProjectFileSupportedAsync)} first.");
