@@ -76,6 +76,9 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.IntelliSense.SignatureHel
             // care of cases where the filtered set of providers didn't provide anything but one of the
             // other providers could still be valid, but doesn't explicitly treat the typed character as
             // a trigger character.
+
+            // TODO - none of these are specific to a specific last computed provider.  So should be possible to move inside the signature help service.
+            // Might need a flag if signature help is already active.
             var (textuallyTriggeredProviders, untriggeredProviders) = FilterProviders(allProviders, args.TypedChar);
             var triggerInfo = new SignatureHelpTriggerInfo(SignatureHelpTriggerReason.TypeCharCommand, args.TypedChar);
 

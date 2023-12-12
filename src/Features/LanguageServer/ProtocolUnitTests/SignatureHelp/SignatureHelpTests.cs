@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Roslyn.Test.Utilities;
 using Xunit;
 using Xunit.Abstractions;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.SignatureHelp
@@ -43,6 +44,39 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.SignatureHelp
                 ActiveParameter = 0,
                 ActiveSignature = 0,
                 Signatures = [CreateSignatureInformation("int A.M2(string a)", "M2 is a method.", "a", "")]
+            };
+
+            var results = await RunGetSignatureHelpAsync(testLspServer, testLspServer.GetLocations("caret").Single());
+            AssertJsonEquals(expected, results);
+        }
+
+        //class Foo
+        //{
+        //    public Foo(int showMe) { }
+
+        //    public static void Do(Foo foo)
+        //    {
+        //        Do(new Foo()
+        //    }
+        //}
+
+        [Theory, CombinatorialData]
+        public async Task TestGetSignatureHelpNestedCallAsync(bool mutatingLspWorkspace)
+        {
+            var markup =
+@"class Foo {
+    public Foo(int showMe) {}
+
+    public static void Do(Foo foo) {
+        Do(new Foo({|caret:|}
+    }
+}";
+            await using var testLspServer = await CreateTestLspServerAsync(markup, mutatingLspWorkspace);
+            var expected = new LSP.SignatureHelp()
+            {
+                ActiveParameter = 0,
+                ActiveSignature = 0,
+                Signatures = [CreateSignatureInformation("Foo(int showMe)", "", "showMe", "")]
             };
 
             var results = await RunGetSignatureHelpAsync(testLspServer, testLspServer.GetLocations("caret").Single());

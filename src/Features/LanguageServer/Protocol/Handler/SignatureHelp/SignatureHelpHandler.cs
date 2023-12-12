@@ -15,6 +15,7 @@ using Microsoft.CodeAnalysis.SignatureHelp;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.VisualStudio.Text.Adornments;
 using LSP = Microsoft.VisualStudio.LanguageServer.Protocol;
+using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 {
@@ -40,7 +41,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
 
         public LSP.TextDocumentIdentifier GetTextDocumentIdentifier(LSP.TextDocumentPositionParams request) => request.TextDocument;
 
-        public async Task<LSP.SignatureHelp?> HandleRequestAsync(LSP.TextDocumentPositionParams request, RequestContext context, CancellationToken cancellationToken)
+        public async Task<LSP.SignatureHelp?> HandleRequestAsync(LSP.SignatureHelpParams request, RequestContext context, CancellationToken cancellationToken)
         {
             var clientCapabilities = context.GetRequiredClientCapabilities();
             var document = context.Document;
@@ -50,7 +51,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             var position = await document.GetPositionFromLinePositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken).ConfigureAwait(false);
 
             var providers = _allProviders.Where(p => p.Metadata.Language == document.Project.Language);
-            var triggerInfo = new SignatureHelpTriggerInfo(SignatureHelpTriggerReason.InvokeSignatureHelpCommand);
+            var triggerInfo = GetTriggerInfo(request);
             var options = _globalOptions.GetSignatureHelpOptions(document.Project.Language);
 
             foreach (var provider in providers)
@@ -98,6 +99,30 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             }
 
             return null;
+        }
+
+        private static SignatureHelpTriggerInfo GetTriggerInfo(LSP.SignatureHelpParams signatureHelpParams)
+        {
+            if (signatureHelpParams.Context == null)
+            {
+                return new SignatureHelpTriggerInfo(SignatureHelpTriggerReason.InvokeSignatureHelpCommand);
+            }
+
+            if (signatureHelpParams.Context.IsRetrigger)
+            {
+                return new SignatureHelpTriggerInfo(SignatureHelpTriggerReason.RetriggerCommand);
+            }
+
+            switch (signatureHelpParams.Context.TriggerKind)
+            {
+                case LSP.SignatureHelpTriggerKind.TriggerCharacter:
+                    Contract.ThrowIfNull(signatureHelpParams.Context.TriggerCharacter);
+                    return new SignatureHelpTriggerInfo(SignatureHelpTriggerReason.TypeCharCommand, char.Parse(signatureHelpParams.Context.TriggerCharacter));
+                case LSP.SignatureHelpTriggerKind.ContentChange:
+                case LSP.SignatureHelpTriggerKind.Invoked:
+                default:
+                    return new SignatureHelpTriggerInfo(SignatureHelpTriggerReason.InvokeSignatureHelpCommand);
+            }
         }
 
         private static int GetActiveSignature(SignatureHelpItems items)
