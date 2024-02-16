@@ -156,6 +156,9 @@ namespace Microsoft.VisualStudio.LanguageServices.CSharp.Options
         public static string Option_Underline_reassigned_variables
             => ServicesVSResources.Underline_reassigned_variables;
 
+        public static string Option_Strike_out_obsolete_symbols
+            => ServicesVSResources.Strike_out_obsolete_symbols;
+
         public static string Option_DontPutOutOrRefOnStruct
             => CSharpVSResources.Don_t_put_ref_or_out_on_custom_struct;
 

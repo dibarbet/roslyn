@@ -1676,6 +1676,14 @@ namespace Microsoft.CodeAnalysis.CSharp.LanguageService
             initializer = objectCreationExpression.Initializer;
         }
 
+        public void GetPartsOfImplicitObjectCreationExpression(SyntaxNode node, out SyntaxToken keyword, out SyntaxNode argumentList, out SyntaxNode? initializer)
+        {
+            var implicitObjectCreationExpression = (ImplicitObjectCreationExpressionSyntax)node;
+            keyword = implicitObjectCreationExpression.NewKeyword;
+            argumentList = implicitObjectCreationExpression.ArgumentList;
+            initializer = implicitObjectCreationExpression.Initializer;
+        }
+
         public void GetPartsOfParameter(SyntaxNode node, out SyntaxToken identifier, out SyntaxNode? @default)
         {
             var parameter = (ParameterSyntax)node;

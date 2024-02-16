@@ -11,7 +11,7 @@ namespace Microsoft.CodeAnalysis.Classification
         /// <summary>
         /// Additive classifications types supply additional context to other classifications.
         /// </summary>
-        public static ImmutableArray<string> AdditiveTypeNames { get; } = [StaticSymbol, ReassignedVariable, TestCode];
+        public static ImmutableArray<string> AdditiveTypeNames { get; } = [StaticSymbol, ReassignedVariable, ObsoleteSymbol, TestCode];
 
         public static ImmutableArray<string> AllTypeNames { get; } =
         [
@@ -28,6 +28,7 @@ namespace Microsoft.CodeAnalysis.Classification
             WhiteSpace,
             Text,
             ReassignedVariable,
+            ObsoleteSymbol,
             StaticSymbol,
             PreprocessorText,
             Punctuation,
@@ -112,6 +113,7 @@ namespace Microsoft.CodeAnalysis.Classification
         public const string Text = "text";
 
         internal const string ReassignedVariable = "reassigned variable";
+        internal const string ObsoleteSymbol = "obsolete symbol";
         public const string StaticSymbol = "static symbol";
 
         public const string PreprocessorText = "preprocessor text";

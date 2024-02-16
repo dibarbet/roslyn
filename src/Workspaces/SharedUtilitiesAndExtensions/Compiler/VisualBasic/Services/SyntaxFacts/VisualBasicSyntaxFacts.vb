@@ -1867,6 +1867,10 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.LanguageService
             initializer = objectCreationExpression.Initializer
         End Sub
 
+        Public Sub GetPartsOfImplicitObjectCreationExpression(node As SyntaxNode, ByRef keyword As SyntaxToken, ByRef argumentList As SyntaxNode, ByRef initializer As SyntaxNode) Implements ISyntaxFacts.GetPartsOfImplicitObjectCreationExpression
+            Throw New InvalidOperationException(DoesNotExistInVBErrorMessage)
+        End Sub
+
         Public Sub GetPartsOfParameter(node As SyntaxNode, ByRef identifier As SyntaxToken, ByRef [default] As SyntaxNode) Implements ISyntaxFacts.GetPartsOfParameter
             Dim parameter = DirectCast(node, ParameterSyntax)
             identifier = parameter.Identifier.Identifier
