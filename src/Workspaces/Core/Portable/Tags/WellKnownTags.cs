@@ -50,6 +50,8 @@ namespace Microsoft.CodeAnalysis.Tags
         public const string Error = nameof(Error);
         public const string Warning = nameof(Warning);
 
+        internal const string Deprecated = nameof(Deprecated);
+
         internal const string StatusInformation = nameof(StatusInformation);
 
         internal const string AddReference = nameof(AddReference);
