@@ -8,14 +8,19 @@ using System.Threading.Tasks;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework.Handlers;
 
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
 [LanguageServerEndpoint("initialized", LanguageServerConstants.DefaultLanguageName)]
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public class InitializedHandler<TRequest, TRequestContext> : INotificationHandler<TRequest, TRequestContext>
+#else
+internal class InitializedHandler<TRequest, TRequestContext> : INotificationHandler<TRequest, TRequestContext>
+#endif
 {
     private bool HasBeenInitialized = false;
 
     public bool MutatesSolutionState => true;
-
-    public bool RequiresLSPSolution => true;
 
     public Task HandleNotificationAsync(TRequest request, TRequestContext requestContext, CancellationToken cancellationToken)
     {

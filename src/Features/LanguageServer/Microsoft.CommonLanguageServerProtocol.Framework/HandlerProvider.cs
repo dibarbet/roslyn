@@ -12,6 +12,9 @@ using System.Threading;
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
 /// <inheritdoc/>
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
 internal class HandlerProvider : AbstractHandlerProvider, IHandlerProvider
 {
     private readonly ILspServices _lspServices;

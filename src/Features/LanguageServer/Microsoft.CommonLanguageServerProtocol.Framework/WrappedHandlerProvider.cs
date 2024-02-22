@@ -10,6 +10,9 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// <summary>
 /// Wraps an <see cref="IHandlerProvider"/>.
 /// </summary>
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
 internal sealed class WrappedHandlerProvider : AbstractHandlerProvider
 {
     private readonly IHandlerProvider _handlerProvider;

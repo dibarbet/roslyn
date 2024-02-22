@@ -3,13 +3,19 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface ILspServices : IDisposable
+#else
+internal interface ILspServices : IDisposable
+#endif
 {
     T GetRequiredService<T>() where T : notnull;
 

@@ -19,8 +19,15 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// </para>
 /// </summary>
 /// <typeparam name="TRequestContext">The type of the RequestContext to be used by the handler.</typeparam>
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
 [Obsolete($"Use {nameof(AbstractRequestContextFactory<TRequestContext>)} instead.", error: false)]
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface IRequestContextFactory<TRequestContext>
+#else
+internal interface IRequestContextFactory<TRequestContext>
+#endif
 {
     /// <summary>
     /// Create a <typeparamref name="TRequestContext"/> object from the given <see cref="IQueueItem{RequestContextType}"/>.

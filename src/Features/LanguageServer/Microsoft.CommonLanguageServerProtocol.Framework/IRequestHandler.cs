@@ -2,14 +2,19 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.CommonLanguageServerProtocol.Framework;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface IRequestHandler<TRequest, TResponse, TRequestContext> : IMethodHandler
+#else
+internal interface IRequestHandler<TRequest, TResponse, TRequestContext> : IMethodHandler
+#endif
 {
     /// <summary>
     /// Handles an LSP request in the context of the supplied document and/or solution.
@@ -21,7 +26,14 @@ public interface IRequestHandler<TRequest, TResponse, TRequestContext> : IMethod
     Task<TResponse> HandleRequestAsync(TRequest request, TRequestContext context, CancellationToken cancellationToken);
 }
 
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface IRequestHandler<TResponse, TRequestContext> : IMethodHandler
+#else
+internal interface IRequestHandler<TResponse, TRequestContext> : IMethodHandler
+#endif
 {
     /// <summary>
     /// Handles an LSP request in the context of the supplied document and/or solution.

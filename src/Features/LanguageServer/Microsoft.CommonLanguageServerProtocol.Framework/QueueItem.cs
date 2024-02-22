@@ -18,6 +18,9 @@ internal sealed class NoValue
     public static NoValue Instance = new();
 }
 
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
 internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TRequestContext>
 {
     private readonly TRequest _request;
@@ -113,6 +116,8 @@ internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TReq
     /// representing the task that the client is waiting for, then re-thrown so that
     /// the queue can correctly handle them depending on the type of request.
     /// </summary>
+    /// <param name="context">Context used for the request.</param>
+    /// <param name="handler">The handler to execute.</param>
     /// <param name="cancellationToken"></param>
     /// <returns>The result of the request.</returns>
     public async Task StartRequestAsync(TRequestContext? context, IMethodHandler handler, CancellationToken cancellationToken)

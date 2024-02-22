@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      Defines a constant that is set in the source package props.
+      Consumers of this source package will respect this property.
+      
+      This allows us to mark clasp source as generated only when
+      it is included by the source package to ensure no analyzer
+      diagnostics are emitted.  However, Roslyn consumers do not
+      set this flag to report issues during Roslyn build.
+      
+      Works around an issue where there is no way for consumers
+      of a source package to ignore warnings in the package source.
+      https://github.com/dotnet/roslyn/issues/6736
+    -->
+    <DefineConstants>CLASP_SOURCE_PACKAGE</DefineConstants>
+  </PropertyGroup>
+</Project>

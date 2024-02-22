@@ -7,7 +7,14 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// <summary>
 /// Top level type for LSP request handler.
 /// </summary>
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface IMethodHandler
+#else
+internal interface IMethodHandler
+#endif
 {
     /// <summary>
     /// Whether or not the solution state on the server is modified as a part of handling this request.

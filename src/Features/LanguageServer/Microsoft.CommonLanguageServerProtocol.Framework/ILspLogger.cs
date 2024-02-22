@@ -6,7 +6,14 @@ using System;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface ILspLogger
+#else
+internal interface ILspLogger
+#endif
 {
     void LogStartContext(string message, params object[] @params);
     void LogEndContext(string message, params object[] @params);

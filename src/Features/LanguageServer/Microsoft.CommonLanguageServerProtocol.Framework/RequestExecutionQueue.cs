@@ -46,7 +46,14 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// more messages, and a new queue will need to be created.
 /// </para>
 /// </remarks>
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRequestContext>
+#else
+internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRequestContext>
+#endif
 {
     protected readonly ILspLogger _logger;
     protected readonly AbstractHandlerProvider _handlerProvider;
@@ -112,6 +119,7 @@ public class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRe
     /// </summary>
     /// <param name="request">The request to handle.</param>
     /// <param name="methodName">The name of the LSP method.</param>
+    /// <param name="lspServices">The set of LSP services to use.</param>
     /// <param name="requestCancellationToken">A cancellation token that will cancel the handing of this request.
     /// The request could also be cancelled by the queue shutting down.</param>
     /// <returns>A task that can be awaited to observe the results of the handing of this request.</returns>
@@ -311,6 +319,7 @@ public class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRe
     /// which would otherwise be lost to the fire-and-forget task in the queue.
     /// </summary>
     /// <param name="nonMutatingRequestTask">The task to be inspected.</param>
+    /// <param name="rethrowExceptions">If exceptions should be re-thrown.</param>
     /// <returns>The task from <paramref name="nonMutatingRequestTask"/>, to allow chained calls if needed.</returns>
     public virtual Task WrapStartRequestTaskAsync(Task nonMutatingRequestTask, bool rethrowExceptions)
     {

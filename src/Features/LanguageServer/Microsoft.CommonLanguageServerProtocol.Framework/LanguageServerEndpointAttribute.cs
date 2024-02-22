@@ -10,8 +10,15 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// <summary>
 /// An attribute which identifies the method which an <see cref="IMethodHandler"/> implements.
 /// </summary>
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface | AttributeTargets.Method, AllowMultiple = false)]
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public class LanguageServerEndpointAttribute : Attribute
+#else
+internal class LanguageServerEndpointAttribute : Attribute
+#endif
 {
     /// <summary>
     /// Contains the method that this <see cref="IMethodHandler"/> implements.
