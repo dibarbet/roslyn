@@ -83,20 +83,65 @@ Namespace Microsoft.CodeAnalysis.Editor.VisualBasic.UnitTests.ObsoleteSymbol
                 "
                 <System.Obsolete>
                 Class [|ObsoleteType|]
+                    Public Sub New()
+                    End Sub
+
+                    <System.Obsolete>
+                    Public Sub New(x As Integer)
+                    End Sub
+                End Class
+
+                Class ObsoleteCtor
+                    Public Sub New()
+                    End Sub
+
+                    <System.Obsolete>
+                    Public Sub New(x As Integer)
+                    End Sub
                 End Class
 
                 Class NonObsoleteType
                     Sub Method()
                         Dim t1 As New [|ObsoleteType|]()
-                        [|Dim|] t2 = New [|ObsoleteType|]()
-                        Dim t3 As [|ObsoleteType|] = New [|ObsoleteType|]()
-                        [|Dim|] t4 = CreateObsoleteType()
-                        Dim t5 = NameOf([|ObsoleteType|])
+                        Dim t2 As [|New|] [|ObsoleteType|](3)
+                        [|Dim|] t3 = New [|ObsoleteType|]()
+                        [|Dim|] t4 = [|New|] [|ObsoleteType|](3)
+                        Dim t5 As [|ObsoleteType|] = New [|ObsoleteType|]()
+                        Dim t6 As [|ObsoleteType|] = [|New|] [|ObsoleteType|](3)
+                        [|Dim|] t7 = CreateObsoleteType()
+                        Dim t8 = NameOf([|ObsoleteType|])
+
+                        Dim u1 As New ObsoleteCtor()
+                        Dim u2 As [|New|] ObsoleteCtor(3)
+                        Dim u3 = New ObsoleteCtor()
+                        Dim u4 = [|New|] ObsoleteCtor(3)
+                        Dim u5 As ObsoleteCtor = New ObsoleteCtor()
+                        Dim u6 As ObsoleteCtor = [|New|] ObsoleteCtor(3)
+                        Dim u8 = NameOf(ObsoleteCtor)
                     End Sub
 
                     Function CreateObsoleteType() As [|ObsoleteType|]
                         Return New [|ObsoleteType|]()
                     End Function
+                End Class
+                ")
+        End Function
+
+        <Fact>
+        Public Async Function TestDeclarators() As Task
+            Await TestAsync(
+                "
+                <System.Obsolete>
+                Class [|ObsoleteType|]
+                End Class
+
+                Class NonObsoleteType
+                    Sub Method()
+                        ' In this method, only t5 has an implicit type, but the Dim keyword applies to all declared
+                        ' variables. Currently this feature does not analyze a Dim keyword when more than one variable
+                        ' is declared.
+                        Dim t1, t2 As New [|ObsoleteType|](), t3, t4 As [|ObsoleteType|], t5 = New [|ObsoleteType|]()
+                    End Sub
                 End Class
                 ")
         End Function

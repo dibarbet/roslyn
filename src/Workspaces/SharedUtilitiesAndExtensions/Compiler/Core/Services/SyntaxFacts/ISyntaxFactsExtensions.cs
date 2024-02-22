@@ -595,7 +595,7 @@ namespace Microsoft.CodeAnalysis.LanguageService
 
         public static SyntaxNode GetTypeOfObjectCreationExpression(this ISyntaxFacts syntaxFacts, SyntaxNode node)
         {
-            syntaxFacts.GetPartsOfObjectCreationExpression(node, out var type, out _, out _);
+            syntaxFacts.GetPartsOfObjectCreationExpression(node, out _, out var type, out _, out _);
             return type;
         }
 
@@ -648,7 +648,7 @@ namespace Microsoft.CodeAnalysis.LanguageService
             if (!syntaxFacts.IsObjectCreationExpression(parent))
                 return false;
 
-            syntaxFacts.GetPartsOfObjectCreationExpression(parent, out var type, out _, out _);
+            syntaxFacts.GetPartsOfObjectCreationExpression(parent, out _, out var type, out _, out _);
             return type == node;
         }
 

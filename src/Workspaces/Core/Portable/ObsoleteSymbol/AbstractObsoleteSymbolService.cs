@@ -15,9 +15,14 @@ namespace Microsoft.CodeAnalysis.ObsoleteSymbol;
 
 internal abstract class AbstractObsoleteSymbolService(int? dimKeywordKind) : IObsoleteSymbolService
 {
+    /// <summary>
+    /// The <see cref="SyntaxToken.RawKind"/> of the <see langword="Dim"/> keyword in Visual Basic, or
+    /// <see langword="null"/> for C# scenarios. This value is used to improve performance in the token classification
+    /// fast-path by avoiding unnecessary calls to <see cref="ProcessDimKeyword"/>.
+    /// </summary>
     private readonly int? _dimKeywordKind = dimKeywordKind;
 
-    protected virtual void ProcessDimKeyword(ArrayBuilder<TextSpan> result, SemanticModel semanticModel, SyntaxToken token, CancellationToken cancellationToken)
+    protected virtual void ProcessDimKeyword(ref ArrayBuilder<TextSpan>? result, SemanticModel semanticModel, SyntaxToken token, CancellationToken cancellationToken)
     {
         // Take no action by default
     }
@@ -29,16 +34,28 @@ internal abstract class AbstractObsoleteSymbolService(int? dimKeywordKind) : IOb
         var compilation = await document.Project.GetRequiredCompilationAsync(cancellationToken).ConfigureAwait(false);
         var root = await document.GetRequiredSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
 
-        using var _2 = ArrayBuilder<TextSpan>.GetInstance(out var result);
-        var semanticModel = compilation.GetSemanticModel(root.SyntaxTree);
-
-        foreach (var span in textSpans)
+        // Avoid taking a builder from the pool in the common case where there are no references to obsolete symbols
+        // currently on screen.
+        ArrayBuilder<TextSpan>? result = null;
+        try
         {
-            Recurse(span, semanticModel);
-        }
+            var semanticModel = compilation.GetSemanticModel(root.SyntaxTree);
 
-        result.RemoveDuplicates();
-        return result.ToImmutableAndClear();
+            foreach (var span in textSpans)
+            {
+                Recurse(span, semanticModel);
+            }
+
+            if (result is null)
+                return ImmutableArray<TextSpan>.Empty;
+
+            result.RemoveDuplicates();
+            return result.ToImmutableAndClear();
+        }
+        finally
+        {
+            result?.Free();
+        }
 
         void Recurse(TextSpan span, SemanticModel semanticModel)
         {
@@ -71,24 +88,28 @@ internal abstract class AbstractObsoleteSymbolService(int? dimKeywordKind) : IOb
                         if (token != tokenFromNode)
                             ProcessToken(semanticModel, child.AsToken());
 
-                        foreach (var trivia in token.LeadingTrivia)
-                        {
-                            if (trivia.HasStructure)
-                            {
-                                stack.Add(trivia.GetStructure()!);
-                            }
-                        }
-
-                        foreach (var trivia in token.TrailingTrivia)
-                        {
-                            if (trivia.HasStructure)
-                            {
-                                stack.Add(trivia.GetStructure()!);
-                            }
-                        }
+                        ExtractStructureFromTrivia(stack, token.LeadingTrivia);
+                        ExtractStructureFromTrivia(stack, token.TrailingTrivia);
                     }
                 }
             }
+        }
+
+        static void ExtractStructureFromTrivia(ArrayBuilder<SyntaxNode> stack, SyntaxTriviaList triviaList)
+        {
+            foreach (var trivia in triviaList)
+            {
+                if (trivia.HasStructure)
+                {
+                    stack.Add(trivia.GetStructure()!);
+                }
+            }
+        }
+
+        void AddResult(TextSpan span)
+        {
+            result ??= ArrayBuilder<TextSpan>.GetInstance();
+            result.Add(span);
         }
 
         SyntaxToken ProcessNode(SemanticModel semanticModel, SyntaxNode node)
@@ -101,19 +122,40 @@ internal abstract class AbstractObsoleteSymbolService(int? dimKeywordKind) : IOb
                     // Use 'name.Parent' because VB can't resolve the declared symbol directly from 'node'
                     var symbol = semanticModel.GetDeclaredSymbol(name.GetRequiredParent(), cancellationToken);
                     if (IsSymbolObsolete(symbol))
-                        result.Add(aliasToken.Span);
+                        AddResult(aliasToken.Span);
                 }
 
                 return aliasToken;
+            }
+            else if (syntaxFacts.IsObjectCreationExpression(node))
+            {
+                syntaxFacts.GetPartsOfObjectCreationExpression(node, out var creationKeyword, out _, out _, out _);
+                if (!creationKeyword.Span.IsEmpty)
+                {
+                    // For syntax like the following
+                    //
+                    //   SomeType value = new SomeType();
+                    //
+                    // We classify 'new' as obsolete only if the specific constructor is obsolete. If the containing
+                    // type is obsolete, the classification will be applied to 'SomeType' instead.
+                    var symbol = semanticModel.GetSymbolInfo(node, cancellationToken).Symbol;
+                    if (IsSymbolObsolete(symbol))
+                        AddResult(creationKeyword.Span);
+                }
             }
             else if (syntaxFacts.IsImplicitObjectCreationExpression(node))
             {
                 syntaxFacts.GetPartsOfImplicitObjectCreationExpression(node, out var creationKeyword, out _, out _);
                 if (!creationKeyword.Span.IsEmpty)
                 {
+                    // For syntax like the following
+                    //
+                    //   SomeType value = new();
+                    //
+                    // We classify 'new' as obsolete if either the type or the specific constructor is obsolete.
                     var symbol = semanticModel.GetSymbolInfo(node, cancellationToken).Symbol;
                     if (IsSymbolObsolete(symbol) || IsSymbolObsolete(symbol?.ContainingType))
-                        result.Add(creationKeyword.Span);
+                        AddResult(creationKeyword.Span);
                 }
             }
 
@@ -128,7 +170,7 @@ internal abstract class AbstractObsoleteSymbolService(int? dimKeywordKind) : IOb
             }
             else if (token.RawKind == _dimKeywordKind)
             {
-                ProcessDimKeyword(result, semanticModel, token, cancellationToken);
+                ProcessDimKeyword(ref result, semanticModel, token, cancellationToken);
             }
         }
 
@@ -138,13 +180,13 @@ internal abstract class AbstractObsoleteSymbolService(int? dimKeywordKind) : IOb
             {
                 var symbol = semanticModel.GetDeclaredSymbol(token.Parent, cancellationToken);
                 if (IsSymbolObsolete(symbol))
-                    result.Add(token.Span);
+                    AddResult(token.Span);
             }
             else
             {
                 var symbol = semanticModel.GetSymbolInfo(token, cancellationToken).Symbol;
                 if (IsSymbolObsolete(symbol))
-                    result.Add(token.Span);
+                    AddResult(token.Span);
             }
         }
     }

@@ -1668,9 +1668,10 @@ namespace Microsoft.CodeAnalysis.CSharp.LanguageService
             expression = assignment.Right;
         }
 
-        public void GetPartsOfObjectCreationExpression(SyntaxNode node, out SyntaxNode type, out SyntaxNode? argumentList, out SyntaxNode? initializer)
+        public void GetPartsOfObjectCreationExpression(SyntaxNode node, out SyntaxToken keyword, out SyntaxNode type, out SyntaxNode? argumentList, out SyntaxNode? initializer)
         {
             var objectCreationExpression = (ObjectCreationExpressionSyntax)node;
+            keyword = objectCreationExpression.NewKeyword;
             type = objectCreationExpression.Type;
             argumentList = objectCreationExpression.ArgumentList;
             initializer = objectCreationExpression.Initializer;

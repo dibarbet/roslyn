@@ -309,7 +309,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens
                 else if (classificationType == ClassificationTypeNames.ObsoleteSymbol)
                 {
                     // 6. Token modifiers - each set bit will be looked up in SemanticTokensLegend.tokenModifiers
-                    modifierBits |= TokenModifiers.ObsoleteSymbol;
+                    modifierBits |= TokenModifiers.Deprecated;
                 }
                 else
                 {

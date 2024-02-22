@@ -22,7 +22,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.ObsoleteSymbol
             MyBase.New(SyntaxKind.DimKeyword)
         End Sub
 
-        Protected Overrides Sub ProcessDimKeyword(result As ArrayBuilder(Of TextSpan), semanticModel As SemanticModel, token As SyntaxToken, cancellationToken As CancellationToken)
+        Protected Overrides Sub ProcessDimKeyword(ByRef result As ArrayBuilder(Of TextSpan), semanticModel As SemanticModel, token As SyntaxToken, cancellationToken As CancellationToken)
             Dim localDeclaration = TryCast(token.Parent, LocalDeclarationStatementSyntax)
             If localDeclaration Is Nothing Then
                 Return
@@ -46,6 +46,10 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.ObsoleteSymbol
             ' Only one variable is declared
             Dim localSymbol = TryCast(semanticModel.GetDeclaredSymbol(declarator.Names(0), cancellationToken), ILocalSymbol)
             If IsSymbolObsolete(localSymbol?.Type) Then
+                If result Is Nothing Then
+                    result = ArrayBuilder(Of TextSpan).GetInstance()
+                End If
+
                 result.Add(token.Span)
             End If
         End Sub

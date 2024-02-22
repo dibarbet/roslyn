@@ -131,7 +131,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens
             // This must be in the same order as SemanticTokens.TokenModifiers, but skip the "None" item
             SemanticTokenModifiers.Static,
             nameof(SemanticTokens.TokenModifiers.ReassignedVariable),
-            nameof(SemanticTokens.TokenModifiers.ObsoleteSymbol),
+            SemanticTokenModifiers.Deprecated,
         ];
     }
 }

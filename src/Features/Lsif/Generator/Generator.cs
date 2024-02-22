@@ -86,7 +86,7 @@ namespace Microsoft.CodeAnalysis.LanguageServerIndexFormat.Generator
                 DocumentSymbolProvider,
                 FoldingRangeProvider,
                 DiagnosticProvider,
-                new SemanticTokensCapabilities(SemanticTokensSchema.LegacyTokensSchemaForLSIF.AllTokenTypes, [SemanticTokenModifiers.Static]));
+                new SemanticTokensCapabilities(SemanticTokensSchema.LegacyTokensSchemaForLSIF.AllTokenTypes, [SemanticTokenModifiers.Static, SemanticTokenModifiers.Deprecated]));
             generator._lsifJsonWriter.Write(capabilitiesVertex);
             return generator;
         }
@@ -125,8 +125,13 @@ namespace Microsoft.CodeAnalysis.LanguageServerIndexFormat.Generator
                 {
                     QuickInfoOptions = options.SymbolDescriptionOptions.QuickInfoOptions with
                     {
-                        IncludeNavigationHintsInQuickInfo = false
-                    }
+                        IncludeNavigationHintsInQuickInfo = false,
+                    },
+                    ClassificationOptions = options.SymbolDescriptionOptions.ClassificationOptions with
+                    {
+                        // Make sure to include 'deprecated' in the semantic token modifiers where applicable
+                        ClassifyObsoleteSymbols = true,
+                    },
                 }
             };
 

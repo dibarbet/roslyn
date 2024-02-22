@@ -15,7 +15,13 @@ public class CSharpObsoleteSymbolTests : AbstractObsoleteSymbolTests
         => EditorTestWorkspace.CreateCSharp(markup);
 
     [Theory]
-    [MemberData(nameof(CommonMemberData.BaseTypeDeclarationKeywords), MemberType = typeof(CommonMemberData))]
+    [InlineData("class")]
+    [InlineData("struct")]
+    [InlineData("record")]
+    [InlineData("record class")]
+    [InlineData("record struct")]
+    [InlineData("interface")]
+    [InlineData("enum")]
     public async Task TestObsoleteTypeDefinition(string keyword)
     {
         await TestAsync(
@@ -93,16 +99,30 @@ public class CSharpObsoleteSymbolTests : AbstractObsoleteSymbolTests
                 public [|ObsoleteType|](int x) { }
             }
 
+            class ObsoleteCtor
+            {
+                public ObsoleteCtor() { }
+            
+                [System.Obsolete]
+                public [|ObsoleteCtor|](int x) { }
+            }
+            
             class C
             {
                 void Method()
                 {
                     [|var|] t1 = new [|ObsoleteType|]();
-                    [|var|] t2 = new [|ObsoleteType|](3);
+                    [|var|] t2 = [|new|] [|ObsoleteType|](3);
                     [|ObsoleteType|] t3 = [|new|]();
                     [|ObsoleteType|] t4 = [|new|](3);
                     [|var|] t5 = CreateObsoleteType();
                     var t6 = nameof([|ObsoleteType|]);
+
+                    var u1 = new ObsoleteCtor();
+                    var u2 = [|new|] ObsoleteCtor(3);
+                    ObsoleteCtor u3 = new();
+                    ObsoleteCtor u4 = [|new|](3);
+                    var u6 = nameof(ObsoleteCtor);
 
                     [|ObsoleteType|] CreateObsoleteType() => [|new|]();
                 }
