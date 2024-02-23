@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Immutable;
+using Microsoft.CodeAnalysis.Classification;
 using Microsoft.CodeAnalysis.Completion;
 using Microsoft.CodeAnalysis.DocumentHighlighting;
 using Microsoft.CodeAnalysis.Formatting;
@@ -54,6 +55,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Configuration
             LspOptionsStorage.LspEnableTestsCodeLens,
             LanguageServerProjectSystemOptionsStorage.BinaryLogPath,
             LanguageServerProjectSystemOptionsStorage.EnableAutomaticRestore,
+            ClassificationOptionsStorage.ClassifyObsoleteSymbols,
         ];
     }
 }

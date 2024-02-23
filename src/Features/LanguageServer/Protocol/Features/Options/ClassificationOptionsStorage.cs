@@ -18,6 +18,8 @@ internal static class ClassificationOptionsStorage
             // ForceFrozenPartialSemanticsForCrossProcessOperations not stored in global options
         };
 
+    private static readonly OptionGroup s_ClassificationGroup = new(name: "classification", description: "");
+
     public static OptionsProvider<ClassificationOptions> GetClassificationOptionsProvider(this IOptionsReader globalOptions)
         => globalOptions.GetProvider(GetClassificationOptions);
 
@@ -25,7 +27,7 @@ internal static class ClassificationOptionsStorage
         new("dotnet_classify_reassigned_variables", ClassificationOptions.Default.ClassifyReassignedVariables);
 
     public static PerLanguageOption2<bool> ClassifyObsoleteSymbols =
-        new("dotnet_classify_obsolete_symbols", ClassificationOptions.Default.ClassifyObsoleteSymbols);
+        new("dotnet_classify_obsolete_symbols", ClassificationOptions.Default.ClassifyObsoleteSymbols, group: s_ClassificationGroup);
 
     public static PerLanguageOption2<bool> ColorizeRegexPatterns =
         new("dotnet_colorize_regex_patterns", ClassificationOptions.Default.ColorizeRegexPatterns);

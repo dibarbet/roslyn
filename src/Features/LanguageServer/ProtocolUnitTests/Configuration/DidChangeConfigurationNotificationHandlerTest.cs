@@ -144,7 +144,8 @@ public class A { }";
                 "code_lens.dotnet_enable_references_code_lens",
                 "code_lens.dotnet_enable_tests_code_lens",
                 "projects.dotnet_binary_log_path",
-                "projects.dotnet_enable_automatic_restore"
+                "projects.dotnet_enable_automatic_restore",
+                "classification.dotnet_classify_obsolete_symbols"
             }.OrderBy(name => name);
 
             Assert.Equal(expectedNames, actualNames);
