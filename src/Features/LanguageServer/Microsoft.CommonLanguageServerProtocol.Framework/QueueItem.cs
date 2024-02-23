@@ -18,6 +18,9 @@ internal sealed class NoValue
     public static NoValue Instance = new();
 }
 
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
 internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TRequestContext>
 {
     private readonly TRequest _request;

@@ -1,0 +1,23 @@
+<Project>
+  <Import Project="SourceLink.targets"/>
+
+  <Target Name="CreateAnalyzerConfigForSourceFiles" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <GlobalConfigContent Include="is_global = true"/>
+      <PackageFiles Include="$(MSBuildThisFileDirectory)\..\contentFiles\**\*.*;"/>
+      <GlobalConfigContent Include="@(PackageFiles->'[%(FullPath)]$([System.Environment]::NewLine)generated_code = true')"/>
+    </ItemGroup>
+    <Message Text="%(PackageFiles.FullPath)"/>
+    <Message Text="$(GlobalConfigContent)"/>
+
+    <WriteLinesToFile
+        File="$(IntermediateOutputPath)CreateAnalyzerConfigForSourceFiles_Generated.globalconfig"
+        Overwrite="true"
+        Lines="$(GlobalConfigContent)" />
+
+    <ItemGroup>
+      <GlobalAnalyzerConfgFiles  Include="$(IntermediateOutputPath)CreateAnalyzerConfigForSourceFiles_Generated.globalconfig" />
+    </ItemGroup>
+    <Message Text="Donezo"/>
+  </Target>
+</Project>

@@ -10,7 +10,11 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// <summary>
 /// Manages handler discovery and distribution.
 /// </summary>
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface IHandlerProvider
+#else
+internal interface IHandlerProvider
+#endif
 {
     ImmutableArray<RequestHandlerMetadata> GetRegisteredMethods();
 

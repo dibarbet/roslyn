@@ -3,13 +3,16 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface ILspServices : IDisposable
+#else
+internal interface ILspServices : IDisposable
+#endif
 {
     T GetRequiredService<T>() where T : notnull;
 

@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <DefineConstants>CLASP_SOURCE_PACKAGE</DefineConstants>
+  </PropertyGroup>
+</Project>

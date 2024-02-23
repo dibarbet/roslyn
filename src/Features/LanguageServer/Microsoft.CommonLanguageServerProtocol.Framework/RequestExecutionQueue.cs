@@ -46,7 +46,14 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// more messages, and a new queue will need to be created.
 /// </para>
 /// </remarks>
+#if CLASP_SOURCE_PACKAGE
+[System.CodeDom.Compiler.GeneratedCode("Microsoft.CommonLanguageServerProtocol.Framework", "1.0")]
+#endif
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRequestContext>
+#else
+internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRequestContext>
+#endif
 {
     protected readonly ILspLogger _logger;
     protected readonly AbstractHandlerProvider _handlerProvider;

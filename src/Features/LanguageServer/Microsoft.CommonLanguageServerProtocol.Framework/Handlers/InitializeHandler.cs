@@ -8,7 +8,11 @@ using System.Threading.Tasks;
 namespace Microsoft.CommonLanguageServerProtocol.Framework.Handlers;
 
 [LanguageServerEndpoint("initialize", LanguageServerConstants.DefaultLanguageName)]
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public class InitializeHandler<TRequest, TResponse, TRequestContext>
+#else
+internal class InitializeHandler<TRequest, TResponse, TRequestContext>
+#endif
     : IRequestHandler<TRequest, TResponse, TRequestContext>
 {
     private readonly IInitializeManager<TRequest, TResponse> _capabilitiesManager;
@@ -19,8 +23,6 @@ public class InitializeHandler<TRequest, TResponse, TRequestContext>
     }
 
     public bool MutatesSolutionState => true;
-
-    public bool RequiresLSPSolution => false;
 
     public Task<TResponse> HandleRequestAsync(TRequest request, TRequestContext context, CancellationToken cancellationToken)
     {

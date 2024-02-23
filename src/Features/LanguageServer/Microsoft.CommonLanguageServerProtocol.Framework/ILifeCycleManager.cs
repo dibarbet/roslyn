@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System;
 using System.Threading.Tasks;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
@@ -11,7 +10,11 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// An optional component to run additional logic when LSP shutdown and exit are called,
 /// for example logging messages, cleaning up custom resources, etc.
 /// </summary>
+#if BINARY_COMPAT // TODO - Remove with https://github.com/dotnet/roslyn/issues/72251
 public interface ILifeCycleManager
+#else
+internal interface ILifeCycleManager
+#endif
 {
     /// <summary>
     /// Called when the server recieves the LSP exit notification.

@@ -19,11 +19,46 @@
     </PackageDescription>
     <!-- Remove once https://github.com/NuGet/Home/issues/8583 is fixed -->
     <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- Required to avoid NuGet ignoring the .editorconfig file -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!--
+      Defines a constant that is set in the source package props.
+      Consumers of this source package will respect this property.
+      
+      This allows us to mark clasp source as generated only when
+      it is included by the source package to ensure no analyzer
+      diagnostics are emitted.  However, Roslyn consumers do not
+      set this flag to report issues during Roslyn build.
+      
+      Works around an issue where there is no way for consumers
+      of a source package to ignore warnings in the package source.
+      https://github.com/dotnet/roslyn/issues/6736
+    -->
+    <SourcePackageSourceLinkTargetsFileName>SourceLink.targets</SourcePackageSourceLinkTargetsFileName>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\..\Compilers\Core\Portable\InternalUtilities\IsExternalInit.cs" Link="Utilities\IsExternalInit.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="build\" />
+    <None Include="contentFiles\.editorconfig" />
+  </ItemGroup>
+  
+  <!--
+    Includes the .editorconfig file in the package at the contentFiles root.
+    This ensures analyzers do not run against source content from the nuget package.
+  -->
+  <ItemGroup>
+    <Content Include="contentFiles\.editorconfig">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles\cs\$(TargetFramework)\</PackagePath>
+    </Content>
+    <Content Include="build\**\*.*">
+      <Pack>true</Pack>
+      <PackagePath>build\</PackagePath>
+    </Content>
   </ItemGroup>
 </Project>
