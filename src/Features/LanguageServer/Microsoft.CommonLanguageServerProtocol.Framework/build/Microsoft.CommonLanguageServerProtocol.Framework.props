@@ -13,6 +13,6 @@
       of a source package to ignore warnings in the package source.
       https://github.com/dotnet/roslyn/issues/6736
     -->
-    <DefineConstants>CLASP_SOURCE_PACKAGE</DefineConstants>
+    <!--<DefineConstants>CLASP_SOURCE_PACKAGE</DefineConstants>-->
   </PropertyGroup>
 </Project>
