@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using Microsoft.Build.Framework;
+using Microsoft.Build.Logging;
 using Microsoft.CodeAnalysis.MSBuild.Logging;
 using Roslyn.Utilities;
 using MSB = Microsoft.Build;
@@ -184,17 +185,27 @@ namespace Microsoft.CodeAnalysis.MSBuild.Build
             //
             // We do not need to include the _batchBuildLogger in the ProjectCollection - it just collects the
             // DiagnosticLog from the build steps, but evaluation already separately reports the DiagnosticLog.
-            var loggers = _msbuildLogger is not null
-                ? [_msbuildLogger]
+            var evaluationLogger = new BinaryLogger()
+            {
+                Parameters = @"C:\Users\dabarbet\source\buildevaluation.binlog"
+            };
+
+            var loggers = evaluationLogger is not null
+                ? [evaluationLogger]
                 : ImmutableArray<MSB.Framework.ILogger>.Empty;
 
             _batchBuildProjectCollection = new MSB.Evaluation.ProjectCollection(allProperties, loggers, MSB.Evaluation.ToolsetDefinitionLocations.Default);
+
+            //var buildLogger = new BinaryLogger()
+            //{
+            //    Parameters = @"C:\Users\dabarbet\source\buildbinlog.binlog"
+            //};
 
             var buildParameters = new MSB.Execution.BuildParameters(_batchBuildProjectCollection)
             {
                 // The loggers are not inherited from the project collection, so specify both the
                 // binlog logger and the _batchBuildLogger for the build steps.
-                Loggers = loggers.Add(_batchBuildLogger),
+                Loggers = [evaluationLogger, _batchBuildLogger],//loggers.Add(_batchBuildLogger),
                 // If we have an additional logger and it's diagnostic, then we need to opt into task inputs globally, or otherwise
                 // it won't get any log events. This logic matches https://github.com/dotnet/msbuild/blob/fa6710d2720dcf1230a732a8858ffe71bcdbe110/src/Build/Instance/ProjectInstance.cs#L2365-L2371
                 LogTaskInputs = _msbuildLogger is not null && _msbuildLogger.Verbosity == LoggerVerbosity.Diagnostic
@@ -216,6 +227,7 @@ namespace Microsoft.CodeAnalysis.MSBuild.Build
 
             // unload project so collection will release global strings
             _batchBuildProjectCollection?.UnloadAllProjects();
+            _batchBuildProjectCollection?.Dispose();
             _batchBuildProjectCollection = null;
             _batchBuildLogger = null;
             BatchBuildStarted = false;

@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Immutable;
 using System.CommandLine;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.MSBuild.Rpc;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ internal static class Program
 {
     internal static async Task Main(string[] args)
     {
+        Debugger.Launch();
         var propertyOption = new CliOption<string[]>("--property") { Arity = ArgumentArity.ZeroOrMore };
         var binaryLogOption = new CliOption<string?>("--binlog") { Required = false };
         var command = new CliRootCommand { binaryLogOption, propertyOption };
