@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using Microsoft.CommonLanguageServerProtocol.Framework.Example;
 using Microsoft.Extensions.DependencyInjection;
 using Nerdbank.Streams;
-using Newtonsoft.Json;
 using Roslyn.LanguageServer.Protocol;
 using StreamJsonRpc;
 
@@ -19,7 +18,7 @@ internal class TestExampleLanguageServer : ExampleLanguageServer
 {
     private readonly JsonRpc _clientRpc;
 
-    public TestExampleLanguageServer(Stream clientSteam, JsonRpc jsonRpc, JsonSerializer jsonSerializer, ILspLogger logger, Action<IServiceCollection>? addExtraHandlers)
+    public TestExampleLanguageServer(Stream clientSteam, JsonRpc jsonRpc, IProtocolSerializer jsonSerializer, ILspLogger logger, Action<IServiceCollection>? addExtraHandlers)
         : base(jsonRpc, jsonSerializer, logger, addExtraHandlers)
     {
         _clientRpc = new JsonRpc(new HeaderDelimitedMessageHandler(clientSteam, clientSteam, CreateJsonMessageFormatter()))
@@ -121,7 +120,7 @@ internal class TestExampleLanguageServer : ExampleLanguageServer
                 serviceCollection.AddSingleton<IMethodHandler, ExtraDidOpenHandler>();
             };
 
-        var server = new TestExampleLanguageServer(clientStream, jsonRpc, messageFormatter.JsonSerializer, logger, extraHandlers);
+        var server = new TestExampleLanguageServer(clientStream, jsonRpc, new NewtonsoftProtocolSerializer(messageFormatter.JsonSerializer), logger, extraHandlers);
 
         jsonRpc.StartListening();
         server.InitializeTest();
@@ -135,7 +134,7 @@ internal class TestExampleLanguageServer : ExampleLanguageServer
         var messageFormatter = CreateJsonMessageFormatter();
         var jsonRpc = new JsonRpc(new HeaderDelimitedMessageHandler(serverStream, serverStream, messageFormatter));
 
-        var server = new TestExampleLanguageServer(clientStream, jsonRpc, messageFormatter.JsonSerializer, logger, addExtraHandlers: null);
+        var server = new TestExampleLanguageServer(clientStream, jsonRpc, new NewtonsoftProtocolSerializer(messageFormatter.JsonSerializer), logger, addExtraHandlers: null);
 
         jsonRpc.StartListening();
         server.InitializeTest();

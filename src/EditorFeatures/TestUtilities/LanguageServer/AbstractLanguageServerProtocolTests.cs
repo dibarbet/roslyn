@@ -621,7 +621,7 @@ namespace Roslyn.Test.Utilities
                     ExceptionStrategy = ExceptionProcessing.ISerializable,
                 };
 
-                var languageServer = (RoslynLanguageServer)factory.Create(jsonRpc, jsonMessageFormatter.JsonSerializer, capabilitiesProvider, serverKind, logger, workspace.Services.HostServices);
+                var languageServer = (RoslynLanguageServer)factory.Create(jsonRpc, new RoslynNewtonsoftProtocolSerializer(jsonMessageFormatter.JsonSerializer, logger), capabilitiesProvider, serverKind, logger, workspace.Services.HostServices);
 
                 jsonRpc.StartListening();
                 return languageServer;

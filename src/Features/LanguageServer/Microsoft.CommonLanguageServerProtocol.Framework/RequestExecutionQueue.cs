@@ -7,14 +7,33 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Threading;
-using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
+
+class Request
+{
+    private object _deserialized;
+
+    T GetRequest<T>()
+    {
+        return (T)_deserialized;
+    }
+}
+
+interface IRequestDeserializerProvider
+{
+    JsonConverter<Request> GetJsonConverter();
+}
+
+
 
 /// <summary>
 /// Coordinates the execution of LSP messages to ensure correct results are sent back.
@@ -37,7 +56,7 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 /// <para>
 /// Regardless of whether a request is mutating or not, or blocking or not, is an implementation detail of this class
 /// and any consumers observing the results of the task returned from
-/// <see cref="ExecuteAsync{TRequestType, TResponseType}(TRequestType, string, string, ILspServices, CancellationToken)"/>
+/// <see cref="ExecuteAsync(object?, string, ILspServices, CancellationToken)"/>
 /// will see the results of the handling of the request, whenever it occurred.
 /// </para>
 /// <para>
@@ -56,6 +75,8 @@ public class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRe
 internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<TRequestContext>
 #endif
 {
+    private static readonly MethodInfo s_processRequestCoreAsync = typeof(RequestExecutionQueue<TRequestContext>).GetMethod(nameof(RequestExecutionQueue<TRequestContext>.ProcessRequestCoreAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     protected readonly ILspLogger _logger;
     protected readonly AbstractHandlerProvider _handlerProvider;
     private readonly AbstractLanguageServer<TRequestContext> _languageServer;
@@ -74,19 +95,6 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
     protected Task? _queueProcessingTask;
 
     public CancellationToken CancellationToken => _cancelSource.Token;
-
-    [Obsolete($"Use constructor with {nameof(AbstractHandlerProvider)} instead.", error: false)]
-    public RequestExecutionQueue(AbstractLanguageServer<TRequestContext> languageServer, ILspLogger logger, IHandlerProvider handlerProvider)
-    {
-        _languageServer = languageServer;
-        _logger = logger;
-        if (handlerProvider is AbstractHandlerProvider abstractHandlerProvider)
-        {
-            _handlerProvider = abstractHandlerProvider;
-        }
-
-        _handlerProvider = new WrappedHandlerProvider(handlerProvider);
-    }
 
     public RequestExecutionQueue(AbstractLanguageServer<TRequestContext> languageServer, ILspLogger logger, AbstractHandlerProvider handlerProvider)
     {
@@ -124,10 +132,9 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
     /// <param name="requestCancellationToken">A cancellation token that will cancel the handing of this request.
     /// The request could also be cancelled by the queue shutting down.</param>
     /// <returns>A task that can be awaited to observe the results of the handing of this request.</returns>
-    public virtual Task<TResponse> ExecuteAsync<TRequest, TResponse>(
-        TRequest request,
+    public virtual Task<object?> ExecuteAsync(
+        object? request,
         string methodName,
-        string languageName,
         ILspServices lspServices,
         CancellationToken requestCancellationToken)
     {
@@ -137,11 +144,11 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
         // shutting down cancels the request.
         var combinedTokenSource = _cancelSource.Token.CombineWith(requestCancellationToken);
         var combinedCancellationToken = combinedTokenSource.Token;
-        var (item, resultTask) = CreateQueueItem<TRequest, TResponse>(
+        var (item, resultTask) = QueueItem<TRequestContext>.Create(
             methodName,
-            languageName,
             request,
             lspServices,
+            _logger,
             combinedCancellationToken);
 
         // Run a continuation to ensure the cts is disposed of.
@@ -154,32 +161,9 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
         // If the queue has been shut down the enqueue will fail, so we just fault the task immediately.
         // The queue itself is threadsafe (_queue.TryEnqueue and _queue.Complete use the same lock).
         if (!didEnqueue)
-            return Task.FromException<TResponse>(new InvalidOperationException("Server was requested to shut down."));
+            return Task.FromException<object?>(new InvalidOperationException("Server was requested to shut down."));
 
         return resultTask;
-    }
-
-    internal (IQueueItem<TRequestContext>, Task<TResponse>) CreateQueueItem<TRequest, TResponse>(
-        string methodName,
-        string languageName,
-        TRequest request,
-        ILspServices lspServices,
-        CancellationToken cancellationToken)
-    {
-        return QueueItem<TRequest, TResponse, TRequestContext>.Create(methodName,
-            languageName,
-            request,
-            lspServices,
-            _logger,
-            cancellationToken);
-    }
-
-    //protected virtual string GetLanguageForRequest<TRequest>(string methodName, TRequest request)
-    //    => LanguageServerConstants.DefaultLanguageName;
-
-    internal virtual string GetLanguageForRequest(string methodName, JObject parameters)
-    {
-        return LanguageServerConstants.DefaultLanguageName;
     }
 
     private async Task ProcessQueueAsync()
@@ -232,62 +216,28 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
 
                     // Restore our activity id so that logging/tracking works across asynchronous calls.
                     Trace.CorrelationManager.ActivityId = activityId;
-                    // The request context must be created serially inside the queue to so that requests always run
-                    // on the correct snapshot as of the last request.
-                    var handler = GetHandlerForRequest(work);
-                    var context = await work.CreateRequestContextAsync(handler, cancellationToken).ConfigureAwait(false);
-                    if (handler.MutatesSolutionState)
+
+                    // Find the language name for the request in order to decide which handler to delegate to.
+                    var protocolSerializer = lspServices.GetRequiredService<IProtocolSerializer>();
+                    var languageForRequest = protocolSerializer.GetLanguageNameForRequest(work.SerializedRequest, work.MethodName, lspServices);
+
+                    // Retrieve the correct handler for the language.
+                    var (metadata, handler) = _handlerProvider.GetMethodHandler(work.MethodName, languageForRequest);
+
+                    // The next steps (creating the request context, dispatching the request to the handler)
+                    // require the request to be deserialized and the type to be known.
+                    // Invoke the ProcessRequestCoreAsync via reflection to pass in the request type as the generic type argument.
+                    var requestType = metadata.RequestType ?? NoValue.Instance.GetType();
+                    var responseType = metadata.ResponseType ?? NoValue.Instance.GetType();
+                    var processRequestCoreMethod = s_processRequestCoreAsync.MakeGenericMethod(requestType, responseType);
+
+                    var task = processRequestCoreMethod.Invoke(this, new object?[] { work, metadata, handler, protocolSerializer, concurrentlyExecutingTasks, currentWorkCts, cancellationToken }) as Task;
+                    if (task is null)
                     {
-                        if (CancelInProgressWorkUponMutatingRequest)
-                        {
-                            // Cancel all concurrently executing tasks
-                            var concurrentlyExecutingTasksArray = concurrentlyExecutingTasks.ToArray();
-                            for (var i = 0; i < concurrentlyExecutingTasksArray.Length; i++)
-                            {
-                                concurrentlyExecutingTasksArray[i].Value.Cancel();
-                            }
-
-                            // wait for all pending tasks to complete their cancellation, ignoring any exceptions
-                            await Task.WhenAll(concurrentlyExecutingTasksArray.Select(kvp => kvp.Key)).NoThrowAwaitable(captureContext: false);
-                        }
-
-                        Debug.Assert(!concurrentlyExecutingTasks.Any(t => !t.Key.IsCompleted), "The tasks should have all been drained before continuing");
-                        // Mutating requests block other requests from starting to ensure an up to date snapshot is used.
-                        // Since we're explicitly awaiting exceptions to mutating requests will bubble up here.
-                        await WrapStartRequestTaskAsync(work.StartRequestAsync(context, handler, cancellationToken), rethrowExceptions: true).ConfigureAwait(false);
+                        throw new InvalidOperationException($"{nameof(processRequestCoreMethod)} returned null for {metadata}");
                     }
-                    else
-                    {
-                        // Non mutating are fire-and-forget because they are by definition read-only. Any errors
-                        // will be sent back to the client but they can also be captured via HandleNonMutatingRequestError,
-                        // though these errors don't put us into a bad state as far as the rest of the queue goes.
-                        // Furthermore we use Task.Run here to protect ourselves against synchronous execution of work
-                        // blocking the request queue for longer periods of time (it enforces parallelizability).
-                        var currentWorkTask = WrapStartRequestTaskAsync(Task.Run(() => work.StartRequestAsync(context, handler, cancellationToken), cancellationToken), rethrowExceptions: false);
 
-                        if (CancelInProgressWorkUponMutatingRequest)
-                        {
-                            if (currentWorkCts is null)
-                            {
-                                throw new InvalidOperationException($"unexpected null value for {nameof(currentWorkCts)}");
-                            }
-
-                            if (!concurrentlyExecutingTasks.TryAdd(currentWorkTask, currentWorkCts))
-                            {
-                                throw new InvalidOperationException($"unable to add {nameof(currentWorkTask)} into {nameof(concurrentlyExecutingTasks)}");
-                            }
-
-                            _ = currentWorkTask.ContinueWith(t =>
-                            {
-                                if (!concurrentlyExecutingTasks.TryRemove(t, out var concurrentlyExecutingTaskCts))
-                                {
-                                    throw new InvalidOperationException($"unexpected failure to remove task from {nameof(concurrentlyExecutingTasks)}");
-                                }
-
-                                concurrentlyExecutingTaskCts.Dispose();
-                            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-                        }
-                    }
+                    await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -306,7 +256,7 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
             var message = $"Error occurred processing queue: {ex.Message}.";
             if (lspServices is not null)
             {
-                await _languageServer.ShutdownAsync("Error processing queue, shutting down").ConfigureAwait(false);
+                await _languageServer.ShutdownAsync(message).ConfigureAwait(false);
                 await _languageServer.ExitAsync().ConfigureAwait(false);
             }
 
@@ -316,21 +266,119 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
     }
 
     /// <summary>
-    /// Choose the method handler for the given request. By default this calls the <see cref="AbstractHandlerProvider"/>.
+    /// Given the method handler and request types, deserializes the request
+    /// and starts execution of the work item.
     /// </summary>
-    protected virtual IMethodHandler GetHandlerForRequest(IQueueItem<TRequestContext> work)
-        => _handlerProvider.GetMethodHandler(work.MethodName, work.RequestType, work.ResponseType, work.Language);
+    private async Task ProcessRequestCoreAsync<TRequest, TResponse>(
+        IQueueItem<TRequestContext> work,
+        RequestHandlerMetadata metadata,
+        IMethodHandler handler,
+        IProtocolSerializer protocolSerializer,
+        ConcurrentDictionary<Task, CancellationTokenSource> concurrentlyExecutingTasks,
+        CancellationTokenSource? currentWorkCts,
+        CancellationToken cancellationToken)
+    {
+        // Deserialize the request - we need it in order to create the request context.
+        try
+        {
+            var deserializedRequest = DeserializeRequest<TRequest>(work, metadata, protocolSerializer);
+        } catch (Exception ex)
+        {
+            // An error deserializing a request should not take down the queue unless it is a mutating request.
+            if (handler.MutatesSolutionState)
+            {
+                throw;
+            }
+            else
+            {
+                _logger.LogError($"Failed to deserialize request for {work.MethodName} and language {metadata.Language} - {work.SerializedRequest}");
+            }
+        }
+
+        // The request context must be created serially inside the queue to so that requests always run
+        // on the correct snapshot as of the last request.
+        var context = await work.CreateRequestContextAsync(deserializedRequest, handler, cancellationToken).ConfigureAwait(false);
+        if (handler.MutatesSolutionState)
+        {
+            if (CancelInProgressWorkUponMutatingRequest)
+            {
+                // Cancel all concurrently executing tasks
+                var concurrentlyExecutingTasksArray = concurrentlyExecutingTasks.ToArray();
+                for (var i = 0; i < concurrentlyExecutingTasksArray.Length; i++)
+                {
+                    concurrentlyExecutingTasksArray[i].Value.Cancel();
+                }
+
+                // wait for all pending tasks to complete their cancellation, ignoring any exceptions
+                await Task.WhenAll(concurrentlyExecutingTasksArray.Select(kvp => kvp.Key)).NoThrowAwaitable(captureContext: false);
+            }
+
+            Debug.Assert(!concurrentlyExecutingTasks.Any(t => !t.Key.IsCompleted), "The tasks should have all been drained before continuing");
+            // Mutating requests block other requests from starting to ensure an up to date snapshot is used.
+            // Since we're explicitly awaiting exceptions to mutating requests will bubble up here.
+            // We pass in a function to ensure that the WrapStartRequestTaskAsync can run things before the task starts executing (for example setting the culture for the task).
+            await WrapStartRequestTaskAsync(() => work.StartRequestAsync<TRequest, TResponse>(deserializedRequest, context, handler, cancellationToken), rethrowExceptions: true).ConfigureAwait(false);
+        }
+        else
+        {
+            // Non mutating are fire-and-forget because they are by definition read-only. Any errors
+            // will be sent back to the client but they can also be captured via HandleNonMutatingRequestError,
+            // though these errors don't put us into a bad state as far as the rest of the queue goes.
+            // Furthermore we use Task.Run here to protect ourselves against synchronous execution of work
+            // blocking the request queue for longer periods of time (it enforces parallelizability).
+            // We pass in a function to ensure that the WrapStartRequestTaskAsync can run things before the task starts executing (for example setting the culture for the task).
+            var currentWorkTask = WrapStartRequestTaskAsync(() => Task.Run(() => work.StartRequestAsync<TRequest, TResponse>(deserializedRequest, context, handler, cancellationToken), cancellationToken), rethrowExceptions: false);
+
+            if (CancelInProgressWorkUponMutatingRequest)
+            {
+                if (currentWorkCts is null)
+                {
+                    throw new InvalidOperationException($"unexpected null value for {nameof(currentWorkCts)}");
+                }
+
+                if (!concurrentlyExecutingTasks.TryAdd(currentWorkTask, currentWorkCts))
+                {
+                    throw new InvalidOperationException($"unable to add {nameof(currentWorkTask)} into {nameof(concurrentlyExecutingTasks)}");
+                }
+
+                _ = currentWorkTask.ContinueWith(t =>
+                {
+                    if (!concurrentlyExecutingTasks.TryRemove(t, out var concurrentlyExecutingTaskCts))
+                    {
+                        throw new InvalidOperationException($"unexpected failure to remove task from {nameof(concurrentlyExecutingTasks)}");
+                    }
+
+                    concurrentlyExecutingTaskCts.Dispose();
+                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+        }
+    }
+
+    private static TRequest DeserializeRequest<TRequest>(IQueueItem<TRequestContext> work, RequestHandlerMetadata metadata, IProtocolSerializer protocolSerializer)
+    {
+        if (work.SerializedRequest is null)
+        {
+            if (typeof(TRequest) != typeof(NoValue))
+            {
+                throw new InvalidOperationException($"Handler for {metadata.MethodName} and language {metadata.Language} requires parameters but was given none");
+            }
+
+            return (TRequest)(object)NoValue.Instance;
+        }
+
+        return protocolSerializer.Deserialize<TRequest>(work.SerializedRequest, metadata.MethodName, metadata.Language);
+    }
 
     /// <summary>
     /// Provides an extensibility point to log or otherwise inspect errors thrown from non-mutating requests,
     /// which would otherwise be lost to the fire-and-forget task in the queue.
     /// </summary>
-    /// <param name="nonMutatingRequestTask">The task to be inspected.</param>
+    /// <param name="nonMutatingRequestTaskFunc">A function returning the task to be called and inspected.</param>
     /// <param name="rethrowExceptions">If exceptions should be re-thrown.</param>
-    /// <returns>The task from <paramref name="nonMutatingRequestTask"/>, to allow chained calls if needed.</returns>
-    public virtual Task WrapStartRequestTaskAsync(Task nonMutatingRequestTask, bool rethrowExceptions)
+    /// <returns>The task from <paramref name="nonMutatingRequestTaskFunc"/>, to allow chained calls if needed.</returns>
+    public virtual Task WrapStartRequestTaskAsync(Func<Task> nonMutatingRequestTaskFunc, bool rethrowExceptions)
     {
-        return nonMutatingRequestTask;
+        return nonMutatingRequestTaskFunc();
     }
 
     /// <summary>

@@ -24,19 +24,20 @@ internal interface IQueueItem<TRequestContext>
     /// <summary>
     /// Executes the work specified by this queue item.
     /// </summary>
-    /// <param name="requestContext">the context created by <see cref="CreateRequestContextAsync(IMethodHandler, CancellationToken)"/></param>
+    /// <param name="deserializedRequest">the deserialized request object.</param>
+    /// <param name="requestContext">the context created by <see cref="CreateRequestContextAsync{TRequest}(TRequest, IMethodHandler, CancellationToken)"/></param>
     /// <param name="handler">The handler to use to execute the request.</param>
     /// <param name="cancellationToken" />
     /// <returns>A <see cref="Task "/> which completes when the request has finished.</returns>
-    Task StartRequestAsync(TRequestContext requestContext, IMethodHandler handler, CancellationToken cancellationToken);
+    Task StartRequestAsync<TRequest, TResponse>(TRequest deserializedRequest, TRequestContext requestContext, IMethodHandler handler, CancellationToken cancellationToken);
 
     /// <summary>
     /// Creates the context that is sent to the handler for this queue item.
     /// Note - this method is always called serially inside the queue before
-    /// running the actual request in <see cref="StartRequestAsync(TRequestContext, IMethodHandler, CancellationToken)"/>
+    /// running the actual request in <see cref="StartRequestAsync{TRequest, TResponse}(TRequest, TRequestContext, IMethodHandler, CancellationToken)"/>
     /// Throwing in this method will cause the server to shutdown.
     /// </summary>
-    Task<TRequestContext> CreateRequestContextAsync(IMethodHandler handler, CancellationToken cancellationToken);
+    Task<TRequestContext> CreateRequestContextAsync<TRequest>(TRequest deserializedRequest, IMethodHandler handler, CancellationToken cancellationToken);
 
     /// <summary>
     /// Provides access to LSP services.
@@ -48,18 +49,5 @@ internal interface IQueueItem<TRequestContext>
     /// </summary>
     string MethodName { get; }
 
-    /// <summary>
-    /// The language of the request. The default is <see cref="LanguageServerConstants.DefaultLanguageName"/>
-    /// </summary>
-    string Language { get; }
-
-    /// <summary>
-    /// The type of the request.
-    /// </summary>
-    Type? RequestType { get; }
-
-    /// <summary>
-    /// The type of the response.
-    /// </summary>
-    Type? ResponseType { get; }
+    public object? SerializedRequest { get; }
 }

@@ -36,7 +36,7 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.Razor
         internal override IRazorLanguageServerTarget CreateLanguageServer(JsonRpc jsonRpc, JsonSerializer jsonSerializer, IRazorTestCapabilitiesProvider razorCapabilitiesProvider, HostServices hostServices)
         {
             var capabilitiesProvider = new RazorCapabilitiesProvider(razorCapabilitiesProvider);
-            var languageServer = _languageServerFactory.Create(jsonRpc, jsonSerializer, capabilitiesProvider, WellKnownLspServerKinds.RazorLspServer, NoOpLspLogger.Instance, hostServices);
+            var languageServer = _languageServerFactory.Create(jsonRpc, new RoslynNewtonsoftProtocolSerializer(jsonSerializer, NoOpLspLogger.Instance), capabilitiesProvider, WellKnownLspServerKinds.RazorLspServer, NoOpLspLogger.Instance, hostServices);
 
             return new RazorLanguageServerTargetWrapper(languageServer);
         }

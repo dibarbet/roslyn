@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Globalization;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
@@ -25,17 +26,17 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             _initializeManager = languageServer.GetLspServices().GetRequiredService<IInitializeManager>();
         }
 
-        public override Task WrapStartRequestTaskAsync(Task nonMutatingRequestTask, bool rethrowExceptions)
+        public override Task WrapStartRequestTaskAsync(Func<Task> nonMutatingRequestTaskFunc, bool rethrowExceptions)
         {
             // Update the locale for this request to the desired LSP locale.
             CultureInfo.CurrentUICulture = GetCultureForRequest();
             if (rethrowExceptions)
             {
-                return nonMutatingRequestTask;
+                return nonMutatingRequestTaskFunc();
             }
             else
             {
-                return nonMutatingRequestTask.ReportNonFatalErrorAsync();
+                return nonMutatingRequestTaskFunc().ReportNonFatalErrorAsync();
             }
         }
 

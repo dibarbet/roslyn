@@ -211,10 +211,12 @@ internal abstract partial class AbstractInProcLanguageClient(
 
         var logger = await lspLoggerFactory.CreateLoggerAsync(serverTypeName, jsonRpc, cancellationToken).ConfigureAwait(false);
 
+        var protocolSerializer = new RoslynNewtonsoftProtocolSerializer(jsonMessageFormatter.JsonSerializer, logger);
+
         var hostServices = VisualStudioMefHostServices.Create(_exportProvider);
         var server = Create(
             jsonRpc,
-            jsonMessageFormatter.JsonSerializer,
+            protocolSerializer,
             languageClient,
             serverKind,
             logger,
@@ -226,7 +228,7 @@ internal abstract partial class AbstractInProcLanguageClient(
 
     public virtual AbstractLanguageServer<RequestContext> Create(
         JsonRpc jsonRpc,
-        JsonSerializer jsonSerializer,
+        IProtocolSerializer jsonSerializer,
         ICapabilitiesProvider capabilitiesProvider,
         WellKnownLspServerKinds serverKind,
         AbstractLspLogger logger,

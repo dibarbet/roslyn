@@ -17,6 +17,7 @@ using Microsoft.CommonLanguageServerProtocol.Framework;
 using Microsoft.VisualStudio.LanguageServer.Client;
 using Roslyn.LanguageServer.Protocol;
 using Roslyn.Test.Utilities;
+using Roslyn.Utilities;
 using StreamJsonRpc;
 using Xunit;
 using Xunit.Abstractions;
@@ -59,10 +60,10 @@ public class RazorCohostTests(ITestOutputHelper testOutputHelper) : AbstractLang
             }
         };
 
-        var response = await server.GetTestAccessor().ExecuteRequestAsync<TextDocumentPositionParams, TestRequest>(RazorHandler.MethodName, LanguageServerConstants.DefaultLanguageName, request, CancellationToken.None);
+        var response = await ExecuteRequestAsync<TextDocumentPositionParams, TestRequest>(server, RazorHandler.MethodName, request, CancellationToken.None);
 
         Assert.NotNull(response);
-        Assert.Equal(document.GetURI(), response.DocumentUri);
+        Assert.Equal(document.GetURI(), response!.DocumentUri);
         Assert.Equal(document.Project.Id.Id, response.ProjectId);
     }
 
@@ -88,7 +89,7 @@ public class RazorCohostTests(ITestOutputHelper testOutputHelper) : AbstractLang
             }
         };
 
-        var response = await server.GetTestAccessor().ExecuteRequestAsync<VSGetProjectContextsParams, VSProjectContextList?>(VSMethods.GetProjectContextsName, LanguageServerConstants.DefaultLanguageName, request, CancellationToken.None);
+        var response = await ExecuteRequestAsync<VSGetProjectContextsParams, VSProjectContextList?>(server, VSMethods.GetProjectContextsName, request, CancellationToken.None);
 
         Assert.NotNull(response);
         var projectContext = Assert.Single(response?.ProjectContexts);
@@ -118,7 +119,7 @@ public class RazorCohostTests(ITestOutputHelper testOutputHelper) : AbstractLang
             }
         };
 
-        await server.GetTestAccessor().ExecuteRequestAsync<DidOpenTextDocumentParams, NoValue?>(Methods.TextDocumentDidOpenName, LanguageServerConstants.DefaultLanguageName, didOpenRequest, CancellationToken.None);
+        await ExecuteRequestAsync<DidOpenTextDocumentParams, NoValue?>(server, Methods.TextDocumentDidOpenName, didOpenRequest, CancellationToken.None);
 
         var workspaceManager = server.GetLspServices().GetRequiredService<LspWorkspaceManager>();
         Assert.True(workspaceManager.GetTrackedLspText().TryGetValue(document.GetURI(), out var trackedText));
@@ -144,7 +145,7 @@ public class RazorCohostTests(ITestOutputHelper testOutputHelper) : AbstractLang
             ]
         };
 
-        await server.GetTestAccessor().ExecuteRequestAsync<DidChangeTextDocumentParams, object>(Methods.TextDocumentDidChangeName, LanguageServerConstants.DefaultLanguageName, didChangeRequest, CancellationToken.None);
+        await ExecuteRequestAsync<DidChangeTextDocumentParams, object>(server, Methods.TextDocumentDidChangeName, didChangeRequest, CancellationToken.None);
 
         Assert.True(workspaceManager.GetTrackedLspText().TryGetValue(document.GetURI(), out trackedText));
         Assert.Equal("Not The Original text", trackedText.Text.ToString());
@@ -163,13 +164,24 @@ public class RazorCohostTests(ITestOutputHelper testOutputHelper) : AbstractLang
         await languageClient.ActivateAsync(CancellationToken.None);
 
         var server = languageClient.GetTestAccessor().LanguageServer;
-        Assert.NotNull(server);
+        Contract.ThrowIfNull(server);
 
-        var serverAccessor = server!.GetTestAccessor();
-
-        await serverAccessor.ExecuteRequestAsync<InitializeParams, InitializeResult>(Methods.InitializeName, LanguageServerConstants.DefaultLanguageName, new InitializeParams { Capabilities = new() }, CancellationToken.None);
+        await ExecuteRequestAsync<InitializeParams, InitializeResult>(server, Methods.InitializeName, new InitializeParams { Capabilities = new() }, CancellationToken.None);
 
         return server;
+    }
+
+    private static async Task<TResponse?> ExecuteRequestAsync<TRequest, TResponse>(AbstractLanguageServer<RequestContext> server, string methodName, TRequest request, CancellationToken cancellationToken)
+    {
+        var serializer = server.GetLspServices().GetRequiredService<IProtocolSerializer>();
+        var serialized = serializer.Serialize(request);
+        var response = await server.GetTestAccessor().ExecuteRequestAsync(methodName, serialized, cancellationToken);
+        if (response is null)
+        {
+            return default;
+        }
+
+        return (TResponse)response;
     }
 
     internal class TestRequest(Uri documentUri, Guid projectId)

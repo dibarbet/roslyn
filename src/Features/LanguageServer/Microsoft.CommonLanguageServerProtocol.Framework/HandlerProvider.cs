@@ -15,46 +15,46 @@ using System.Threading;
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
 /// <inheritdoc/>
-internal class HandlerProvider : AbstractHandlerProvider, IHandlerProvider
+internal class HandlerProvider : AbstractHandlerProvider
 {
     private readonly ILspServices _lspServices;
-    private ImmutableDictionary<RequestHandlerMetadata, Lazy<IMethodHandler>>? _requestHandlers;
+    private Lazy<ImmutableDictionary<string, ImmutableDictionary<string, (RequestHandlerMetadata Metadata, Lazy<IMethodHandler> Handler)>>> _requestHandlers;
 
     public HandlerProvider(ILspServices lspServices)
     {
         _lspServices = lspServices;
+        _requestHandlers = new(() => CreateMethodToHandlerMap(_lspServices));
     }
 
-    public IMethodHandler GetMethodHandler(string method, Type? requestType, Type? responseType)
-        => GetMethodHandler(method, requestType, responseType, LanguageServerConstants.DefaultLanguageName);
-
-    public override IMethodHandler GetMethodHandler(string method, Type? requestType, Type? responseType, string language)
+    public override (RequestHandlerMetadata HandlerMetadata, IMethodHandler Handler) GetMethodHandler(string method, string language)
     {
-        var requestHandlerMetadata = new RequestHandlerMetadata(method, requestType, responseType, language);
-        var defaultHandlerMetadata = new RequestHandlerMetadata(method, requestType, responseType, LanguageServerConstants.DefaultLanguageName);
-
-        var requestHandlers = GetRequestHandlers();
-        if (!requestHandlers.TryGetValue(requestHandlerMetadata, out var lazyHandler) &&
-            !requestHandlers.TryGetValue(defaultHandlerMetadata, out lazyHandler))
+        if (!_requestHandlers.Value.TryGetValue(method, out var handlers))
         {
-            throw new InvalidOperationException($"Missing handler for {requestHandlerMetadata.MethodName}");
+            throw new InvalidOperationException($"Missing handler for {method}");
         }
 
-        return lazyHandler.Value;
+        if (handlers.TryGetValue(language, out var languageHandler))
+        {
+            return (languageHandler.Metadata, languageHandler.Handler.Value);
+        }
+        else if (handlers.TryGetValue(LanguageServerConstants.DefaultLanguageName, out var defaultHandler))
+        {
+            return (defaultHandler.Metadata, defaultHandler.Handler.Value);
+        }
+        else
+        {
+            throw new InvalidOperationException($"No handler for {method} with language {language} or default language");
+        }
     }
 
     public override ImmutableArray<RequestHandlerMetadata> GetRegisteredMethods()
     {
-        var requestHandlers = GetRequestHandlers();
-        return requestHandlers.Keys.ToImmutableArray();
+        return _requestHandlers.Value.Values.SelectMany(v => v.Values.Select(data => data.Metadata)).ToImmutableArray();
     }
 
-    private ImmutableDictionary<RequestHandlerMetadata, Lazy<IMethodHandler>> GetRequestHandlers()
-        => _requestHandlers ??= CreateMethodToHandlerMap(_lspServices);
-
-    private static ImmutableDictionary<RequestHandlerMetadata, Lazy<IMethodHandler>> CreateMethodToHandlerMap(ILspServices lspServices)
+    private static ImmutableDictionary<string, ImmutableDictionary<string, (RequestHandlerMetadata, Lazy<IMethodHandler>)>> CreateMethodToHandlerMap(ILspServices lspServices)
     {
-        var requestHandlerDictionary = ImmutableDictionary.CreateBuilder<RequestHandlerMetadata, Lazy<IMethodHandler>>();
+        var requestHandlerDictionary = new Dictionary<string, Dictionary<string, (RequestHandlerMetadata Metadata, Lazy<IMethodHandler> Handler)>>();
 
         var methodHash = new HashSet<(string methodName, string language)>();
 
@@ -75,7 +75,8 @@ internal class HandlerProvider : AbstractHandlerProvider, IHandlerProvider
 
                         // Using the lazy set of handlers, create a lazy instance that will resolve the set of handlers for the provider
                         // and then lookup the correct handler for the specified method.
-                        requestHandlerDictionary.Add(new RequestHandlerMetadata(method, requestResponseType.RequestType, requestResponseType.ResponseType, language), new Lazy<IMethodHandler>(() =>
+                        var metadata = new RequestHandlerMetadata(method, requestResponseType.RequestType, requestResponseType.ResponseType, language);
+                        var handler = new Lazy<IMethodHandler>(() =>
                         {
                             var lspService = lspServices.TryGetService(handlerType);
                             if (lspService is null)
@@ -84,7 +85,9 @@ internal class HandlerProvider : AbstractHandlerProvider, IHandlerProvider
                             }
 
                             return (IMethodHandler)lspService;
-                        }));
+                        });
+
+                        AddHandler(metadata, handler);
                     }
                 }
             }
@@ -104,14 +107,29 @@ internal class HandlerProvider : AbstractHandlerProvider, IHandlerProvider
                 {
                     CheckForDuplicates(method, language, methodHash);
 
-                    requestHandlerDictionary.Add(new RequestHandlerMetadata(method, requestResponseType.RequestType, requestResponseType.ResponseType, language), new Lazy<IMethodHandler>(() => handler));
+                    AddHandler(new RequestHandlerMetadata(method, requestResponseType.RequestType, requestResponseType.ResponseType, language), new Lazy<IMethodHandler>(() => handler));
                 }
             }
         }
 
-        VerifyHandlers(requestHandlerDictionary.Keys);
+        VerifyHandlers(requestHandlerDictionary.SelectMany(kvp => kvp.Value.Values.Select(value => value.Metadata)));
 
-        return requestHandlerDictionary.ToImmutable();
+        return requestHandlerDictionary.ToImmutableDictionary(kvp => kvp.Key, kvp => kvp.Value.ToImmutableDictionary());
+
+        void AddHandler(RequestHandlerMetadata metadata, Lazy<IMethodHandler> methodHandler)
+        {
+            if (requestHandlerDictionary.TryGetValue(metadata.MethodName, out var languageHandlers))
+            {
+                languageHandlers.Add(metadata.Language, (metadata, methodHandler));
+            }
+            else
+            {
+                requestHandlerDictionary.Add(metadata.MethodName, new Dictionary<string, (RequestHandlerMetadata, Lazy<IMethodHandler>)>
+                {
+                    { metadata.Language, (metadata, methodHandler) },
+                });
+            }
+        }
 
         static void CheckForDuplicates(string methodName, string language, HashSet<(string methodName, string language)> existingMethods)
         {

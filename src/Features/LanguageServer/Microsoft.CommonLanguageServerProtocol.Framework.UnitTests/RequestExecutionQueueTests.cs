@@ -16,7 +16,7 @@ public class RequestExecutionQueueTests
 {
     private class MockServer : AbstractLanguageServer<TestRequestContext>
     {
-        public MockServer() : base(new JsonRpc(new HeaderDelimitedMessageHandler(FullDuplexStream.CreatePair().Item1)), JsonSerializer.CreateDefault(), NoOpLspLogger.Instance)
+        public MockServer() : base(new JsonRpc(new HeaderDelimitedMessageHandler(FullDuplexStream.CreatePair().Item1)), new NewtonsoftProtocolSerializer(JsonSerializer.CreateDefault()), NoOpLspLogger.Instance)
         {
         }
 

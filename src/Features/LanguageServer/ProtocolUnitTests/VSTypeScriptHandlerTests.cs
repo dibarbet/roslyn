@@ -120,7 +120,7 @@ public class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
         var logger = NoOpLspLogger.Instance;
 
         var languageServer = new RoslynLanguageServer(
-            servicesProvider, jsonRpc, messageFormatter.JsonSerializer,
+            servicesProvider, jsonRpc, new RoslynNewtonsoftProtocolSerializer(messageFormatter.JsonSerializer, logger),
             capabilitiesProvider,
             logger,
             workspace.Services.HostServices,

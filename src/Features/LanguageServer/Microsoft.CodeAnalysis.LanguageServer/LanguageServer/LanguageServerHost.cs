@@ -42,9 +42,10 @@ internal sealed class LanguageServerHost
 
         _logger = logger;
         var lspLogger = new LspServiceLogger(_logger);
+        var serializer = new RoslynNewtonsoftProtocolSerializer(messageFormatter.JsonSerializer, lspLogger);
 
         var hostServices = exportProvider.GetExportedValue<HostServicesProvider>().HostServices;
-        _roslynLanguageServer = roslynLspFactory.Create(_jsonRpc, messageFormatter.JsonSerializer, capabilitiesProvider, WellKnownLspServerKinds.CSharpVisualBasicLspServer, lspLogger, hostServices);
+        _roslynLanguageServer = roslynLspFactory.Create(_jsonRpc, serializer, capabilitiesProvider, WellKnownLspServerKinds.CSharpVisualBasicLspServer, lspLogger, hostServices);
     }
 
     public void Start()

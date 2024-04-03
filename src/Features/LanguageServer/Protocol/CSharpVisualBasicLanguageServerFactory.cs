@@ -30,7 +30,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
 
         public AbstractLanguageServer<RequestContext> Create(
             JsonRpc jsonRpc,
-            JsonSerializer jsonSerializer,
+            IProtocolSerializer protocolSerializer,
             ICapabilitiesProvider capabilitiesProvider,
             WellKnownLspServerKinds serverKind,
             AbstractLspLogger logger,
@@ -39,7 +39,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             var server = new RoslynLanguageServer(
                 _lspServiceProvider,
                 jsonRpc,
-                jsonSerializer,
+                protocolSerializer,
                 capabilitiesProvider,
                 logger,
                 hostServices,

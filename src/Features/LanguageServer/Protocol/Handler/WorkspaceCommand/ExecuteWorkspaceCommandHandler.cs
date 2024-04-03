@@ -34,12 +34,8 @@ internal class ExecuteWorkspaceCommandHandler : ILspServiceRequestHandler<Execut
 
         var requestMethod = AbstractExecuteWorkspaceCommandHandler.GetRequestNameForCommandName(request.Command);
 
-        var result = await requestExecutionQueue.ExecuteAsync<ExecuteCommandParams, object?>(
-            request,
-            LanguageServerConstants.DefaultLanguageName,
-            requestMethod,
-            lspServices,
-            cancellationToken).ConfigureAwait(false);
+        var serializedRequest = lspServices.GetRequiredService<IProtocolSerializer>().Serialize(request);
+        var result = await requestExecutionQueue.ExecuteAsync(serializedRequest, requestMethod, lspServices, cancellationToken).ConfigureAwait(false);
 
         return result;
     }
