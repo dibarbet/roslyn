@@ -4,6 +4,7 @@
 
 namespace Roslyn.LanguageServer.Protocol
 {
+    using System;
     using System.Runtime.Serialization;
     using Newtonsoft.Json;
 
@@ -28,6 +29,8 @@ namespace Roslyn.LanguageServer.Protocol
             set;
         }
 
+
+
         /// <summary>
         /// Gets or sets the range over which the hover applies.
         /// </summary>
@@ -38,5 +41,74 @@ namespace Roslyn.LanguageServer.Protocol
             get;
             set;
         }
+
+        // Hover1, Hover2, add new one each time a sumtype changes
+        // Could either be new fields in Hover2, or inherit?
+
+        // Explicit fields for each type
+        public string StringContents;
+        public MarkedString MarkedStringContents;
+
+        // Method to get each field (could be inside a wrapper type)
+        //public T GetContents<T>() { }
+
+        // Wrapped type with conversion operators - implicit or explicit?
+
+        //
     }
+
+    [DataContract]
+    internal class LspObject
+    {
+        // Step 1 - initial state.
+        /*[DataMember(Name = "tooltip")]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string ToolTip { get; set; }*/
+
+
+        // Step 2 - add new temp property for new union type for tooltip, obsolete previous property.
+        /*[DataMember(Name = "tooltip")]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public SumType<string, MarkupContent> ToolTip2;
+
+        [Obsolete]
+        public string ToolTip
+        {
+            get
+            {
+                return ToolTip2.First;
+            }
+            set
+            {
+                ToolTip2 = value;
+            }
+        }*/
+
+        // Step 3 - Change type of old property to new property, obsolete new temp prop.
+        /*[Obsolete]
+        public SumType<string, MarkupContent> ToolTip2;
+
+        [DataMember(Name = "tooltip")]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public SumType<string, MarkupContent> ToolTip { get; set; }*/
+
+        // Step 4 - Delete temp property (now that everyone has moved).
+        [DataMember(Name = "tooltip")]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public SumType<string, MarkupContent> ToolTip { get; set; }
+    }
+
+    internal class UseLspObject
+    {
+        void M()
+        {
+            var obj = new LspObject
+            {
+                ToolTip = "test"
+            };
+
+            string s = obj.ToolTip;
+        }
+    }
+
 }
