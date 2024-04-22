@@ -43,8 +43,17 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
         {
             var providersDictionary = isDocument ? _documentProviders : _workspaceProviders;
 
-            Contract.ThrowIfFalse(providersDictionary.TryGetValue(sourceName, out var provider), $"Unrecognized source {sourceName}");
-            return provider.CreateDiagnosticSourcesAsync(context, cancellationToken);
+            if (!providersDictionary.TryGetValue(sourceName, out var provider))
+            {
+                // Due to https://github.com/microsoft/language-server-protocol/issues/1723
+                // we may get document requests for workspace diagnostic sources.
+                Contract.ThrowIfFalse(isDocument, $"Unrecognized source {sourceName}");
+                return new([]);
+            }
+            else
+            {
+                return provider.CreateDiagnosticSourcesAsync(context, cancellationToken);
+            }
         }
     }
 }

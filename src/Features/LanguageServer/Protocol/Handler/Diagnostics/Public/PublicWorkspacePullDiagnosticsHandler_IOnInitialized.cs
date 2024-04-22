@@ -13,12 +13,11 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Public
     {
         public async Task OnInitializedAsync(ClientCapabilities clientCapabilities, RequestContext context, CancellationToken cancellationToken)
         {
-            var sources = _diagnosticSourceManager.GetSourceNames(isDocument: false);
+            var sources = _diagnosticSourceManager.GetSourceNames(isDocument: false).Where(source => source != PullDiagnosticCategories.Task);
             var regParams = new RegistrationParams
             {
                 Registrations = sources.Select(FromSourceName).ToArray()
             };
-            regParams.Registrations = []; // DISABLE FOR NOW; VS Code does not support workspace diagnostics
             await _clientLanguageServerManager.SendRequestAsync(
                 methodName: Methods.ClientRegisterCapabilityName,
                 @params: regParams,
@@ -29,8 +28,11 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Public
                 return new()
                 {
                     Id = sourceName,
-                    Method = Methods.WorkspaceDiagnosticName,
-                    RegisterOptions = new DiagnosticRegistrationOptions { Identifier = sourceName, InterFileDependencies = true, WorkDoneProgress = true }
+                    // We have to register for document diagnostics in order to get workspace diagnostics
+                    // See https://github.com/microsoft/language-server-protocol/issues/1723
+                    // Unfortunately this also registers document diagnostics for the identifier.
+                    Method = Methods.TextDocumentDiagnosticName,
+                    RegisterOptions = new DiagnosticRegistrationOptions { Identifier = sourceName, InterFileDependencies = true, WorkDoneProgress = true, WorkspaceDiagnostics = true }
                 };
             }
         }
