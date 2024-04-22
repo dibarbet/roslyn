@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
+using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
 {
@@ -41,10 +42,9 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
         public ValueTask<ImmutableArray<IDiagnosticSource>> CreateDiagnosticSourcesAsync(RequestContext context, string sourceName, bool isDocument, CancellationToken cancellationToken)
         {
             var providersDictionary = isDocument ? _documentProviders : _workspaceProviders;
-            if (providersDictionary.TryGetValue(sourceName, out var provider))
-                return provider.CreateDiagnosticSourcesAsync(context, cancellationToken);
 
-            return new([]);
+            Contract.ThrowIfFalse(providersDictionary.TryGetValue(sourceName, out var provider), $"Unrecognized source {sourceName}");
+            return provider.CreateDiagnosticSourcesAsync(context, cancellationToken);
         }
     }
 }

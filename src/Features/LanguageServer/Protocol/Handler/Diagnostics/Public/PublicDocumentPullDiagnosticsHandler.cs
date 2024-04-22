@@ -11,6 +11,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
+using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Public;
 
@@ -24,7 +25,6 @@ using DocumentDiagnosticReport = SumType<RelatedFullDocumentDiagnosticReport, Re
 internal sealed partial class PublicDocumentPullDiagnosticsHandler : AbstractDocumentPullDiagnosticHandler<DocumentDiagnosticParams, DocumentDiagnosticPartialReport, DocumentDiagnosticReport?>
 {
     private readonly IClientLanguageServerManager _clientLanguageServerManager;
-    private readonly IDiagnosticSourceManager _diagnosticSourceManager;
 
     public PublicDocumentPullDiagnosticsHandler(
         IClientLanguageServerManager clientLanguageServerManager,
@@ -32,21 +32,18 @@ internal sealed partial class PublicDocumentPullDiagnosticsHandler : AbstractDoc
         IDiagnosticSourceManager diagnosticSourceManager,
         IDiagnosticsRefresher diagnosticsRefresher,
         IGlobalOptionService globalOptions)
-        : base(analyzerService, diagnosticsRefresher, globalOptions)
+        : base(analyzerService, diagnosticsRefresher, diagnosticSourceManager, globalOptions)
     {
-        _diagnosticSourceManager = diagnosticSourceManager;
         _clientLanguageServerManager = clientLanguageServerManager;
     }
 
-    /// <summary>
-    /// Public API doesn't support categories (yet).
-    /// </summary>
-    protected override string? GetDiagnosticCategory(DocumentDiagnosticParams diagnosticsParams)
-        => null;
+    protected override string GetRequestDiagnosticCategory(DocumentDiagnosticParams diagnosticsParams)
+    {
+        Contract.ThrowIfNull(diagnosticsParams.Identifier, "Received a diagnostic request without an identifier");
+        return diagnosticsParams.Identifier;
+    }
 
     public override TextDocumentIdentifier GetTextDocumentIdentifier(DocumentDiagnosticParams diagnosticsParams) => diagnosticsParams.TextDocument;
-
-    protected override string? GetDiagnosticSourceIdentifier(DocumentDiagnosticParams diagnosticsParams) => diagnosticsParams.Identifier;
 
     protected override DiagnosticTag[] ConvertTags(DiagnosticData diagnosticData, bool isLiveSource)
         => ConvertTags(diagnosticData, isLiveSource, potentialDuplicate: false);
@@ -89,18 +86,6 @@ internal sealed partial class PublicDocumentPullDiagnosticsHandler : AbstractDoc
         }
 
         return null;
-    }
-
-    protected override ValueTask<ImmutableArray<IDiagnosticSource>> GetOrderedDiagnosticSourcesAsync(DocumentDiagnosticParams diagnosticParams, RequestContext context, CancellationToken cancellationToken)
-    {
-        if (context.TextDocument is { } document)
-        {
-            // Wrap all sources into ISourceProvider so that we can keep using DocumentDiagnosticReport
-            // (which supports a single source)
-            return new([new PublicDocumentDiagnosticSource(_diagnosticSourceManager, document, diagnosticParams.Identifier)]);
-        }
-
-        return new([]);
     }
 
     protected override ImmutableArray<PreviousPullResult>? GetPreviousResults(DocumentDiagnosticParams diagnosticsParams)

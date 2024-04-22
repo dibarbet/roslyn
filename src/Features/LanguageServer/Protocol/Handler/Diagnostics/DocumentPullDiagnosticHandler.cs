@@ -9,6 +9,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
+using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
 {
@@ -16,19 +17,20 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
     internal partial class DocumentPullDiagnosticHandler
         : AbstractDocumentPullDiagnosticHandler<VSInternalDocumentDiagnosticsParams, VSInternalDiagnosticReport[], VSInternalDiagnosticReport[]>
     {
-        private readonly IDiagnosticSourceManager _diagnosticSourceManager;
         public DocumentPullDiagnosticHandler(
             IDiagnosticAnalyzerService analyzerService,
             IDiagnosticSourceManager diagnosticSourceManager,
             IDiagnosticsRefresher diagnosticRefresher,
             IGlobalOptionService globalOptions)
-            : base(analyzerService, diagnosticRefresher, globalOptions)
+            : base(analyzerService, diagnosticRefresher, diagnosticSourceManager, globalOptions)
         {
-            _diagnosticSourceManager = diagnosticSourceManager;
         }
 
-        protected override string? GetDiagnosticCategory(VSInternalDocumentDiagnosticsParams diagnosticsParams)
-            => diagnosticsParams.QueryingDiagnosticKind?.Value;
+        protected override string GetRequestDiagnosticCategory(VSInternalDocumentDiagnosticsParams diagnosticsParams)
+        {
+            Contract.ThrowIfNull(diagnosticsParams.QueryingDiagnosticKind, "Received a diagnostic request without a source");
+            return diagnosticsParams.QueryingDiagnosticKind.Value.Value;
+        }
 
         public override TextDocumentIdentifier? GetTextDocumentIdentifier(VSInternalDocumentDiagnosticsParams diagnosticsParams)
             => diagnosticsParams.TextDocument;
@@ -70,19 +72,6 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics
 
         protected override DiagnosticTag[] ConvertTags(DiagnosticData diagnosticData, bool isLiveSource)
             => ConvertTags(diagnosticData, isLiveSource, potentialDuplicate: false);
-
-        protected override ValueTask<ImmutableArray<IDiagnosticSource>> GetOrderedDiagnosticSourcesAsync(
-            VSInternalDocumentDiagnosticsParams diagnosticsParams, RequestContext context, CancellationToken cancellationToken)
-        {
-            if (diagnosticsParams.QueryingDiagnosticKind?.Value is string sourceName)
-            {
-                return _diagnosticSourceManager.CreateDiagnosticSourcesAsync(context, sourceName, true, cancellationToken);
-            }
-            else
-            {
-                return new([]);
-            }
-        }
 
         protected override VSInternalDiagnosticReport[]? CreateReturn(BufferedProgress<VSInternalDiagnosticReport[]> progress)
         {

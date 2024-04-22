@@ -25,12 +25,14 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Public
                 cancellationToken).ConfigureAwait(false);
 
             Registration FromSourceName(string sourceName)
-            => new()
             {
-                Id = sourceName,
-                Method = Methods.WorkspaceDiagnosticName,
-                RegisterOptions = new DiagnosticRegistrationOptions { Identifier = sourceName }
-            };
+                return new()
+                {
+                    Id = sourceName,
+                    Method = Methods.WorkspaceDiagnosticName,
+                    RegisterOptions = new DiagnosticRegistrationOptions { Identifier = sourceName, InterFileDependencies = true, WorkDoneProgress = true }
+                };
+            }
         }
     }
 }
