@@ -32,5 +32,13 @@ internal sealed class TestOutputLspLogger : AbstractLspLogger, ILspService
     public override void LogWarning(string message, params object[] @params) => Log("Warning", message, @params);
 
     private void Log(string level, string message, params object[] @params)
-        => _testOutputHelper.WriteLine($"[{DateTime.UtcNow:hh:mm:ss.fff}][{level}]{message}", @params);
+    {
+        if (@params.Length == 0 && message.Contains("{") || message.Contains("}"))
+        {
+            // the xunit logger throws if there are { / } in the message when it tries to format the string.
+            // this then causes the test to hang.
+            message = message.Replace('{', '[').Replace('}', '[');
+        }
+        _testOutputHelper.WriteLine($"[{DateTime.UtcNow:hh:mm:ss.fff}][{level}]{message}", @params);
+    }
 }
