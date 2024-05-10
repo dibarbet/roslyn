@@ -79,8 +79,12 @@ internal abstract class AbstractWorkspacePullDiagnosticsHandler<TDiagnosticsPara
         Interlocked.Exchange(ref _lspChanged, 1);
     }
 
-    protected override async Task WaitForChangesAsync(RequestContext context, CancellationToken cancellationToken)
+    protected override async Task WaitForChangesAsync(RequestContext context, string? category, CancellationToken cancellationToken)
     {
+        // the events cant know about which diagnostic source is being set, so we cant just have a simple map of source to changed (because we dont know which sources to reset)
+        //
+        // Maybe we store a current map of all the 'waiting' sources, and when LSP change triggers we reset all of them?  would need some locking and things...
+
         // Spin waiting until our LSP change flag has been set.  When the flag is set (meaning LSP has changed),
         // we reset the flag to false and exit out of the loop allowing the request to close.
         // The client will automatically trigger a new request as soon as we close it, bringing us up to date on diagnostics.

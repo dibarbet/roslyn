@@ -107,7 +107,7 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
     /// Used by public workspace pull diagnostics to allow it to keep the connection open until
     /// changes occur to avoid the client spamming the server with requests.
     /// </summary>
-    protected virtual Task WaitForChangesAsync(RequestContext context, CancellationToken cancellationToken)
+    protected virtual Task WaitForChangesAsync(RequestContext context, string? category, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
     }
@@ -222,7 +222,7 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
             // Some implementations of the spec will re-open requests as soon as we close them, spamming the server.
             // In those cases, we wait for the implementation to indicate that changes have occurred, then we close the connection
             // so that the client asks us again.
-            await WaitForChangesAsync(context, cancellationToken).ConfigureAwait(false);
+            await WaitForChangesAsync(context, category, cancellationToken).ConfigureAwait(false);
 
             // If we had a progress object, then we will have been reporting to that.  Otherwise, take what we've been
             // collecting and return that.
