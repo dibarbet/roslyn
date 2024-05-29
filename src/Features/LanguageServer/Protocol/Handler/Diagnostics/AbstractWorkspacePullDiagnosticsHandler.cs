@@ -24,15 +24,19 @@ internal abstract class AbstractWorkspacePullDiagnosticsHandler<TDiagnosticsPara
     protected readonly IDiagnosticSourceManager DiagnosticSourceManager;
 
     /// <summary>
-    /// Gate to guard access to <see cref="_categoryToLspChanged"/>
+    /// Gate to guard access to <see cref="_changedSolutionVersion"/>
     /// </summary>
     private readonly object _gate = new();
 
     /// <summary>
-    /// Stores the LSP changed state on a per category basis.  This ensures that requests for different categories
-    /// are 'walled off' from each other and only reset state for their own category.
+    /// Stores the version stamp of the last LSP solution change that we saw
+    /// We compare this against the version stamp in the request to determine
+    /// if we need to close the workspace request in order to refresh diagnostics.
     /// </summary>
-    private readonly Dictionary<string, bool> _categoryToLspChanged = new();
+    /// <remarks>
+    /// Note that this is initialized to a default value to differentiate
+    /// </remarks>
+    private VersionStamp? _changedSolutionVersion = VersionStamp.Default;
 
     protected AbstractWorkspacePullDiagnosticsHandler(
         LspWorkspaceManager workspaceManager,
@@ -71,31 +75,29 @@ internal abstract class AbstractWorkspacePullDiagnosticsHandler<TDiagnosticsPara
 
     private void OnLspSolutionChanged(object? sender, WorkspaceChangeEventArgs e)
     {
-        UpdateLspChanged();
+        UpdateLspChanged(e.NewSolution);
     }
 
     private void OnLspTextChanged(object? sender, EventArgs e)
     {
-        UpdateLspChanged();
+        // We don't have an actual solution object yet when this event is triggered,
+        // but we can pass null which will trigger the request to close (and re-compute).
+        //
+        // Bug: unless OnLspSolutionChanged is triggered, this will lead to an infinite close/re-open loop
+        // because WaitForChangesAsync will always see a null version stamp.
+        UpdateLspChanged(updatedSolution: null);
     }
 
-    private void UpdateLspChanged()
+    private void UpdateLspChanged(Solution? updatedSolution)
     {
         lock (_gate)
         {
-            // Loop through our map of source -> has changed and mark them as all having changed.
-            foreach (var category in _categoryToLspChanged.Keys.ToImmutableArray())
-            {
-                _categoryToLspChanged[category] = true;
-            }
+            _changedSolutionVersion = updatedSolution?.Version;
         }
     }
 
-    protected override async Task WaitForChangesAsync(string? category, RequestContext context, CancellationToken cancellationToken)
+    protected override async Task WaitForChangesAsync(VersionStamp requestVersion, RequestContext context, CancellationToken cancellationToken)
     {
-        // A null category counts a separate category and should track changes independently of other categories, so we'll add an empty entry in our map for it.
-        category ??= string.Empty;
-
         // Spin waiting until our LSP change flag has been set.  When the flag is set (meaning LSP has changed),
         // we reset the flag to false and exit out of the loop allowing the request to close.
         // The client will automatically trigger a new request as soon as we close it, bringing us up to date on diagnostics.
@@ -113,16 +115,16 @@ internal abstract class AbstractWorkspacePullDiagnosticsHandler<TDiagnosticsPara
         {
             lock (_gate)
             {
-                // Get the LSP changed value of this category.  If it doesn't exist we add it with a value of 'changed' since this is the first
-                // request for the category and we don't know if it has changed since the request started.
-                var changed = _categoryToLspChanged.GetOrAdd(category, true);
-                if (changed)
+                var changedVersion = _changedSolutionVersion;
+                if (changedVersion == null)
                 {
-                    // We've observed a change, so we reset the flag to false for this source and return true.
-                    _categoryToLspChanged[category] = false;
+                    // We don't have a specific last changed version, so assume it has changed.
+                    return true;
                 }
 
-                return changed;
+                var newerVersion = requestVersion.GetNewerVersion(changedVersion.Value);
+                // If the request version is not the newer version stamp, things have changed and we need to re-compute.
+                return newerVersion != requestVersion;
             }
         }
     }
@@ -131,6 +133,6 @@ internal abstract class AbstractWorkspacePullDiagnosticsHandler<TDiagnosticsPara
 
     internal readonly struct TestAccessor(AbstractWorkspacePullDiagnosticsHandler<TDiagnosticsParams, TReport, TReturn> handler)
     {
-        public void TriggerConnectionClose() => handler.UpdateLspChanged();
+        public void TriggerConnectionClose() => handler.UpdateLspChanged(null);
     }
 }
