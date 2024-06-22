@@ -605,8 +605,6 @@ internal sealed partial class ProjectSystemProject
                     }
                 }
 
-                ClearAndZeroCapacity(_metadataReferencesRemovedInBatch);
-
                 // Metadata reference adding...
                 ProjectSystemProject.LogFunc($"[{guid}] Adding {_metadataReferencesAddedInBatch.Count} in dispose");
                 if (_metadataReferencesAddedInBatch.Count > 0)
@@ -636,14 +634,12 @@ internal sealed partial class ProjectSystemProject
                         solutionChanges.Solution.AddProjectReferences(Id, projectReferencesCreated)
                                                 .AddMetadataReferences(Id, metadataReferencesCreated));
                     ProjectSystemProject.LogFunc(obj: $"[{guid}] SolutionChanges.Solution after has {solutionChanges.Solution.GetRequiredProject(Id).MetadataReferences.Count} metadata references");
-                    ClearAndZeroCapacity(_metadataReferencesAddedInBatch);
                 }
 
                 // Project reference adding...
                 solutionChanges.UpdateSolutionForProjectAction(
                     Id,
                     newSolution: solutionChanges.Solution.AddProjectReferences(Id, _projectReferencesAddedInBatch));
-                ClearAndZeroCapacity(_projectReferencesAddedInBatch);
 
                 // Project reference removing...
                 foreach (var projectReference in _projectReferencesRemovedInBatch)
@@ -653,13 +649,10 @@ internal sealed partial class ProjectSystemProject
                         newSolution: solutionChanges.Solution.RemoveProjectReference(Id, projectReference));
                 }
 
-                ClearAndZeroCapacity(_projectReferencesRemovedInBatch);
-
                 // Analyzer reference adding...
                 solutionChanges.UpdateSolutionForProjectAction(
                     Id,
                     newSolution: solutionChanges.Solution.AddAnalyzerReferences(Id, _analyzersAddedInBatch.Select(a => a.GetReference())));
-                ClearAndZeroCapacity(_analyzersAddedInBatch);
 
                 // Analyzer reference removing...
                 foreach (var analyzerReference in _analyzersRemovedInBatch)
@@ -671,8 +664,6 @@ internal sealed partial class ProjectSystemProject
                     analyzerReference.Dispose();
                 }
 
-                ClearAndZeroCapacity(_analyzersRemovedInBatch);
-
                 // Other property modifications...
                 foreach (var propertyModification in _projectPropertyModificationsInBatch)
                 {
@@ -680,9 +671,17 @@ internal sealed partial class ProjectSystemProject
                 }
 
                 ProjectSystemProject.LogFunc(obj: $"[{guid}] FINAL SolutionChanges.Solution after has {solutionChanges.Solution.GetRequiredProject(Id).MetadataReferences.Count} metadata references");
-
-                ClearAndZeroCapacity(_projectPropertyModificationsInBatch);
             }).ConfigureAwait(false);
+
+            // It is very important that these are cleared *outside* of the transformation passed to ApplyBatchChangeToWorkspaceMaybeAsync
+            // This is because the transformation may be run multiple times (if the workspace current solution is changed underneath us).
+            ClearAndZeroCapacity(_metadataReferencesRemovedInBatch);
+            ClearAndZeroCapacity(_metadataReferencesAddedInBatch);
+            ClearAndZeroCapacity(_projectReferencesAddedInBatch);
+            ClearAndZeroCapacity(_projectReferencesRemovedInBatch);
+            ClearAndZeroCapacity(_analyzersAddedInBatch);
+            ClearAndZeroCapacity(_analyzersRemovedInBatch);
+            ClearAndZeroCapacity(_projectPropertyModificationsInBatch);
 
             foreach (var (documentId, textContainer) in documentsToOpen)
                 await _projectSystemProjectFactory.ApplyChangeToWorkspaceMaybeAsync(useAsync, w => w.OnDocumentOpened(documentId, textContainer)).ConfigureAwait(false);
