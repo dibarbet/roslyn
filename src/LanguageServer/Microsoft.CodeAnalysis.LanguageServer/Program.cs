@@ -18,6 +18,7 @@ using Microsoft.CodeAnalysis.LanguageServer.Logging;
 using Microsoft.CodeAnalysis.LanguageServer.Services;
 using Microsoft.CodeAnalysis.LanguageServer.StarredSuggestions;
 using Microsoft.CodeAnalysis.Options;
+using Microsoft.CodeAnalysis.Workspaces.ProjectSystem;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Roslyn.Utilities;
@@ -57,6 +58,8 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     });
 
     var logger = loggerFactory.CreateLogger<Program>();
+
+    ProjectSystemProject.LogFunc = (log) => loggerFactory.CreateLogger(nameof(ProjectSystemProject)).LogInformation(log);
 
     logger.Log(serverConfiguration.LaunchDebugger ? LogLevel.Critical : LogLevel.Trace, "Server started with process ID {processId}", Environment.ProcessId);
     if (serverConfiguration.LaunchDebugger)

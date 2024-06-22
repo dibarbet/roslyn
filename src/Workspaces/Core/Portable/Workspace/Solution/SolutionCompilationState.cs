@@ -20,6 +20,7 @@ using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Remote;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.Workspaces.ProjectSystem;
 using Roslyn.Utilities;
 using ReferenceEqualityComparer = Roslyn.Utilities.ReferenceEqualityComparer;
 
@@ -586,6 +587,7 @@ internal sealed partial class SolutionCompilationState
     public SolutionCompilationState AddMetadataReferences(
         ProjectId projectId, IReadOnlyCollection<MetadataReference> metadataReferences)
     {
+        ProjectSystemProject.LogFunc($"Adding {metadataReferences.Count} in SolutionCompilationState");
         return ForkProject(
             this.SolutionState.AddMetadataReferences(projectId, metadataReferences),
             translate: null,

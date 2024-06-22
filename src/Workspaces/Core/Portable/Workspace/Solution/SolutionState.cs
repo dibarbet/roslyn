@@ -743,7 +743,9 @@ internal sealed partial class SolutionState
         var oldReferences = oldProject.MetadataReferences.ToImmutableArray();
         var newReferences = oldReferences.AddRange(metadataReferences);
 
-        return ForkProject(oldProject, oldProject.WithMetadataReferences(newReferences));
+        var result = ForkProject(oldProject, oldProject.WithMetadataReferences(newReferences));
+        Microsoft.CodeAnalysis.Workspaces.ProjectSystem.ProjectSystemProject.LogFunc($"Actually added {result.NewProjectState.MetadataReferences.Count} in ProjectState");
+        return result;
     }
 
     /// <summary>

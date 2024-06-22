@@ -26,6 +26,8 @@ namespace Microsoft.CodeAnalysis.Workspaces.ProjectSystem;
 
 internal sealed partial class ProjectSystemProject
 {
+    public static Action<string> LogFunc { get; set; }
+
     private static readonly char[] s_directorySeparator = [Path.DirectorySeparatorChar];
     private static readonly ImmutableArray<MetadataReferenceProperties> s_defaultMetadataReferenceProperties = [default(MetadataReferenceProperties)];
 
@@ -544,6 +546,8 @@ internal sealed partial class ProjectSystemProject
 
             var hasAnalyzerChanges = _analyzersAddedInBatch.Count > 0 || _analyzersRemovedInBatch.Count > 0;
 
+            var guid = Guid.NewGuid();
+
             await _projectSystemProjectFactory.ApplyBatchChangeToWorkspaceMaybeAsync(useAsync, solutionChanges =>
             {
                 _sourceFiles.UpdateSolutionForBatch(
@@ -576,6 +580,7 @@ internal sealed partial class ProjectSystemProject
                 // Metadata reference removing. Do this before adding in case this removes a project reference that
                 // we are also going to add in the same batch. This could happen if case is changing, or we're targeting
                 // a different output path (say bin vs. obj vs. ref).
+                ProjectSystemProject.LogFunc($"[{guid}] Removing {_metadataReferencesRemovedInBatch.Count} in dispose");
                 foreach (var (path, properties) in _metadataReferencesRemovedInBatch)
                 {
                     var projectReference = _projectSystemProjectFactory.TryRemoveConvertedProjectReference_NoLock(Id, path, properties);
@@ -603,6 +608,7 @@ internal sealed partial class ProjectSystemProject
                 ClearAndZeroCapacity(_metadataReferencesRemovedInBatch);
 
                 // Metadata reference adding...
+                ProjectSystemProject.LogFunc($"[{guid}] Adding {_metadataReferencesAddedInBatch.Count} in dispose");
                 if (_metadataReferencesAddedInBatch.Count > 0)
                 {
                     var projectReferencesCreated = new List<ProjectReference>();
@@ -623,11 +629,13 @@ internal sealed partial class ProjectSystemProject
                         }
                     }
 
+                    ProjectSystemProject.LogFunc($"[{guid}] Created {metadataReferencesCreated.Count} in dispose");
+
                     solutionChanges.UpdateSolutionForProjectAction(
                         Id,
                         solutionChanges.Solution.AddProjectReferences(Id, projectReferencesCreated)
                                                 .AddMetadataReferences(Id, metadataReferencesCreated));
-
+                    ProjectSystemProject.LogFunc(obj: $"[{guid}] SolutionChanges.Solution after has {solutionChanges.Solution.GetRequiredProject(Id).MetadataReferences.Count} metadata references");
                     ClearAndZeroCapacity(_metadataReferencesAddedInBatch);
                 }
 
@@ -670,6 +678,8 @@ internal sealed partial class ProjectSystemProject
                 {
                     propertyModification(solutionChanges);
                 }
+
+                ProjectSystemProject.LogFunc(obj: $"[{guid}] FINAL SolutionChanges.Solution after has {solutionChanges.Solution.GetRequiredProject(Id).MetadataReferences.Count} metadata references");
 
                 ClearAndZeroCapacity(_projectPropertyModificationsInBatch);
             }).ConfigureAwait(false);

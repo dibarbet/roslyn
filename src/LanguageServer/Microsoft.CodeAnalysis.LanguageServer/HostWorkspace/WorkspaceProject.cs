@@ -72,9 +72,11 @@ internal class WorkspaceProject : IWorkspaceProject
 
     public async Task AddMetadataReferencesAsync(IReadOnlyList<MetadataReferenceInfo> metadataReferences, CancellationToken cancellationToken)
     {
+        ProjectSystemProject.LogFunc($"Adding {metadataReferences.Count} to {_project.DisplayName}");
         var disposableBatchScope = await _project.CreateBatchScopeAsync(cancellationToken).ConfigureAwait(false);
         await using var _ = disposableBatchScope.ConfigureAwait(false);
 
+        ProjectSystemProject.LogFunc($"In scope, {metadataReferences.Count} to {_project.DisplayName}");
         foreach (var metadataReference in metadataReferences)
             _project.AddMetadataReference(metadataReference.FilePath, metadataReference.CreateProperties());
     }

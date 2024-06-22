@@ -257,12 +257,18 @@ internal sealed class ProjectSystemProjectFactory
             // `transformation`.
             SolutionChangeAccumulator solutionChanges = null!;
 
-            await Workspace.SetCurrentSolutionAsync(
+            var apply = Guid.NewGuid();
+            int count = 0;
+            var (didUpdate, newSolution) = await Workspace.SetCurrentSolutionAsync(
                 useAsync,
                 transformation: oldSolution =>
                 {
                     solutionChanges = new SolutionChangeAccumulator(oldSolution);
+                    count++;
+                    ProjectSystemProject.LogFunc(obj: $"[{apply}] About to call transform, count: {count}");
                     mutation(solutionChanges);
+                    var metadaCount = solutionChanges.Solution.Projects.Select(p => $"{p.FilePath}:{p.MetadataReferences.Count}");
+                    ProjectSystemProject.LogFunc(obj: $"[{apply}] Changes have {string.Join(",", metadaCount)}");
 
                     // Note: If the accumulator showed no changes it will return oldSolution.  This ensures that
                     // SetCurrentSolutionAsync bails out immediately and no further work is done.
@@ -278,6 +284,8 @@ internal sealed class ProjectSystemProjectFactory
                 },
                 onAfterUpdate: null,
                 CancellationToken.None).ConfigureAwait(false);
+            var metadaCount = newSolution.Projects.Select(p => $"{p.FilePath}:{p.MetadataReferences.Count}");
+            ProjectSystemProject.LogFunc(obj: $"[{apply}] DIDUPDATE: {didUpdate}, {string.Join(",", metadaCount)}");
         }
     }
 

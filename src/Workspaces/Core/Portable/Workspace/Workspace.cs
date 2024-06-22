@@ -21,6 +21,7 @@ using Microsoft.CodeAnalysis.Remote;
 using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.Workspaces.ProjectSystem;
 using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis;
@@ -472,6 +473,8 @@ public abstract partial class Workspace : IDisposable
                     if (_latestSolution != oldSolution)
                     {
                         // something else snuck in and wrote to _latestSolution. Restart and try again.
+                        ProjectSystemProject.LogFunc($"Ooops, have to try again");
+                        Debugger.Launch();
                         oldSolution = _latestSolution;
                         continue;
                     }
