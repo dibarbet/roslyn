@@ -97,9 +97,18 @@ internal abstract class AbstractLanguageServer<TRequestContext>
 
     public ILspServices GetLspServices() => _lspServices.Value;
 
+    delegate Task<object?> HandlerDelegate(TRequestContext? context, object? request, IMethodHandler handler, CancellationToken token);
+
     protected virtual void SetupRequestDispatcher(AbstractHandlerProvider handlerProvider)
     {
         // Get unique set of methods from the handler provider for the default language.
+
+        // TODO - cannot register request type upfront with streamjsonrpc, otherwise we'll have bad RPS loads.
+        // Instead we still need to do deserialization ourselfs in the implementation.
+
+        // Perhaps we give the queue a deserialization delegate and a handler invocation delegate.  Then
+        // invoke the handler with the deserialized object in the queue.
+
         foreach (var methodGroup in handlerProvider
             .GetRegisteredMethods()
             .GroupBy(m => m.MethodName))
@@ -121,6 +130,20 @@ internal abstract class AbstractLanguageServer<TRequestContext>
             if (!AllTypesMatch(responseTypes))
             {
                 throw new InvalidOperationException($"Language specific handlers for {methodGroup.Key} have mis-matched number of returns:{Environment.NewLine}{string.Join(Environment.NewLine, methodGroup)}");
+            }
+
+            // Verify that the request types of all language specific handlers are the same type.
+            // It is not allowed for a language specific handler to use a different request type from the default language handler.
+            if (requestTypes.Distinct().Count() != 1)
+            {
+                throw new InvalidOperationException($"Language sepcific handlers for {methodGroup.Key} have mis-matched request parameters:{Environment.NewLine}{string.Join(Environment.NewLine, methodGroup)}");
+            }
+
+            // Verify that we always have exactly one default language handler.
+            var defaultHandlersForLanguage = methodGroup.Count(m => m.Language == LanguageServerConstants.DefaultLanguageName);
+            if (defaultHandlersForLanguage != 1)
+            {
+                throw new InvalidOperationException($"Expected 1 default language handler for {methodGroup.Key} but found {defaultHandlersForLanguage}");
             }
 
             var delegatingEntryPoint = CreateDelegatingEntryPoint(methodGroup.Key, methodGroup);
@@ -162,10 +185,15 @@ internal abstract class AbstractLanguageServer<TRequestContext>
         IsInitialized = true;
     }
 
+    public virtual string GetLanguageForRequest(string methodName, IMethodHandler defaultHandler)
+    {
+        Logger.LogInformation($"Using default language handler for {methodName}");
+        return LanguageServerConstants.DefaultLanguageName;
+    }
+
     protected virtual IRequestExecutionQueue<TRequestContext> ConstructRequestExecutionQueue()
     {
-        var handlerProvider = HandlerProvider;
-        var queue = new RequestExecutionQueue<TRequestContext>(this, Logger, handlerProvider);
+        var queue = new RequestExecutionQueue<TRequestContext>(this, Logger);
 
         queue.Start();
 
@@ -177,64 +205,87 @@ internal abstract class AbstractLanguageServer<TRequestContext>
         return _queue.Value;
     }
 
-    protected abstract DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod);
+    protected abstract DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider);
 
-    protected abstract class DelegatingEntryPoint
+    internal abstract class DelegatingEntryPoint
     {
         protected readonly string _method;
         protected readonly AbstractTypeRefResolver _typeRefResolver;
-        protected readonly Lazy<FrozenDictionary<string, (MethodInfo MethodInfo, RequestHandlerMetadata Metadata)>> _languageEntryPoint;
+        protected readonly FrozenDictionary<string, (Lazy<MethodInfo> MethodInfo, RequestHandlerMetadata Metadata, Lazy<IMethodHandler> HandlerInstance)> _languageEntryPoint;
 
-        private static readonly MethodInfo s_queueExecuteAsyncMethod = typeof(RequestExecutionQueue<TRequestContext>).GetMethod(nameof(RequestExecutionQueue<TRequestContext>.ExecuteAsync))!;
+        private static readonly MethodInfo s_entryPointInvokeHandlerAsync = typeof(AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint).GetMethod(nameof(InvokeHandlerAsync))!;
 
-        public DelegatingEntryPoint(string method, AbstractTypeRefResolver typeRefResolver, IGrouping<string, RequestHandlerMetadata> handlersForMethod)
+        public DelegatingEntryPoint(string method, AbstractTypeRefResolver typeRefResolver, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider)
         {
             _method = method;
             _typeRefResolver = typeRefResolver;
-            _languageEntryPoint = new Lazy<FrozenDictionary<string, (MethodInfo, RequestHandlerMetadata)>>(() =>
+            var handlerEntryPoints = new Dictionary<string, (Lazy<MethodInfo> MethodInfo, RequestHandlerMetadata Metadata, Lazy<IMethodHandler> HandlerInstance)>();
+            foreach (var metadata in handlersForMethod)
             {
-                var handlerEntryPoints = new Dictionary<string, (MethodInfo, RequestHandlerMetadata)>();
-                foreach (var metadata in handlersForMethod)
-                {
-                    var noValueType = NoValue.Instance.GetType();
+                var noValueType = NoValue.Instance.GetType();
 
+                var methodInfo = new Lazy<MethodInfo>(() =>
+                {
                     var requestType = metadata.RequestTypeRef is TypeRef requestTypeRef
-                        ? _typeRefResolver.Resolve(requestTypeRef) ?? noValueType
-                        : noValueType;
+                    ? _typeRefResolver.Resolve(requestTypeRef) ?? noValueType
+                    : noValueType;
                     var responseType = metadata.ResponseTypeRef is TypeRef responseTypeRef
                         ? _typeRefResolver.Resolve(responseTypeRef) ?? noValueType
                         : noValueType;
-                    var methodInfo = s_queueExecuteAsyncMethod.MakeGenericMethod(requestType, responseType);
-                    handlerEntryPoints[metadata.Language] = (methodInfo, metadata);
-                }
+                    return s_entryPointInvokeHandlerAsync.MakeGenericMethod(requestType, responseType);
+                });
 
-                return handlerEntryPoints.ToFrozenDictionary();
-            });
+                var handlerInstance = new Lazy<IMethodHandler>(() => handlerProvider.GetMethodHandler(method, metadata.RequestTypeRef, metadata.ResponseTypeRef, metadata.Language));
+
+                handlerEntryPoints[metadata.Language] = (methodInfo, metadata, handlerInstance);
+            }
+
+            _languageEntryPoint = handlerEntryPoints.ToFrozenDictionary();
         }
 
         public abstract MethodInfo GetEntryPoint(bool hasParameter);
 
-        protected (MethodInfo MethodInfo, RequestHandlerMetadata Metadata) GetMethodInfo(string language)
+        public virtual string GetLanguageForRequest(string methodName, IMethodHandler defaultHandlerInstance)
         {
-            if (!_languageEntryPoint.Value.TryGetValue(language, out var requestInfo)
-                && !_languageEntryPoint.Value.TryGetValue(LanguageServerConstants.DefaultLanguageName, out requestInfo))
-            {
-                throw new InvalidOperationException($"No default or language specific handler was found for {_method} and document with language {language}");
-            }
-
-            return requestInfo;
+            Logger.LogInformation($"Using default language handler for {methodName}");
+            return LanguageServerConstants.DefaultLanguageName;
         }
 
-        protected async Task<object?> InvokeAsync(
-            MethodInfo methodInfo,
-            IRequestExecutionQueue<TRequestContext> queue,
-            object? requestObject,
+        public IMethodHandler GetDefaultHandler()
+        {
+            return _languageEntryPoint[LanguageServerConstants.DefaultLanguageName].HandlerInstance.Value;
+        }
+
+        public IMethodHandler GetHandlerForRequest(out string language)
+        {
+            var defaultLanguageHandler = _languageEntryPoint[LanguageServerConstants.DefaultLanguageName].HandlerInstance.Value;
+            language = GetLanguageForRequest(_method, defaultLanguageHandler);
+
+            if (_languageEntryPoint.TryGetValue(language, out var lazyData))
+            {
+                return lazyData.HandlerInstance.Value;
+            }
+
+            return defaultLanguageHandler;
+        }
+
+        public async Task<object?> InvokeAsync(
+            object? deserializedRequest,
             string language,
-            ILspServices lspServices,
+            TRequestContext context,
+            IMethodHandler handler,
             CancellationToken cancellationToken)
         {
-            var task = methodInfo.Invoke(queue, [requestObject, _method, language, lspServices, cancellationToken]) as Task
-                ?? throw new InvalidOperationException($"Queue result task cannot be null");
+            if (!_languageEntryPoint.TryGetValue(language, out var lazyData) &&
+                _languageEntryPoint.TryGetValue(LanguageServerConstants.DefaultLanguageName, out lazyData))
+            {
+                throw new InvalidOperationException($"Missing handler for {_method} and language {language}");
+            }
+
+            var methodInfo = lazyData.MethodInfo.Value;
+
+            var task = methodInfo.Invoke(this, [deserializedRequest, context, handler, cancellationToken]) as Task
+                ?? throw new InvalidOperationException($"InvokeHandlerAsync result task cannot be null");
             await task.ConfigureAwait(false);
             var resultProperty = task.GetType().GetProperty("Result") ?? throw new InvalidOperationException("Result property on task cannot be null");
             var result = resultProperty.GetValue(task);
@@ -245,6 +296,46 @@ internal abstract class AbstractLanguageServer<TRequestContext>
             else
             {
                 return result;
+            }
+        }
+
+        private Uri? GetUriForRequest<TRequest>(IMethodHandler defaultMethodHandler, TRequest request)
+        {
+            if (IMethodHandler is ITextDocumentIdentifierHandler<TRequest> docHandler)
+            {
+                // All premature?  Maybe we just need to enforce return type = default too... lets look tomorrow.
+            }
+        }
+
+        private async Task<TResponse> InvokeHandlerAsync<TRequest, TResponse>(TRequest request, TRequestContext context, IMethodHandler handler, CancellationToken cancellationToken)
+        {
+            if (handler is IRequestHandler<TRequest, TResponse, TRequestContext> requestHandler)
+            {
+                var result = await requestHandler.HandleRequestAsync(request, context, cancellationToken).ConfigureAwait(false);
+                return result;
+            }
+            else if (handler is IRequestHandler<TResponse, TRequestContext> parameterlessRequestHandler)
+            {
+                var result = await parameterlessRequestHandler.HandleRequestAsync(context, cancellationToken).ConfigureAwait(false);
+                return result;
+            }
+            else if (handler is INotificationHandler<TRequest, TRequestContext> notificationHandler)
+            {
+                await notificationHandler.HandleNotificationAsync(request, context, cancellationToken).ConfigureAwait(false);
+
+                // We know that the return type of <see cref="INotificationHandler{TRequestType, RequestContextType}"/> will always be <see cref="VoidReturn" /> even if the compiler doesn't.
+                return (TResponse)(object)NoValue.Instance;
+            }
+            else if (handler is INotificationHandler<TRequestContext> parameterlessNotificationHandler)
+            {
+                await parameterlessNotificationHandler.HandleNotificationAsync(context, cancellationToken).ConfigureAwait(false);
+
+                // We know that the return type of <see cref="INotificationHandler{TRequestType, RequestContextType}"/> will always be <see cref="VoidReturn" /> even if the compiler doesn't.
+                return (TResponse)(object)NoValue.Instance;
+            }
+            else
+            {
+                throw new NotImplementedException($"Unrecognized {nameof(IMethodHandler)} implementation {handler.GetType()}.");
             }
         }
     }

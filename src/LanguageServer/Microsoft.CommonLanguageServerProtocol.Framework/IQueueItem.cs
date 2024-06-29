@@ -20,11 +20,12 @@ internal interface IQueueItem<TRequestContext>
     /// <summary>
     /// Executes the work specified by this queue item.
     /// </summary>
-    /// <param name="requestContext">the context created by <see cref="CreateRequestContextAsync(IMethodHandler, CancellationToken)"/></param>
+    /// <param name="language">the language for the request.</param>
+    /// <param name="context">the context created by <see cref="CreateRequestContextAsync(IMethodHandler, CancellationToken)"/></param>
     /// <param name="handler">The handler to use to execute the request.</param>
     /// <param name="cancellationToken" />
     /// <returns>A <see cref="Task "/> which completes when the request has finished.</returns>
-    Task StartRequestAsync(TRequestContext requestContext, IMethodHandler handler, CancellationToken cancellationToken);
+    Task StartRequestAsync(string language, TRequestContext? context, IMethodHandler handler, CancellationToken cancellationToken);
 
     /// <summary>
     /// Creates the context that is sent to the handler for this queue item.
@@ -44,10 +45,9 @@ internal interface IQueueItem<TRequestContext>
     /// </summary>
     string MethodName { get; }
 
-    /// <summary>
-    /// The language of the request. The default is <see cref="LanguageServerConstants.DefaultLanguageName"/>
-    /// </summary>
-    string Language { get; }
+    public AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint EntryPoint { get; }
+
+    public object DeserializedRequest { get; }
 
     /// <summary>
     /// The type of the request.

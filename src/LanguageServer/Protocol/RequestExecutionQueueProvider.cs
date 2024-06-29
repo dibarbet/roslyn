@@ -19,9 +19,9 @@ internal sealed class RequestExecutionQueueProvider : IRequestExecutionQueueProv
     {
     }
 
-    public IRequestExecutionQueue<RequestContext> CreateRequestExecutionQueue(AbstractLanguageServer<RequestContext> languageServer, ILspLogger logger, AbstractHandlerProvider handlerProvider)
+    public IRequestExecutionQueue<RequestContext> CreateRequestExecutionQueue(AbstractLanguageServer<RequestContext> languageServer, ILspLogger logger)
     {
-        var queue = new RoslynRequestExecutionQueue(languageServer, logger, handlerProvider);
+        var queue = new RoslynRequestExecutionQueue(languageServer, logger);
         queue.Start();
         return queue;
     }

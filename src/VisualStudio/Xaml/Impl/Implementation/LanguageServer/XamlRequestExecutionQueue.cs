@@ -17,8 +17,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Xaml.LanguageServer
         public XamlRequestExecutionQueue(
             XamlProjectService projectService,
             AbstractLanguageServer<RequestContext> languageServer,
-            ILspLogger logger,
-            AbstractHandlerProvider handlerProvider) : base(languageServer, logger, handlerProvider)
+            ILspLogger logger) : base(languageServer, logger)
         {
             _projectService = projectService;
         }

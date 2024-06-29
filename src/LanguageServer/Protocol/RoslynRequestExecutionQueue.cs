@@ -19,8 +19,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         /// </summary>
         private CultureInfo? _cultureInfo;
 
-        public RoslynRequestExecutionQueue(AbstractLanguageServer<RequestContext> languageServer, ILspLogger logger, AbstractHandlerProvider handlerProvider)
-            : base(languageServer, logger, handlerProvider)
+        public RoslynRequestExecutionQueue(AbstractLanguageServer<RequestContext> languageServer, ILspLogger logger)
+            : base(languageServer, logger)
         {
             _initializeManager = languageServer.GetLspServices().GetRequiredService<IInitializeManager>();
         }

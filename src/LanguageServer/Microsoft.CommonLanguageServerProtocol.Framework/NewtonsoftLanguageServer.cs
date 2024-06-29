@@ -25,9 +25,9 @@ internal abstract class NewtonsoftLanguageServer<TRequestContext>(
 {
     private readonly JsonSerializer _jsonSerializer = jsonSerializer;
 
-    protected override DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod)
+    protected override DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider)
     {
-        return new NewtonsoftDelegatingEntryPoint(method, handlersForMethod, this);
+        return new NewtonsoftDelegatingEntryPoint(method, handlersForMethod, this, handlerProvider);
     }
 
     protected virtual string GetLanguageForRequest(string methodName, JToken? parameters)
@@ -39,7 +39,8 @@ internal abstract class NewtonsoftLanguageServer<TRequestContext>(
     private class NewtonsoftDelegatingEntryPoint(
         string method,
         IGrouping<string, RequestHandlerMetadata> handlersForMethod,
-        NewtonsoftLanguageServer<TRequestContext> target) : DelegatingEntryPoint(method, target.TypeRefResolver, handlersForMethod)
+        NewtonsoftLanguageServer<TRequestContext> target,
+        AbstractHandlerProvider handlerProvider) : DelegatingEntryPoint(method, target.TypeRefResolver, handlersForMethod, handlerProvider)
     {
         private static readonly MethodInfo s_entryPoint = typeof(NewtonsoftDelegatingEntryPoint).GetMethod(nameof(NewtonsoftDelegatingEntryPoint.ExecuteRequestAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -52,27 +53,18 @@ internal abstract class NewtonsoftLanguageServer<TRequestContext>(
         /// StreamJsonRpc entry point for all handler methods.
         /// The optional parameters allow StreamJsonRpc to call into the same method for any kind of request / notification (with any number of params or response).
         /// </summary>
-        private async Task<JToken?> ExecuteRequestAsync(JToken? request = null, CancellationToken cancellationToken = default)
+        private Task<object?> ExecuteRequestAsync(JToken? request = null, CancellationToken cancellationToken = default)
         {
             var queue = target.GetRequestExecutionQueue();
             var lspServices = target.GetLspServices();
 
-            // Retrieve the language of the request so we know how to deserialize it.
-            var language = target.GetLanguageForRequest(_method, request);
+            // Deserialize the request using the default language type.
+            // This means that all language specific handlers must have matching request types to the default language handler.
+            // This is enforced for Razor / XAML as they rely on the Roslyn protocol type definitions.
+            var defaultMetadata = _languageEntryPoint[LanguageServerConstants.DefaultLanguageName].Metadata;
+            var requestObject = DeserializeRequest(request, defaultMetadata, target._jsonSerializer);
 
-            // Find the correct request and response types for the given request and language.
-            var requestInfo = GetMethodInfo(language);
-
-            // Deserialize the request parameters (if any).
-            var requestObject = DeserializeRequest(request, requestInfo.Metadata, target._jsonSerializer);
-
-            var result = await InvokeAsync(requestInfo.MethodInfo, queue, requestObject, language, lspServices, cancellationToken).ConfigureAwait(false);
-            if (result is null)
-            {
-                return null;
-            }
-
-            return JToken.FromObject(result, target._jsonSerializer);
+            return queue.ExecuteAsync(requestObject, _method, this, lspServices, cancellationToken);
         }
 
         private object DeserializeRequest(JToken? request, RequestHandlerMetadata metadata, JsonSerializer jsonSerializer)

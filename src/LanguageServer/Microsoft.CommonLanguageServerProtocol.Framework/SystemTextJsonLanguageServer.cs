@@ -25,21 +25,16 @@ internal abstract class SystemTextJsonLanguageServer<TRequestContext>(
     /// </summary>
     private readonly JsonSerializerOptions _jsonSerializerOptions = options;
 
-    protected override DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod)
+    protected override DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider)
     {
-        return new SystemTextJsonDelegatingEntryPoint(method, handlersForMethod, this);
-    }
-
-    protected virtual string GetLanguageForRequest(string methodName, JsonElement? parameters)
-    {
-        Logger.LogInformation($"Using default language handler for {methodName}");
-        return LanguageServerConstants.DefaultLanguageName;
+        return new SystemTextJsonDelegatingEntryPoint(method, handlersForMethod, this, handlerProvider);
     }
 
     private sealed class SystemTextJsonDelegatingEntryPoint(
         string method,
         IGrouping<string, RequestHandlerMetadata> handlersForMethod,
-        SystemTextJsonLanguageServer<TRequestContext> target) : DelegatingEntryPoint(method, target.TypeRefResolver, handlersForMethod)
+        SystemTextJsonLanguageServer<TRequestContext> target,
+        AbstractHandlerProvider handlerProvider) : DelegatingEntryPoint(method, target.TypeRefResolver, handlersForMethod, handlerProvider)
     {
         private static readonly MethodInfo s_parameterlessEntryPoint = typeof(SystemTextJsonDelegatingEntryPoint).GetMethod(nameof(SystemTextJsonDelegatingEntryPoint.ExecuteRequest0Async), BindingFlags.NonPublic | BindingFlags.Instance)!;
         private static readonly MethodInfo s_entryPoint = typeof(SystemTextJsonDelegatingEntryPoint).GetMethod(nameof(SystemTextJsonDelegatingEntryPoint.ExecuteRequestAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -53,36 +48,26 @@ internal abstract class SystemTextJsonLanguageServer<TRequestContext>(
         /// StreamJsonRpc entry point for handlers with no parameters.
         /// Unlike Newtonsoft, we have to differentiate instead of using default parameters.
         /// </summary>
-        private Task<JsonElement?> ExecuteRequest0Async(CancellationToken cancellationToken = default)
+        private Task<object?> ExecuteRequest0Async<TResponse>(CancellationToken cancellationToken = default)
         {
-            return ExecuteRequestAsync(null, cancellationToken);
+            return ExecuteRequestAsync<NoValue, TResponse>(null, cancellationToken);
         }
 
         /// <summary>
         /// StreamJsonRpc entry point for handlers with parameters (and any response) type.
         /// </summary>
-        private async Task<JsonElement?> ExecuteRequestAsync(JsonElement? request, CancellationToken cancellationToken = default)
+        private Task<object?> ExecuteRequestAsync<TRequest, TResponse>(JsonElement? request, CancellationToken cancellationToken = default)
         {
             var queue = target.GetRequestExecutionQueue();
             var lspServices = target.GetLspServices();
 
-            // Retrieve the language of the request so we know how to deserialize it.
-            var language = target.GetLanguageForRequest(_method, request);
+            // Deserialize the request using the default language type.
+            // This means that all language specific handlers must have matching request types to the default language handler.
+            // This is enforced for Razor / XAML as they rely on the Roslyn protocol type definitions.
+            var defaultMetadata = _languageEntryPoint[LanguageServerConstants.DefaultLanguageName].Metadata;
+            var deserializedRequest = DeserializeRequest(request, defaultMetadata, target._jsonSerializerOptions);
 
-            // Find the correct request and response types for the given request and language.
-            var requestInfo = GetMethodInfo(language);
-
-            // Deserialize the request parameters (if any).
-            var requestObject = DeserializeRequest(request, requestInfo.Metadata, target._jsonSerializerOptions);
-
-            var result = await InvokeAsync(requestInfo.MethodInfo, queue, requestObject, language, lspServices, cancellationToken).ConfigureAwait(false);
-            if (result is null)
-            {
-                return null;
-            }
-
-            var serializedResult = JsonSerializer.SerializeToElement(result, target._jsonSerializerOptions);
-            return serializedResult;
+            return queue.ExecuteAsync(deserializedRequest, _method, this, lspServices, cancellationToken);
         }
 
         private object DeserializeRequest(JsonElement? request, RequestHandlerMetadata metadata, JsonSerializerOptions options)

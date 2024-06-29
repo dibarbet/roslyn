@@ -62,7 +62,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         protected override IRequestExecutionQueue<RequestContext> ConstructRequestExecutionQueue()
         {
             var provider = GetLspServices().GetRequiredService<IRequestExecutionQueueProvider<RequestContext>>();
-            return provider.CreateRequestExecutionQueue(this, Logger, HandlerProvider);
+            return provider.CreateRequestExecutionQueue(this, Logger);
         }
 
         private FrozenDictionary<string, ImmutableArray<BaseService>> GetBaseServices(
@@ -164,9 +164,15 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             return Task.CompletedTask;
         }
 
-        protected override string GetLanguageForRequest(string methodName, JsonElement? parameters)
+        /// <summary>
+        /// Gets the language for a request.  A non-default language is only supported
+        /// if the default language handler is implemented using Roslyn protocol types.
+        /// 
+        /// For any custom requests using custom protocol types, the default language is always returned.
+        /// </summary>
+        public override string GetLanguageForRequest(string methodName, IMethodHandler defaultHandler)
         {
-            if (parameters == null)
+            if (deserializedRequest == NoValue.Instance)
             {
                 Logger.LogInformation("No request parameters given, using default language handler");
                 return LanguageServerConstants.DefaultLanguageName;
@@ -181,17 +187,15 @@ namespace Microsoft.CodeAnalysis.LanguageServer
 
             var lspWorkspaceManager = GetLspServices().GetRequiredService<LspWorkspaceManager>();
 
-            // All general LSP spec document params have the following json structure
-            // { "textDocument": { "uri": "<uri>" ... } ... }
-            //
-            // We can easily identify the URI for the request by looking for this structure
-            if (parameters.Value.TryGetProperty("textDocument", out var textDocumentToken) ||
-                parameters.Value.TryGetProperty("_vs_textDocument", out textDocumentToken))
+            if (defaultHandler is ITextDocumentIdentifierHandler textDocHandler)
             {
-                var uriToken = textDocumentToken.GetProperty("uri");
-                var uri = JsonSerializer.Deserialize<Uri>(uriToken, ProtocolConversions.LspJsonSerializerOptions);
-                Contract.ThrowIfNull(uri, "Failed to deserialize uri property");
-                var language = lspWorkspaceManager.GetLanguageForUri(uri);
+                textDocHandler.Get
+            }
+
+            // Check if the request is the Roslyn protocol ITextDocumentParams and extract the URI from it.
+            if (deserializedRequest is ITextDocumentParams textDocParams)
+            {
+                var language = lspWorkspaceManager.GetLanguageForUri(textDocParams.TextDocument.Uri);
                 Logger.LogInformation($"Using {language} from request text document");
                 return language;
             }

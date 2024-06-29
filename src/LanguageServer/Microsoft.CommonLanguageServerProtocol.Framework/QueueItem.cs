@@ -21,10 +21,8 @@ internal sealed class NoValue
     public static NoValue Instance = new();
 }
 
-internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TRequestContext>
+internal class QueueItem<TRequestContext> : IQueueItem<TRequestContext>
 {
-    private readonly TRequest _request;
-
     private readonly ILspLogger _logger;
     private readonly AbstractRequestScope? _requestTelemetryScope;
 
@@ -32,22 +30,20 @@ internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TReq
     /// A task completion source representing the result of this queue item's work.
     /// This is the task that the client is waiting on.
     /// </summary>
-    private readonly TaskCompletionSource<TResponse> _completionSource = new();
+    private readonly TaskCompletionSource<object?> _completionSource = new();
 
     public ILspServices LspServices { get; }
 
     public string MethodName { get; }
 
-    public string Language { get; }
+    public AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint EntryPoint { get; }
 
-    public Type? RequestType => typeof(TRequest) == typeof(NoValue) ? null : typeof(TRequest);
-
-    public Type? ResponseType => typeof(TResponse) == typeof(NoValue) ? null : typeof(TResponse);
+    public object DeserializedRequest { get; }
 
     private QueueItem(
         string methodName,
-        string language,
-        TRequest request,
+        object deserializedRequest,
+        AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint entryPoint,
         ILspServices lspServices,
         ILspLogger logger,
         CancellationToken cancellationToken)
@@ -56,29 +52,29 @@ internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TReq
         cancellationToken.Register(() => _completionSource.TrySetCanceled(cancellationToken));
 
         _logger = logger;
-        _request = request;
+        EntryPoint = entryPoint;
+        DeserializedRequest = deserializedRequest;
         LspServices = lspServices;
 
         MethodName = methodName;
-        Language = language;
 
         var telemetryService = lspServices.GetService<AbstractTelemetryService>();
 
         _requestTelemetryScope = telemetryService?.CreateRequestScope(methodName);
     }
 
-    public static (IQueueItem<TRequestContext>, Task<TResponse>) Create(
+    public static (IQueueItem<TRequestContext>, Task<object?>) Create(
         string methodName,
-        string language,
-        TRequest request,
+        object deserializedRequest,
+        AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint entryPoint,
         ILspServices lspServices,
         ILspLogger logger,
         CancellationToken cancellationToken)
     {
-        var queueItem = new QueueItem<TRequest, TResponse, TRequestContext>(
+        var queueItem = new QueueItem<TRequestContext>(
             methodName,
-            language,
-            request,
+            deserializedRequest,
+            entryPoint,
             lspServices,
             logger,
             cancellationToken);
@@ -93,7 +89,7 @@ internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TReq
         _requestTelemetryScope?.RecordExecutionStart();
 
         var requestContextFactory = LspServices.GetRequiredService<AbstractRequestContextFactory<TRequestContext>>();
-        var context = await requestContextFactory.CreateRequestContextAsync(this, handler, _request, cancellationToken).ConfigureAwait(false);
+        var context = await requestContextFactory.CreateRequestContextAsync(this, handler, DeserializedRequest, cancellationToken).ConfigureAwait(false);
         return context;
     }
 
@@ -102,11 +98,7 @@ internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TReq
     /// representing the task that the client is waiting for, then re-thrown so that
     /// the queue can correctly handle them depending on the type of request.
     /// </summary>
-    /// <param name="context">Context used for the request.</param>
-    /// <param name="handler">The handler to execute.</param>
-    /// <param name="cancellationToken"></param>
-    /// <returns>The result of the request.</returns>
-    public async Task StartRequestAsync(TRequestContext? context, IMethodHandler handler, CancellationToken cancellationToken)
+    public async Task StartRequestAsync(string language, TRequestContext? context, IMethodHandler handler, CancellationToken cancellationToken)
     {
         _logger.LogStartContext($"{MethodName}");
         try
@@ -131,35 +123,10 @@ internal class QueueItem<TRequest, TResponse, TRequestContext> : IQueueItem<TReq
             {
                 throw new InvalidOperationException($"{nameof(StartRequestAsync)} cannot be called before {nameof(CreateRequestContextAsync)} has been called.");
             }
-            else if (handler is IRequestHandler<TRequest, TResponse, TRequestContext> requestHandler)
-            {
-                var result = await requestHandler.HandleRequestAsync(_request, context, cancellationToken).ConfigureAwait(false);
-
-                _completionSource.TrySetResult(result);
-            }
-            else if (handler is IRequestHandler<TResponse, TRequestContext> parameterlessRequestHandler)
-            {
-                var result = await parameterlessRequestHandler.HandleRequestAsync(context, cancellationToken).ConfigureAwait(false);
-
-                _completionSource.TrySetResult(result);
-            }
-            else if (handler is INotificationHandler<TRequest, TRequestContext> notificationHandler)
-            {
-                await notificationHandler.HandleNotificationAsync(_request, context, cancellationToken).ConfigureAwait(false);
-
-                // We know that the return type of <see cref="INotificationHandler{TRequestType, RequestContextType}"/> will always be <see cref="VoidReturn" /> even if the compiler doesn't.
-                _completionSource.TrySetResult((TResponse)(object)NoValue.Instance);
-            }
-            else if (handler is INotificationHandler<TRequestContext> parameterlessNotificationHandler)
-            {
-                await parameterlessNotificationHandler.HandleNotificationAsync(context, cancellationToken).ConfigureAwait(false);
-
-                // We know that the return type of <see cref="INotificationHandler{TRequestType, RequestContextType}"/> will always be <see cref="VoidReturn" /> even if the compiler doesn't.
-                _completionSource.TrySetResult((TResponse)(object)NoValue.Instance);
-            }
             else
             {
-                throw new NotImplementedException($"Unrecognized {nameof(IMethodHandler)} implementation {handler.GetType()}.");
+                var result = await EntryPoint.InvokeAsync(DeserializedRequest, language, context, handler, cancellationToken).ConfigureAwait(false);
+                _completionSource.TrySetResult(result);
             }
         }
         catch (OperationCanceledException ex)
