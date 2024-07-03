@@ -15,6 +15,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)AbstractRequestContextFactory.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)AbstractRequestScope.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)AbstractTelemetryService.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DelegatingEntryPoint.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HandlerProvider.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Handlers\InitializedHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Handlers\InitializeHandler.cs" />

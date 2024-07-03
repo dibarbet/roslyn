@@ -25,7 +25,7 @@ internal abstract class NewtonsoftLanguageServer<TRequestContext>(
 {
     private readonly JsonSerializer _jsonSerializer = jsonSerializer;
 
-    protected override DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider)
+    protected override DelegatingEntryPoint<TRequestContext> CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider)
     {
         return new NewtonsoftDelegatingEntryPoint(method, handlersForMethod, this, handlerProvider);
     }
@@ -40,7 +40,7 @@ internal abstract class NewtonsoftLanguageServer<TRequestContext>(
         string method,
         IGrouping<string, RequestHandlerMetadata> handlersForMethod,
         NewtonsoftLanguageServer<TRequestContext> target,
-        AbstractHandlerProvider handlerProvider) : DelegatingEntryPoint(method, target.TypeRefResolver, handlersForMethod, handlerProvider)
+        AbstractHandlerProvider handlerProvider) : DelegatingEntryPoint<TRequestContext>(method, target.TypeRefResolver, handlersForMethod, handlerProvider, target)
     {
         private static readonly MethodInfo s_entryPoint = typeof(NewtonsoftDelegatingEntryPoint).GetMethod(nameof(NewtonsoftDelegatingEntryPoint.ExecuteRequestAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -61,10 +61,8 @@ internal abstract class NewtonsoftLanguageServer<TRequestContext>(
             // Deserialize the request using the default language type.
             // This means that all language specific handlers must have matching request types to the default language handler.
             // This is enforced for Razor / XAML as they rely on the Roslyn protocol type definitions.
-            var defaultMetadata = _languageEntryPoint[LanguageServerConstants.DefaultLanguageName].Metadata;
-            var requestObject = DeserializeRequest(request, defaultMetadata, target._jsonSerializer);
-
-            return queue.ExecuteAsync(requestObject, _method, this, lspServices, cancellationToken);
+            var deserializedRequest = DeserializeRequest(request, DefaultHandlerInfo.Value.Metadata, target._jsonSerializer);
+            return AddToQueueAsync(deserializedRequest, lspServices, cancellationToken);
         }
 
         private object DeserializeRequest(JToken? request, RequestHandlerMetadata metadata, JsonSerializer jsonSerializer)

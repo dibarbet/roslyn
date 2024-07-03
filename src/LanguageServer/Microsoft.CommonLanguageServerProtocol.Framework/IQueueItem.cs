@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,20 +21,18 @@ internal interface IQueueItem<TRequestContext>
     /// <summary>
     /// Executes the work specified by this queue item.
     /// </summary>
-    /// <param name="language">the language for the request.</param>
-    /// <param name="context">the context created by <see cref="CreateRequestContextAsync(IMethodHandler, CancellationToken)"/></param>
+    /// <param name="requestContext">the context created by <see cref="ResolveQueueItemAsync(AbstractLanguageServer{TRequestContext}, CancellationToken)"/></param>
     /// <param name="handler">The handler to use to execute the request.</param>
     /// <param name="cancellationToken" />
     /// <returns>A <see cref="Task "/> which completes when the request has finished.</returns>
-    Task StartRequestAsync(string language, TRequestContext? context, IMethodHandler handler, CancellationToken cancellationToken);
+    public Task StartRequestAsync(string language, TRequestContext? context, IMethodHandler handler, MethodInfo methodInfo, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Creates the context that is sent to the handler for this queue item.
-    /// Note - this method is always called serially inside the queue before
-    /// running the actual request in <see cref="StartRequestAsync(TRequestContext, IMethodHandler, CancellationToken)"/>
+    /// Resolves the language, handler, and request context needed to process this item, but does not run the request.
+    /// This is called serially by <see cref="RequestExecutionQueue{TRequestContext}.ProcessQueueAsync"/>
     /// Throwing in this method will cause the server to shutdown.
     /// </summary>
-    Task<TRequestContext> CreateRequestContextAsync(IMethodHandler handler, CancellationToken cancellationToken);
+    public Task<(TRequestContext Context, string Language, IMethodHandler handler, MethodInfo handlerEntryPoint)> ResolveQueueItemAsync(AbstractLanguageServer<TRequestContext> server, CancellationToken cancellationToken);
 
     /// <summary>
     /// Provides access to LSP services.
@@ -45,17 +44,5 @@ internal interface IQueueItem<TRequestContext>
     /// </summary>
     string MethodName { get; }
 
-    public AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint EntryPoint { get; }
-
-    public object DeserializedRequest { get; }
-
-    /// <summary>
-    /// The type of the request.
-    /// </summary>
-    Type? RequestType { get; }
-
-    /// <summary>
-    /// The type of the response.
-    /// </summary>
-    Type? ResponseType { get; }
+    IMethodHandler DefaultHandler { get; }
 }

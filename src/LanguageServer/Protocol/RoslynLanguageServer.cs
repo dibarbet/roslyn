@@ -170,14 +170,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         /// 
         /// For any custom requests using custom protocol types, the default language is always returned.
         /// </summary>
-        public override string GetLanguageForRequest(string methodName, IMethodHandler defaultHandler)
+        public override string GetLanguageForRequest<TRequest>(string methodName, TRequest deserializedRequest, IMethodHandler defaultHandler)
         {
-            if (deserializedRequest == NoValue.Instance)
-            {
-                Logger.LogInformation("No request parameters given, using default language handler");
-                return LanguageServerConstants.DefaultLanguageName;
-            }
-
             // For certain requests like text syncing we'll always use the default language handler
             // as we do not want languages to be able to override them.
             if (ShouldUseDefaultLanguage(methodName))
@@ -187,34 +181,15 @@ namespace Microsoft.CodeAnalysis.LanguageServer
 
             var lspWorkspaceManager = GetLspServices().GetRequiredService<LspWorkspaceManager>();
 
-            if (defaultHandler is ITextDocumentIdentifierHandler textDocHandler)
+            if (defaultHandler is ITextDocumentIdentifierHandler<TRequest, TextDocumentIdentifier> textDocHandler)
             {
-                textDocHandler.Get
-            }
-
-            // Check if the request is the Roslyn protocol ITextDocumentParams and extract the URI from it.
-            if (deserializedRequest is ITextDocumentParams textDocParams)
-            {
-                var language = lspWorkspaceManager.GetLanguageForUri(textDocParams.TextDocument.Uri);
+                var documentIdentifier = textDocHandler.GetTextDocumentIdentifier(deserializedRequest);
+                var language = lspWorkspaceManager.GetLanguageForUri(documentIdentifier.Uri);
                 Logger.LogInformation($"Using {language} from request text document");
                 return language;
             }
 
-            // All the LSP resolve params have the following known json structure
-            // { "data": { "TextDocument": { "uri": "<uri>" ... } ... } ... }
-            //
-            // We can deserialize the data object using our unified DocumentResolveData.
-            //var dataToken = parameters["data"];
-            if (parameters.Value.TryGetProperty("data", out var dataToken))
-            {
-                var data = JsonSerializer.Deserialize<DocumentResolveData>(dataToken, ProtocolConversions.LspJsonSerializerOptions);
-                Contract.ThrowIfNull(data, "Failed to document resolve data object");
-                var language = lspWorkspaceManager.GetLanguageForUri(data.TextDocument.Uri);
-                Logger.LogInformation($"Using {language} from data text document");
-                return language;
-            }
-
-            // This request is not for a textDocument and is not a resolve request.
+            // This request does not operate on a specific document.
             Logger.LogInformation("Request did not contain a textDocument, using default language handler");
             return LanguageServerConstants.DefaultLanguageName;
 

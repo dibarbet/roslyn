@@ -23,7 +23,7 @@ internal interface IRequestExecutionQueue<TRequestContext> : IAsyncDisposable
     /// Queue a request.
     /// </summary>
     /// <returns>A task that completes when the handler execution is done.</returns>
-    Task<object?> ExecuteAsync(object request, string methodName, AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint entryPoint, ILspServices lspServices, CancellationToken cancellationToken);
+    Task<object?> ExecuteAsync<TRequest>(TRequest request, string methodName, IMethodHandler defaultHandler, DelegatingEntryPoint<TRequestContext> entryPoint, ILspServices lspServices, CancellationToken cancellationToken);
 
     /// <summary>
     /// Start the queue accepting requests once any event handlers have been attached.

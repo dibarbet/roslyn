@@ -25,7 +25,7 @@ internal abstract class SystemTextJsonLanguageServer<TRequestContext>(
     /// </summary>
     private readonly JsonSerializerOptions _jsonSerializerOptions = options;
 
-    protected override DelegatingEntryPoint CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider)
+    protected override DelegatingEntryPoint<TRequestContext> CreateDelegatingEntryPoint(string method, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider)
     {
         return new SystemTextJsonDelegatingEntryPoint(method, handlersForMethod, this, handlerProvider);
     }
@@ -34,7 +34,7 @@ internal abstract class SystemTextJsonLanguageServer<TRequestContext>(
         string method,
         IGrouping<string, RequestHandlerMetadata> handlersForMethod,
         SystemTextJsonLanguageServer<TRequestContext> target,
-        AbstractHandlerProvider handlerProvider) : DelegatingEntryPoint(method, target.TypeRefResolver, handlersForMethod, handlerProvider)
+        AbstractHandlerProvider handlerProvider) : DelegatingEntryPoint<TRequestContext>(method, target.TypeRefResolver, handlersForMethod, handlerProvider, target)
     {
         private static readonly MethodInfo s_parameterlessEntryPoint = typeof(SystemTextJsonDelegatingEntryPoint).GetMethod(nameof(SystemTextJsonDelegatingEntryPoint.ExecuteRequest0Async), BindingFlags.NonPublic | BindingFlags.Instance)!;
         private static readonly MethodInfo s_entryPoint = typeof(SystemTextJsonDelegatingEntryPoint).GetMethod(nameof(SystemTextJsonDelegatingEntryPoint.ExecuteRequestAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -64,10 +64,8 @@ internal abstract class SystemTextJsonLanguageServer<TRequestContext>(
             // Deserialize the request using the default language type.
             // This means that all language specific handlers must have matching request types to the default language handler.
             // This is enforced for Razor / XAML as they rely on the Roslyn protocol type definitions.
-            var defaultMetadata = _languageEntryPoint[LanguageServerConstants.DefaultLanguageName].Metadata;
-            var deserializedRequest = DeserializeRequest(request, defaultMetadata, target._jsonSerializerOptions);
-
-            return queue.ExecuteAsync(deserializedRequest, _method, this, lspServices, cancellationToken);
+            var deserializedRequest = DeserializeRequest(request, DefaultHandlerInfo.Value.Metadata, target._jsonSerializerOptions);
+            return AddToQueueAsync(deserializedRequest, lspServices, cancellationToken);
         }
 
         private object DeserializeRequest(JsonElement? request, RequestHandlerMetadata metadata, JsonSerializerOptions options)

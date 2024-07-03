@@ -100,16 +100,19 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
     /// Queues a request to be handled by the specified handler, with mutating requests blocking subsequent requests
     /// from starting until the mutation is complete.
     /// </summary>
-    /// <param name="deserializedRequest">The deserialized request to handle, if null it is <see cref="NoValue.Instance"/></param>
+    /// <param name="request">The deserialized request to handle, if null it is <see cref="NoValue.Instance"/></param>
     /// <param name="methodName">The name of the LSP method.</param>
+    /// <param name="defaultHandler">the default handler for the method.</param>
+    /// <param name="entryPoint">the entry point information for the method.</param>
     /// <param name="lspServices">The set of LSP services to use.</param>
     /// <param name="requestCancellationToken">A cancellation token that will cancel the handing of this request.
     /// The request could also be cancelled by the queue shutting down.</param>
     /// <returns>A task that can be awaited to observe the results of the handing of this request.</returns>
-    public virtual Task<object?> ExecuteAsync(
-        object deserializedRequest,
+    public virtual Task<object?> ExecuteAsync<TRequest>(
+        TRequest request,
         string methodName,
-        AbstractLanguageServer<TRequestContext>.DelegatingEntryPoint entryPoint,
+        IMethodHandler defaultHandler,
+        DelegatingEntryPoint<TRequestContext> entryPoint,
         ILspServices lspServices,
         CancellationToken requestCancellationToken)
     {
@@ -119,8 +122,8 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
         // shutting down cancels the request.
         var combinedTokenSource = _cancelSource.Token.CombineWith(requestCancellationToken);
         var combinedCancellationToken = combinedTokenSource.Token;
-        var (item, resultTask) = QueueItem<TRequestContext>.Create(methodName,
-            deserializedRequest,
+        var (item, resultTask) = QueueItem<TRequest, TRequestContext>.Create(methodName,
+            request,
             entryPoint,
             lspServices,
             _logger,
@@ -192,18 +195,9 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
                     // Restore our activity id so that logging/tracking works across asynchronous calls.
                     Trace.CorrelationManager.ActivityId = activityId;
 
-                    var defaultHandler = work.EntryPoint.GetDefaultHandler();
-
-                    // Get language for request.  Must be retrieved serially inside the queue to ensure
-                    // that language values set by a previous didOpen are respected by subsequent requests.
-                    var language = _languageServer.GetLanguageForRequest(work.MethodName, work.DeserializedRequest);
-
-                    // Get handler for request and language.
-                    var handler = work.EntryPoint.GetHandlerForRequest(language, out var language);
-
-                    // The request context must be created serially inside the queue to so that requests always run
-                    // on the correct snapshot as of the last request.
-                    var context = await work.CreateRequestContextAsync(handler, cancellationToken).ConfigureAwait(false);
+                    // Resolve the queue item (get language, create request context) serially inside the queue
+                    // so that requests always run on the correct snapshot as of the last request.
+                    var (context, language, handler, handlerMethodInfo) = await work.ResolveQueueItemAsync(_languageServer, cancellationToken).ConfigureAwait(false);
                     if (handler.MutatesSolutionState)
                     {
                         if (CancelInProgressWorkUponMutatingRequest)
@@ -222,7 +216,7 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
                         Debug.Assert(!concurrentlyExecutingTasks.Any(t => !t.Key.IsCompleted), "The tasks should have all been drained before continuing");
                         // Mutating requests block other requests from starting to ensure an up to date snapshot is used.
                         // Since we're explicitly awaiting exceptions to mutating requests will bubble up here.
-                        await WrapStartRequestTaskAsync(work.StartRequestAsync(language, context, handler, cancellationToken), rethrowExceptions: true).ConfigureAwait(false);
+                        await WrapStartRequestTaskAsync(work.StartRequestAsync(language, context, handler, handlerMethodInfo, cancellationToken), rethrowExceptions: true).ConfigureAwait(false);
                     }
                     else
                     {
@@ -231,7 +225,7 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
                         // though these errors don't put us into a bad state as far as the rest of the queue goes.
                         // Furthermore we use Task.Run here to protect ourselves against synchronous execution of work
                         // blocking the request queue for longer periods of time (it enforces parallelizability).
-                        var currentWorkTask = WrapStartRequestTaskAsync(Task.Run(() => work.StartRequestAsync(language, context, handler, cancellationToken), cancellationToken), rethrowExceptions: false);
+                        var currentWorkTask = WrapStartRequestTaskAsync(Task.Run(() => work.StartRequestAsync(language, context, handler, handlerMethodInfo, cancellationToken), cancellationToken), rethrowExceptions: false);
 
                         if (CancelInProgressWorkUponMutatingRequest)
                         {
