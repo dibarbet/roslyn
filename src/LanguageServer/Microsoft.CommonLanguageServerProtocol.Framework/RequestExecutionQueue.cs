@@ -102,7 +102,6 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
     /// </summary>
     /// <param name="request">The deserialized request to handle, if null it is <see cref="NoValue.Instance"/></param>
     /// <param name="methodName">The name of the LSP method.</param>
-    /// <param name="defaultHandler">the default handler for the method.</param>
     /// <param name="entryPoint">the entry point information for the method.</param>
     /// <param name="lspServices">The set of LSP services to use.</param>
     /// <param name="requestCancellationToken">A cancellation token that will cancel the handing of this request.
@@ -111,7 +110,6 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
     public virtual Task<object?> ExecuteAsync<TRequest>(
         TRequest request,
         string methodName,
-        IMethodHandler defaultHandler,
         DelegatingEntryPoint<TRequestContext> entryPoint,
         ILspServices lspServices,
         CancellationToken requestCancellationToken)

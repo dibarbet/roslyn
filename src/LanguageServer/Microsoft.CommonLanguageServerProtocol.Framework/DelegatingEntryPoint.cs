@@ -17,19 +17,45 @@ namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
 internal abstract class DelegatingEntryPoint<TRequestContext>
 {
-    private static readonly Type s_noValueType = NoValue.Instance.GetType();
-
-    private readonly AbstractLanguageServer<TRequestContext> _server;
+    /// <summary>
+    /// Delegate representing an invocation to <see cref="IRequestHandler{TRequest, TResponse, TRequestContext}"/>
+    /// </summary>
+    private delegate Task<object?> InvokeRequest<TRequest>(TRequest request, TRequestContext context, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Map of language to info needed to invoke the actual handling of the request using the handler's specified request and response types.
-    /// 
+    /// Delegate representing an invocation to <see cref="IRequestHandler{TResponse, TRequestContext}"/>
+    /// </summary>
+    private delegate Task<object?> InvokeParameterlessRequest(TRequestContext context, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Delegate representing an invocation to <see cref="INotificationHandler{TRequest, TRequestContext}"/>
+    /// </summary>
+    private delegate Task InvokeNotification<TRequest>(TRequest request, TRequestContext requestContext, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Delegate representing an invocation to <see cref="INotificationHandler{TRequestContext}"/>
+    /// </summary>
+    private delegate Task InvokeParameterlessNotification(TRequestContext requestContext, CancellationToken cancellationToken);
+
+    private static readonly Type s_noValueType = NoValue.Instance.GetType();
+
+    private static readonly MethodInfo s_executeAsync = typeof(RequestExecutionQueue<TRequestContext>).GetMethod(nameof(RequestExecutionQueue<TRequestContext>.ExecuteAsync))!;
+
+    private readonly AbstractLanguageServer<TRequestContext> _server;
+    private readonly string _method;
+
+    /// <summary>
+    /// Map of language to handler and delegate info needed to invoke the actual request handling.
     /// Lazy to avoid instantiating the language specific handler until there is a request for this method and language.
     /// </summary>
-    private readonly FrozenDictionary<string, (RequestHandlerMetadata Metadata, Lazy<(MethodInfo StartRequestAsyncMethodInfo, IMethodHandler HandlerInstance)> LazyData)> _languageEntryPoint;
-
-    protected readonly string _method;
-    protected readonly AbstractTypeRefResolver _typeRefResolver;
+    /// <remarks>
+    /// Because some concrete handler implementations are defined with both TRequest and TResponse generic type parameters,
+    /// it is necessary for us to invoke the handler with both type arguments.  However, we would like to avoid
+    /// requiring all language specific handlers for a method to have exactly the same return types.
+    /// 
+    /// As such, we store delegates that invoke the handler using concrete TRequest types, but always return object? (or nothing).
+    /// </remarks>
+    private readonly FrozenDictionary<string, Lazy<(IMethodHandler, Delegate)>> _languageEntryPoint;
 
     /// <summary>
     /// Handler info for the default handler, including the generic method to invoke the queue, the concrete request type (deserialization)
@@ -39,33 +65,68 @@ internal abstract class DelegatingEntryPoint<TRequestContext>
     /// </summary>
     protected readonly Lazy<(MethodInfo QueueExecuteMethodInfo, RequestHandlerMetadata Metadata, IMethodHandler Handler)> DefaultHandlerInfo;
 
-    private static readonly MethodInfo s_executeAsync = typeof(RequestExecutionQueue<TRequestContext>).GetMethod(nameof(RequestExecutionQueue<TRequestContext>.ExecuteAsync))!;
-    private static readonly MethodInfo s_startRequestAsync = typeof(IQueueItem<TRequestContext>).GetMethod(nameof(IQueueItem<TRequestContext>.StartRequestAsync))!;
+    protected readonly AbstractTypeRefResolver TypeRefResolver;
 
     public DelegatingEntryPoint(string method, AbstractTypeRefResolver typeRefResolver, IGrouping<string, RequestHandlerMetadata> handlersForMethod, AbstractHandlerProvider handlerProvider, AbstractLanguageServer<TRequestContext> server)
     {
         _method = method;
-        _typeRefResolver = typeRefResolver;
+        TypeRefResolver = typeRefResolver;
         _server = server;
-        var handlerEntryPoints = new Dictionary<string, (RequestHandlerMetadata Metadata, Lazy<(MethodInfo StartRequestAsyncMethodInfo, IMethodHandler HandlerInstance)>)>();
+
+        var handlerEntryPoints = new Dictionary<string, Lazy<(IMethodHandler, Delegate)>>();
         foreach (var metadata in handlersForMethod)
         {
-            var lazyData = new Lazy<(MethodInfo StartRequestAsyncMethodInfo, IMethodHandler HandlerInstance)>(() =>
+            var lazyData = new Lazy<(IMethodHandler, Delegate)>(() =>
             {
                 var requestType = metadata.RequestTypeRef is TypeRef requestTypeRef
-                    ? _typeRefResolver.Resolve(requestTypeRef) ?? s_noValueType
+                    ? TypeRefResolver.Resolve(requestTypeRef) ?? s_noValueType
                     : s_noValueType;
                 var responseType = metadata.ResponseTypeRef is TypeRef responseTypeRef
-                    ? _typeRefResolver.Resolve(responseTypeRef) ?? s_noValueType
+                    ? TypeRefResolver.Resolve(responseTypeRef) ?? s_noValueType
                     : s_noValueType;
 
-                var startAsync = s_startRequestAsync.MakeGenericMethod(requestType, responseType);
                 var handlerInstance = handlerProvider.GetMethodHandler(method, metadata.RequestTypeRef, metadata.ResponseTypeRef, metadata.Language);
 
-                return (startAsync, handlerInstance);
+                Delegate handlerDelegate;
+                if (responseType != s_noValueType)
+                {
+                    if (requestType != null)
+                    {
+                        //This is an IRequestHandler<TRequest, TResponse, TRequestContext.
+                        var handlerInfo = typeof(IRequestHandler<,,>).MakeGenericType(requestType, responseType).GetMethod(nameof(IRequestHandler<object, object, TRequestContext>.HandleRequestAsync))!;
+                        var delegateType = typeof(InvokeRequest<>).MakeGenericType(requestType);
+                        handlerDelegate = handlerInfo.CreateDelegate(delegateType, handlerInstance);
+                    }
+                    else
+                    {
+                        //This is an IRequestHandler<TResponse, TRequestContext.
+                        var handlerInfo = typeof(IRequestHandler<,>).MakeGenericType(responseType).GetMethod(nameof(IRequestHandler<object, TRequestContext>.HandleRequestAsync))!;
+                        var delegateType = typeof(InvokeParameterlessRequest).MakeGenericType();
+                        handlerDelegate = handlerInfo.CreateDelegate(delegateType, handlerInstance);
+                    }
+                }
+                else
+                {
+                    if (requestType != null)
+                    {
+                        //This is an INotificationHandler<TRequest, TRequestContext.
+                        var handlerInfo = typeof(INotificationHandler<,>).MakeGenericType(requestType, responseType).GetMethod(nameof(INotificationHandler<object, TRequestContext>.HandleNotificationAsync))!;
+                        var delegateType = typeof(InvokeNotification<>).MakeGenericType(requestType);
+                        handlerDelegate = handlerInfo.CreateDelegate(delegateType, handlerInstance);
+                    }
+                    else
+                    {
+                        //This is an INotificationHandler<TRequestContext.
+                        var handlerInfo = typeof(INotificationHandler<>).MakeGenericType(responseType).GetMethod(nameof(INotificationHandler<TRequestContext>.HandleNotificationAsync))!;
+                        var delegateType = typeof(InvokeParameterlessNotification).MakeGenericType();
+                        handlerDelegate = handlerInfo.CreateDelegate(delegateType, handlerInstance);
+                    }
+                }
+
+                return (handlerInstance, handlerDelegate);
             });
 
-            handlerEntryPoints[metadata.Language] = (metadata, lazyData);
+            handlerEntryPoints[metadata.Language] = lazyData;
         }
 
         _languageEntryPoint = handlerEntryPoints.ToFrozenDictionary();
@@ -73,40 +134,68 @@ internal abstract class DelegatingEntryPoint<TRequestContext>
         DefaultHandlerInfo = new(() =>
         {
             // Get the default handler info.  The default handler is either the single handler for the language (e.g. a custom Razor method)
-            // or the default language handler.  We verified previously that if there is more than one handler for a method there must be a default handler.
-            (RequestHandlerMetadata Metadata, Lazy<(MethodInfo StartRequestAsyncMethodInfo, IMethodHandler HandlerInstance)> HandlerInfo) handlerEntry;
-            if (_languageEntryPoint.Values.Length == 1)
+            // or the default language handler.
+            RequestHandlerMetadata defaultMetadata;
+            if (handlersForMethod.Count() == 1)
             {
-                handlerEntry = _languageEntryPoint.Values.Single();
+                defaultMetadata = handlersForMethod.Single();
             }
             else
             {
                 // We verified in construction that there must be a default handler if there is more than one handlers for the same method.
-                handlerEntry = _languageEntryPoint[LanguageServerConstants.DefaultLanguageName];
+                defaultMetadata = handlersForMethod.Where(m => m.Language == LanguageServerConstants.DefaultLanguageName).Single();
             }
 
-            var requestType = handlerEntry.Metadata.RequestTypeRef is TypeRef requestTypeRef
-                    ? _typeRefResolver.Resolve(requestTypeRef) ?? s_noValueType
+            var requestType = defaultMetadata.RequestTypeRef is TypeRef requestTypeRef
+                    ? TypeRefResolver.Resolve(requestTypeRef) ?? s_noValueType
                     : s_noValueType;
 
             var methodInfo = s_executeAsync.MakeGenericMethod(requestType);
 
-            return (methodInfo, handlerEntry.Metadata, handlerEntry.HandlerInfo.Value.HandlerInstance);
+            var handler = handlerProvider.GetMethodHandler(defaultMetadata.MethodName, defaultMetadata.RequestTypeRef, defaultMetadata.ResponseTypeRef, defaultMetadata.Language);
+
+            return (methodInfo, defaultMetadata, handler);
         });
     }
 
     public abstract MethodInfo GetEntryPoint(bool hasParameter);
 
-    public (IMethodHandler Handler, MethodInfo StartRequestMethodInfo) GetHandlerInfo(string language)
+    public (IMethodHandler Handler, Delegate InvokeHandler) GetHandlerInfo(string language)
     {
         // Now we know the language so we can return either the matching handler for the language or the default handler (if no language specific one exists).
         if (_languageEntryPoint.TryGetValue(language, out var data) ||
             _languageEntryPoint.TryGetValue(LanguageServerConstants.DefaultLanguageName, out data))
         {
-            return (data.LazyData.Value.HandlerInstance, data.LazyData.Value.StartRequestAsyncMethodInfo);
+            return data.Value;
         }
 
         throw new InvalidOperationException($"No handler exists for {_method} and language {language}");
+    }
+
+    public async Task<object?> InvokeHandlerDelegateAsync<TRequest>(Delegate handlerDelegate, TRequest request, TRequestContext context, CancellationToken cancellationToken)
+    {
+        if (handlerDelegate is InvokeRequest<TRequest> invokeRequest)
+        {
+            return invokeRequest(request, context, cancellationToken);
+        }
+        else if (handlerDelegate is InvokeParameterlessRequest invokeParameterlessRequest)
+        {
+            return invokeParameterlessRequest(context, cancellationToken);
+        }
+        else if (handlerDelegate is InvokeNotification<TRequest> invokeNotification)
+        {
+            await invokeNotification(request, context, cancellationToken).ConfigureAwait(false);
+            return NoValue.Instance;
+        }
+        else if (handlerDelegate is InvokeParameterlessNotification invokeParameterlessNotification)
+        {
+            await invokeParameterlessNotification(context, cancellationToken).ConfigureAwait(false);
+            return NoValue.Instance;
+        }
+        else
+        {
+            throw new InvalidOperationException("Unexpected handler delegate type: " + handlerDelegate.GetType());
+        }
     }
 
     /// <summary>

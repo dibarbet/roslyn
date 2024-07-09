@@ -84,7 +84,7 @@ internal class QueueItem<TRequest, TRequestContext> : IQueueItem<TRequestContext
         return (queueItem, queueItem._completionSource.Task);
     }
 
-    public async Task<(TRequestContext Context, string Language, IMethodHandler handler, MethodInfo handlerEntryPoint)> ResolveQueueItemAsync(
+    public async Task<(TRequestContext Context, string Language, IMethodHandler handler, Delegate handlerEntryPoint)> ResolveQueueItemAsync(
         AbstractLanguageServer<TRequestContext> server,
         CancellationToken cancellationToken)
     {
@@ -108,19 +108,12 @@ internal class QueueItem<TRequest, TRequestContext> : IQueueItem<TRequestContext
         return (context, language, handler, handlerMethodInfo);
     }
 
-    public async Task StartRequestAsync(string language, TRequestContext? context, IMethodHandler handler, MethodInfo methodInfo, CancellationToken cancellationToken)
-    {
-        var task = methodInfo.Invoke(this, [language, context, handler, cancellationToken]) as Task
-                ?? throw new InvalidOperationException($"StartRequestAsync result task cannot be null");
-        await task.ConfigureAwait(false);
-    }
-
     /// <summary>
     /// Processes the queued request. Exceptions will be sent to the task completion source
     /// representing the task that the client is waiting for, then re-thrown so that
     /// the queue can correctly handle them depending on the type of request.
     /// </summary>
-    private async Task StartRequestAsync<TResponse>(string language, TRequestContext? context, IMethodHandler handler, CancellationToken cancellationToken)
+    public async Task StartRequestAsync<TResponse>(string language, TRequestContext? context, Delegate handlerDelegate, CancellationToken cancellationToken)
     {
         _logger.LogStartContext($"{MethodName}");
         _requestTelemetryScope?.UpdateLanguage(language);
@@ -142,35 +135,10 @@ internal class QueueItem<TRequest, TRequestContext> : IQueueItem<TRequestContext
 
                 _completionSource.TrySetException(new InvalidOperationException($"Unable to create request context for {MethodName}"));
             }
-            else if (handler is IRequestHandler<TRequest, TResponse, TRequestContext> requestHandler)
-            {
-                var result = await requestHandler.HandleRequestAsync(_request, context, cancellationToken).ConfigureAwait(false);
-
-                _completionSource.TrySetResult(result);
-            }
-            else if (handler is IRequestHandler<TResponse, TRequestContext> parameterlessRequestHandler)
-            {
-                var result = await parameterlessRequestHandler.HandleRequestAsync(context, cancellationToken).ConfigureAwait(false);
-
-                _completionSource.TrySetResult(result);
-            }
-            else if (handler is INotificationHandler<TRequest, TRequestContext> notificationHandler)
-            {
-                await notificationHandler.HandleNotificationAsync(_request, context, cancellationToken).ConfigureAwait(false);
-
-                // We know that the return type of <see cref="INotificationHandler{TRequestType, RequestContextType}"/> will always be <see cref="VoidReturn" /> even if the compiler doesn't.
-                _completionSource.TrySetResult((TResponse)(object)NoValue.Instance);
-            }
-            else if (handler is INotificationHandler<TRequestContext> parameterlessNotificationHandler)
-            {
-                await parameterlessNotificationHandler.HandleNotificationAsync(context, cancellationToken).ConfigureAwait(false);
-
-                // We know that the return type of <see cref="INotificationHandler{TRequestType, RequestContextType}"/> will always be <see cref="VoidReturn" /> even if the compiler doesn't.
-                _completionSource.TrySetResult((TResponse)(object)NoValue.Instance);
-            }
             else
             {
-                throw new NotImplementedException($"Unrecognized {nameof(IMethodHandler)} implementation {handler.GetType()}.");
+                var result = await EntryPoint.InvokeHandlerDelegateAsync(handlerDelegate, _request, context, cancellationToken).ConfigureAwait(false);
+                _completionSource.TrySetResult(result);
             }
         }
         catch (OperationCanceledException ex)

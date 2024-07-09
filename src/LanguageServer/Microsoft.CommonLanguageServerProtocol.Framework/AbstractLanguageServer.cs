@@ -99,7 +99,7 @@ internal abstract class AbstractLanguageServer<TRequestContext>
 
     delegate Task<object?> HandlerDelegate(TRequestContext? context, object? request, IMethodHandler handler, CancellationToken token);
 
-    protected virtual void SetupRequestDispatcher(AbstractHandlerProvider handlerProvider)
+    private void SetupRequestDispatcher(AbstractHandlerProvider handlerProvider)
     {
         // Get unique set of methods from the handler provider for the default language.
 

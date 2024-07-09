@@ -88,7 +88,7 @@ internal abstract class SystemTextJsonLanguageServer<TRequestContext>(
                 throw new InvalidOperationException($"Handler {metadata.HandlerDescription} does not accept parameters, but received some.");
             }
 
-            var requestType = _typeRefResolver.Resolve(requestTypeRef)
+            var requestType = TypeRefResolver.Resolve(requestTypeRef)
                 ?? throw new InvalidOperationException($"Could not resolve type: '{requestTypeRef}'");
 
             return JsonSerializer.Deserialize(request.Value, requestType, options)
