@@ -24,8 +24,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer
         public static Uri GetURI(this TextDocument document)
         {
             Contract.ThrowIfNull(document.FilePath);
-            return document is SourceGeneratedDocument
-                ? ProtocolConversions.CreateUriFromSourceGeneratedFilePath(document.FilePath)
+            return document is SourceGeneratedDocument sourceGeneratedDocument
+                ? SourceGeneratedDocumentUri.Create(sourceGeneratedDocument.Identity)
                 : ProtocolConversions.CreateAbsoluteUri(document.FilePath);
         }
 
@@ -76,22 +76,58 @@ namespace Microsoft.CodeAnalysis.LanguageServer
             var documentIds = GetDocumentIds(solution, documentUri);
 
             var documents = documentIds
-                .Select(solution.GetDocument)
-                .Concat(documentIds.Select(solution.GetAdditionalDocument))
+                .Select(solution.GetTextDocument)
                 .WhereNotNull()
                 .ToImmutableArray();
             return documents;
         }
 
         public static ImmutableArray<DocumentId> GetDocumentIds(this Solution solution, Uri documentUri)
-            => solution.GetDocumentIdsWithFilePath(ProtocolConversions.GetDocumentFilePathFromUri(documentUri));
+        {
+            // If this is not our special scheme for generated documents, then we can just look for documents with that file path.
+            if (documentUri.Scheme != SourceGeneratedDocumentUri.Scheme)
+                return solution.GetDocumentIdsWithFilePath(ProtocolConversions.GetDocumentFilePathFromUri(documentUri));
 
+            // We can get a null documentId if we were unable to find the project associated with the
+            // generated document - this can happen if say a project is unloaded.  There may be LSP requests
+            // already in-flight which may ask for a generated document from that project.  So we return null
+            var documentId = SourceGeneratedDocumentUri.DeserializeIdentity(solution, documentUri)?.DocumentId;
+
+            return documentId is not null ? [documentId] : [];
+        }
+
+        /// <summary>
+        /// Finds a regular document for a TextDocumentIdentifier; if you need to also return source generated files, call <see cref="GetDocumentAsync"/>.
+        /// </summary>
         public static Document? GetDocument(this Solution solution, TextDocumentIdentifier documentIdentifier)
         {
             var documents = solution.GetDocuments(documentIdentifier.Uri);
             return documents.Length == 0
                 ? null
                 : documents.FindDocumentInProjectContext(documentIdentifier, (sln, id) => sln.GetRequiredDocument(id));
+        }
+
+        /// <summary>
+        /// Finds the document for a TextDocumentIdentifier, potentially returning a source-generated file.
+        /// </summary>
+        public static async ValueTask<Document?> GetDocumentAsync(this Solution solution, TextDocumentIdentifier documentIdentifier, CancellationToken cancellationToken)
+        {
+            var textDocument = await solution.GetTextDocumentAsync(documentIdentifier, cancellationToken).ConfigureAwait(false);
+            return textDocument as Document;
+        }
+
+        public static async ValueTask<TextDocument?> GetTextDocumentAsync(this Solution solution, TextDocumentIdentifier documentIdentifier, CancellationToken cancellationToken)
+        {
+            // If it's the URI scheme for source generated files, delegate to our other helper, otherwise we can handle anything else here.
+            if (documentIdentifier.Uri.Scheme == SourceGeneratedDocumentUri.Scheme)
+            {
+                return await solution.GetDocumentAsync(documentIdentifier, cancellationToken).ConfigureAwait(false);
+            }
+
+            var documents = solution.GetTextDocuments(documentIdentifier.Uri);
+            return documents.Length == 0
+                ? null
+                : documents.FindDocumentInProjectContext(documentIdentifier, (sln, id) => sln.GetRequiredTextDocument(id));
         }
 
         private static T FindItemInProjectContext<T>(

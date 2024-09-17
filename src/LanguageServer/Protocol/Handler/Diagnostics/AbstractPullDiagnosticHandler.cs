@@ -244,7 +244,7 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
             }
         }
 
-        static ProjectOrDocumentId? GetIdForPreviousResult(TextDocumentIdentifier textDocumentIdentifier, Solution solution)
+        static Task<ProjectOrDocumentId?> GetIdForPreviousResultAsync(TextDocumentIdentifier textDocumentIdentifier, Solution solution)
         {
             var document = solution.GetDocument(textDocumentIdentifier);
             if (document != null)
