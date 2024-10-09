@@ -1471,6 +1471,35 @@ pub{|caret:|}class";
             Assert.Equal(new() { Start = new(2, 0), End = new(2, 8) }, results.ItemDefaults.EditRange.Value.First);
         }
 
+        [Theory, CombinatorialData, WorkItem("https://github.com/dotnet/vscode-csharp/issues/7623")]
+        public async Task TestHasSuggestionModeItemForDiscardAsync(bool mutatingLspWorkspace)
+        {
+            var markup =
+@"using System.Threading.Tasks;
+class A
+{
+    void M()
+    {
+        var _someVar = 1;
+        _{|caret:|}
+    }
+}";
+            await using var testLspServer = await CreateTestLspServerAsync(markup, mutatingLspWorkspace, s_vsCompletionCapabilities);
+            var completionParams = CreateCompletionParams(
+                testLspServer.GetLocations("caret").Single(),
+                invokeKind: LSP.VSInternalCompletionInvokeKind.Typing,
+                triggerCharacter: "_",
+                triggerKind: LSP.CompletionTriggerKind.Invoked);
+
+            var document = testLspServer.GetCurrentSolution().Projects.First().Documents.First();
+
+            var results = await RunGetCompletionsAsync(testLspServer, completionParams).ConfigureAwait(false);
+            var list = (LSP.VSInternalCompletionList)results;
+            Assert.False(list.IsIncomplete);
+            Assert.NotEmpty(list.Items); // it client's responsibility to filter, server should return all items available regardless of the filter text (unless item counts exceeds the limit)
+            Assert.True(list.SuggestionMode);
+        }
+
         internal static Task<LSP.CompletionList> RunGetCompletionsAsync(TestLspServer testLspServer, LSP.CompletionParams completionParams)
         {
             return testLspServer.ExecuteRequestAsync<LSP.CompletionParams, LSP.CompletionList>(LSP.Methods.TextDocumentCompletionName,

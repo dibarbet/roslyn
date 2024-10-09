@@ -3,8 +3,10 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Composition;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -99,16 +101,16 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             if (completionListResult == null)
                 return null;
 
-            var (list, isIncomplete, resultId) = completionListResult.Value;
+            var (list, isIncomplete, isHardSelection, resultId) = completionListResult.Value;
 
             var result = await CompletionResultFactory
-                .ConvertToLspCompletionListAsync(document, capabilityHelper, list, isIncomplete, resultId, cancellationToken)
+                .ConvertToLspCompletionListAsync(document, capabilityHelper, list, isIncomplete, isHardSelection, resultId, cancellationToken)
                 .ConfigureAwait(false);
 
             return result;
         }
 
-        private static async Task<(CompletionList CompletionList, bool IsIncomplete, long ResultId)?> GetFilteredCompletionListAsync(
+        private static async Task<(CompletionList CompletionList, bool IsIncomplete, bool isHardSelection, long ResultId)?> GetFilteredCompletionListAsync(
             LSP.CompletionContext? context,
             Document document,
             SourceText sourceText,
@@ -157,9 +159,9 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                 completionList = completionList.WithSpan(defaultSpan);
             }
 
-            var (filteredCompletionList, isIncomplete) = FilterCompletionList(completionList, completionListMaxSize, completionTrigger, sourceText);
+            var (filteredCompletionList, isIncomplete, isHardSelection) = FilterCompletionList(completionList, completionListMaxSize, completionTrigger, sourceText);
 
-            return (filteredCompletionList, isIncomplete, resultId);
+            return (filteredCompletionList, isIncomplete, isHardSelection, resultId);
         }
 
         private static async Task<(CompletionList CompletionList, long ResultId)?> CalculateListAsync(
@@ -184,15 +186,12 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             return (completionList, resultId);
         }
 
-        private static (CompletionList CompletionList, bool IsIncomplete) FilterCompletionList(
+        private static (CompletionList CompletionList, bool IsIncomplete, bool isHardSelection) FilterCompletionList(
             CompletionList completionList,
             int completionListMaxSize,
             CompletionTrigger completionTrigger,
             SourceText sourceText)
         {
-            if (completionListMaxSize < 0 || completionListMaxSize >= completionList.ItemsList.Count)
-                return (completionList, false);
-
             var filterText = sourceText.GetSubText(completionList.Span).ToString();
             var filterReason = GetFilterReason(completionTrigger);
 
@@ -219,6 +218,20 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             // Next, we sort the list based on the pattern matching result.
             matchResultsBuilder.Sort(MatchResult.SortingComparer);
 
+            // TODO
+            // Check if punctuation, set isIncomplete to true and set selection
+            // then when client calls back we can update to hard if needed (e.g. continue typing a variable name '_' to '_otherVar'
+            // can't just check soft selection for incomplete - it is possible to go from hard selection to soft (e.g. type 'a' hard selects 'async' then 'x').
+            // The swap can happen multiple times, e.g. '_' (soft), '_o' (hard, assuming _otherVar), '_ox' (soft, no match).
+            // 
+            // For full fidelity, we can always set incomplete and have the client callback every time, but that is expensive so just check punctuation.
+            var isHardSelection = true;
+            if (matchResultsBuilder.Count > 0)
+            {
+                var bestResult = GetBestCompletionItemSelectionFromFilteredResults(matchResultsBuilder);
+                isHardSelection = IsHardSelection(bestResult.CompletionItem, bestResult.ShouldBeConsideredMatchingFilterText, completionList.SuggestionModeItem != null, filterText);
+            }
+
             // Finally, truncate the list to 1000 items plus any preselected items that occur after the first 1000.
             var filteredList = matchResultsBuilder
                 .Take(completionListMaxSize)
@@ -241,7 +254,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             // VS bug here - https://devdiv.visualstudio.com/DevDiv/_workitems/edit/1335142
             var isIncomplete = completionList.ItemsList.Count > newCompletionList.ItemsList.Count;
 
-            return (newCompletionList, isIncomplete);
+            return (newCompletionList, isIncomplete, isHardSelection);
 
             static CompletionFilterReason GetFilterReason(CompletionTrigger trigger)
             {
@@ -252,6 +265,148 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
                     _ => CompletionFilterReason.Other,
                 };
             }
+        }
+
+        private static bool IsHardSelection(
+            CompletionItem item,
+            bool matchedFilterText,
+            bool hasSuggestionModeItem,
+            string filterText)
+        {
+            if (hasSuggestionModeItem)
+            {
+                return false;
+            }
+
+            // We don't have a builder and we have a best match.  Normally this will be hard
+            // selected, except for a few cases.  Specifically, if no filter text has been
+            // provided, and this is not a preselect match then we will soft select it.  This
+            // happens when the completion list comes up implicitly and there is something in
+            // the MRU list.  In this case we do want to select it, but not with a hard
+            // selection.  Otherwise you can end up with the following problem:
+            //
+            //  dim i as integer =<space>
+            //
+            // Completion will comes up after = with 'integer' selected (Because of MRU).  We do
+            // not want 'space' to commit this.
+
+            // If all that has been typed is punctuation, then don't hard select anything.
+            // It's possible the user is just typing language punctuation and selecting
+            // anything in the list will interfere.  We only allow this if the filter text
+            // exactly matches something in the list already. 
+            if (filterText.Length > 0 && IsAllPunctuation(filterText) && filterText != item.DisplayText)
+            {
+                return false;
+            }
+
+            // If the user hasn't actually typed anything, then don't hard select any item.
+            // The only exception to this is if the completion provider has requested the
+            // item be preselected.
+            if (filterText.Length == 0)
+            {
+                // Item didn't want to be hard selected with no filter text.
+                // So definitely soft select it.
+                if (item.Rules.SelectionBehavior != CompletionItemSelectionBehavior.HardSelection)
+                {
+                    return false;
+                }
+
+                // Item did not ask to be preselected.  So definitely soft select it.
+                if (item.Rules.MatchPriority == MatchPriority.Default)
+                {
+                    return false;
+                }
+            }
+
+            // The user typed something, or the item asked to be preselected.  In 
+            // either case, don't soft select this.
+            Debug.Assert(filterText.Length > 0 || item.Rules.MatchPriority != MatchPriority.Default);
+
+            // If the user moved the caret left after they started typing, the 'best' match may not match at all
+            // against the full text span that this item would be replacing.
+            if (!matchedFilterText)
+            {
+                return false;
+            }
+
+            // There was either filter text, or this was a preselect match.  In either case, we
+            // can hard select this.
+            return true;
+        }
+
+        private static MatchResult GetBestCompletionItemSelectionFromFilteredResults(IReadOnlyList<MatchResult> filteredMatchResults)
+        {
+            Debug.Assert(filteredMatchResults.Count > 0);
+
+            var bestResult = filteredMatchResults[0];
+            var bestResultMruIndex = bestResult.RecentItemIndex;
+
+            for (int i = 1, n = filteredMatchResults.Count; i < n; i++)
+            {
+                var currentResult = filteredMatchResults[i];
+                var currentResultMruIndex = currentResult.RecentItemIndex;
+
+                // Most recently used item is our top preference.
+                if (currentResultMruIndex != bestResultMruIndex)
+                {
+                    if (currentResultMruIndex > bestResultMruIndex)
+                    {
+                        bestResult = currentResult;
+                        bestResultMruIndex = currentResultMruIndex;
+                    }
+
+                    continue;
+                }
+
+                // 2nd preference is IntelliCode item
+                var currentIsPreferred = currentResult.CompletionItem.IsPreferredItem();
+                var bestIsPreferred = bestResult.CompletionItem.IsPreferredItem();
+
+                if (currentIsPreferred != bestIsPreferred)
+                {
+                    if (currentIsPreferred && !bestIsPreferred)
+                    {
+                        bestResult = currentResult;
+                    }
+
+                    continue;
+                }
+
+                // 3rd preference is higher MatchPriority
+                var currentMatchPriority = currentResult.CompletionItem.Rules.MatchPriority;
+                var bestMatchPriority = bestResult.CompletionItem.Rules.MatchPriority;
+
+                if (currentMatchPriority != bestMatchPriority)
+                {
+                    if (currentMatchPriority > bestMatchPriority)
+                    {
+                        bestResult = currentResult;
+                    }
+
+                    continue;
+                }
+
+                // final preference is match to FilterText over AdditionalFilterTexts
+                if (bestResult.MatchedWithAdditionalFilterTexts && !currentResult.MatchedWithAdditionalFilterTexts)
+                {
+                    bestResult = currentResult;
+                }
+            }
+
+            return bestResult;
+        }
+
+        private static bool IsAllPunctuation(string filterText)
+        {
+            foreach (var ch in filterText)
+            {
+                if (!char.IsPunctuation(ch))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }
