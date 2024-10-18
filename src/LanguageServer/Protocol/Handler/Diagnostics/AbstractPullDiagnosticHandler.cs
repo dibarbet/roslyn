@@ -5,9 +5,12 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.CodeCleanup;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.PooledObjects;
@@ -52,6 +55,13 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
     /// update the version stamp but not the content (for example, forking LSP text).
     /// </summary>
     private readonly ConcurrentDictionary<string, VersionedPullCache<(int globalStateVersion, VersionStamp? dependentVersion), (int globalStateVersion, Checksum dependentChecksum)>> _categoryToVersionedCache = [];
+
+    /// <summary>
+    /// Cache where we store the hash of the last computed set of <see cref="DiagnosticData"/> and resultId for a particular combination of source Id and diagnostic request category.
+    /// Used to avoid serializing the same diagnostic information when we detect diagnostics could have changed but resulted in no actual changes to the diagnostic data.
+    /// Instead we report an unchanged result back to the client using the resultId.
+    /// </summary>
+    private readonly ConcurrentDictionary<(ProjectOrDocumentId Id, string HandlerName), (string ResultId, ImmutableArray<int> DiagnosticDataHashes)> _lastComputedDiagnosticHashes = [];
 
     protected virtual bool PotentialDuplicate => false;
 
@@ -166,8 +176,15 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
                     cancellationToken).ConfigureAwait(false);
                 if (newResultId != null)
                 {
+                    // Retrieve the last resultId that the client knows about (if any) from the previous report information on the request.
+                    string? lastClientResultId = null;
+                    if (documentIdToPreviousDiagnosticParams.TryGetValue(diagnosticSource.GetId(), out var previousPullResult))
+                    {
+                        lastClientResultId = previousPullResult.PreviousResultId;
+                    }
+
                     await ComputeAndReportCurrentDiagnosticsAsync(
-                        context, diagnosticSource, progress, newResultId, clientCapabilities, cancellationToken).ConfigureAwait(false);
+                        context, diagnosticSource, progress, handlerName, newResultId, lastClientResultId, clientCapabilities, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -269,11 +286,43 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
         }
     }
 
+    private bool DoAllDiagnosticsMatchLastReported(
+        ImmutableArray<int> newSortedDiagnosticHashes,
+        (ProjectOrDocumentId, string) key,
+        string clientResultId)
+    {
+        if (!_lastComputedDiagnosticHashes.TryGetValue(key, out var lastComputedDiagnosticInfo))
+        {
+            // We don't have any cached diagnostic information from the last request on this id, nothing to compare.
+            return false;
+        }
+
+        if (clientResultId != lastComputedDiagnosticInfo.ResultId)
+        {
+            // The client does not have the same resultId that we do in our cache, meaning they have different diagnostics.
+            // We cannot re-use the data in our cache.
+            return false;
+        }
+
+        // The caller sorts Always compare and store the sorted DiagnosticData hashes, so we only need to compare sequence equal.
+        if (!lastComputedDiagnosticInfo.DiagnosticDataHashes.SequenceEqual(newSortedDiagnosticHashes))
+        {
+            // The last set of DiagnosticData hashes does not match what we just calculated.
+            return false;
+        }
+
+        // The DiagnosticData hashes from the last report match what we just calculated and we have the same resultId that the client has.
+        // This means we can just report the same resultId back to avoid serializing the same diagnostic information over again.
+        return true;
+    }
+
     private async Task ComputeAndReportCurrentDiagnosticsAsync(
         RequestContext context,
         IDiagnosticSource diagnosticSource,
         BufferedProgress<TReport> progress,
-        string resultId,
+        string handlerName,
+        string newResultId,
+        string? lastClientResultId,
         ClientCapabilities clientCapabilities,
         CancellationToken cancellationToken)
     {
@@ -292,10 +341,31 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
 
         context.TraceInformation($"Found {diagnostics.Length} diagnostics for {diagnosticSource.ToDisplayString()}");
 
+        // Check if we can re-use a last reported
+        var sortedDiagnosticHashes = diagnostics.SelectAsArray(d => d.GetHashCode()).Sort();
+        if (lastClientResultId is not null && DoAllDiagnosticsMatchLastReported(sortedDiagnosticHashes, (diagnosticSource.GetId(), handlerName), lastClientResultId))
+        {
+            // TODO !!!!!
+            // will never save the lastresultid in the version cache - meaning if we get the following order of changes
+            // 1.  change that changes diagnostics -> recomputes
+            // 2.  change that causes recompute, but diagnostics same -> recomputes, comes here and reports resultId from 1), but version cache has version 2
+            // 3.  All subsequent polling passes us resultId from 1, but we have 2 saved in new version, so always recomputes and goes here.
+
+            // Maybe have a Lazy<hash> in the resultId cache - so we can save the resultId but defer computation to outside the semaphore?
+            // but still need to update the resultId if we re-used previous... so might just need two step computation.
+            context.TraceInformation($"DiagnosticData matched, reusing last client resultId {lastClientResultId}");
+            if (TryCreateUnchangedReport(documentIdentifier, lastClientResultId, out var unchangedReport))
+                progress.Report(unchangedReport);
+
+            return;
+        }
+
+        // The new diagnostics do not match the last reported data, we have to send new data.
+
         foreach (var diagnostic in diagnostics)
             result.AddRange(ConvertDiagnostic(diagnosticSource, diagnostic, clientCapabilities));
 
-        var report = CreateReport(documentIdentifier, result.ToArray(), resultId);
+        var report = CreateReport(documentIdentifier, result.ToArray(), newResultId);
         progress.Report(report);
     }
 

@@ -124,6 +124,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             }
         }
 
+        public async Task UpdateResultId(Project project, ProjectOrDocumentId projectOrDocumentId)
+
         private static async Task<bool> IsFullyLoadedAsync(Solution solution, CancellationToken cancellationToken)
         {
             var workspaceStatusService = solution.Services.GetRequiredService<IWorkspaceStatusService>();
