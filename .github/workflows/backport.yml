@@ -5,6 +5,9 @@ on:
   schedule:
     # once a day at 13:00 UTC to cleanup old runs
     - cron: '0 13 * * *'
+  push:
+    branches:
+      - 'backport_action_test'
 
 permissions:
   contents: write
