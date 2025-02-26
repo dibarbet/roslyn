@@ -1,0 +1,42 @@
+# Localization changes are only made to release branches.
+# However, we never merge forward from release branches to main, resulting in main never having updated localization changes.
+# This workflow is used to automatically merge localization changes forward from release branches.
+
+name: Merge localization changes to main
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  merge-loc:
+    if: ${{ github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'Localized file check-in by OneLocBuild Task') }}
+    uses: dotnet/arcade/.github/workflows/backport-base.yml@main
+    with:
+      pr_description_template: |
+        Backport of #%source_pr_number% to %target_branch%
+
+        /cc %cc_users%
+
+        ## Customer Impact
+
+        ## Regression
+
+        - [ ] Yes
+        - [ ] No
+
+        [If yes, specify when the regression was introduced. Provide the PR or commit if known.]
+
+        ## Testing
+
+        [How was the fix verified? How was the issue missed previously? What tests were added?]
+
+        ## Risk
+
+        [High/Medium/Low. Justify the indication by mentioning how risks were measured and addressed.]

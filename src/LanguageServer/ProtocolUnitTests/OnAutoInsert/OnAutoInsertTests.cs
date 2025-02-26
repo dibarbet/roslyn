@@ -253,6 +253,34 @@ End Class";
             await VerifyMarkupAndExpected("\n", markup, expected, mutatingLspWorkspace);
         }
 
+        [Theory, CombinatorialData, WorkItem("https://github.com/dotnet/vscode-csharp/issues/8025")]
+        public async Task OnAutoInsert_EnterKey4(bool mutatingLspWorkspace)
+        {
+            var markup =
+@"class A
+{
+    /// <summary>
+    /// Hit enter inside
+{|type:|}the line
+    /// </summary>
+    void M()
+    {
+    }
+}";
+            var expected =
+@"class A
+{
+    /// <summary>
+    /// Hit enter inside
+    /// $0the line
+    /// </summary>
+    void M()
+    {
+    }
+}";
+            await VerifyMarkupAndExpected("\n", markup, expected, mutatingLspWorkspace);
+        }
+
         [Theory, CombinatorialData]
         public async Task OnAutoInsert_BraceFormatting(bool mutatingLspWorkspace)
         {
@@ -412,7 +440,7 @@ End Class";
             AssertEx.NotNull(result);
             Assert.Equal(InsertTextFormat.Snippet, result.TextEditFormat);
             var actualText = ApplyTextEdits([result.TextEdit], documentText);
-            Assert.Equal(expected, actualText);
+            AssertEx.Equal(expected, actualText);
         }
 
         private async Task VerifyNoResult(string characterTyped, string markup, bool mutatingLspWorkspace, bool insertSpaces = true, int tabSize = 4)
