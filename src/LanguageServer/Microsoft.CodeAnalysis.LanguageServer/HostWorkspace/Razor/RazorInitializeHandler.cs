@@ -10,7 +10,7 @@ using Microsoft.CommonLanguageServerProtocol.Framework;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.Razor;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(RazorInitializeHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(RazorInitializeHandler)), Shared]
 [Method("razor/initialize")]
 internal class RazorInitializeHandler : ILspServiceNotificationHandler<RazorInitializeParams>
 {

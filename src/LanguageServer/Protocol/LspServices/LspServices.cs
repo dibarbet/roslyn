@@ -6,18 +6,21 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CommonLanguageServerProtocol.Framework;
-using Roslyn.Utilities;
 using ReferenceEqualityComparer = Roslyn.Utilities.ReferenceEqualityComparer;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
 internal sealed class LspServices : ILspServices, IMethodHandlerProvider
 {
+    private readonly IEnumerable<Lazy<Export<ILspService>, LspServiceMetadataView>> _serviceExport;
+    private readonly IEnumerable<Lazy<Export<ILspServiceFactory>, LspServiceMetadataView>> _factoryExport;
+
     private readonly FrozenDictionary<string, Lazy<ILspService, LspServiceMetadataView>> _lazyMefLspServices;
 
     /// <summary>
@@ -34,28 +37,33 @@ internal sealed class LspServices : ILspServices, IMethodHandlerProvider
     private readonly HashSet<IDisposable> _servicesToDispose = new(ReferenceEqualityComparer.Instance);
 
     public LspServices(
-        ImmutableArray<Lazy<ILspService, LspServiceMetadataView>> mefLspServices,
-        ImmutableArray<Lazy<ILspServiceFactory, LspServiceMetadataView>> mefLspServiceFactories,
+        IEnumerable<ExportFactory<ILspService, LspServiceMetadataView>> mefLspServices,
+        IEnumerable<ExportFactory<ILspServiceFactory, LspServiceMetadataView>> mefLspServiceFactories,
         WellKnownLspServerKinds serverKind,
         FrozenDictionary<string, ImmutableArray<BaseService>> baseServices)
     {
         var serviceMap = new Dictionary<string, Lazy<ILspService, LspServiceMetadataView>>();
 
+        // Create lazies representing the Export instances of the lsp instances from the ExportFactory.
+        // These are saved so that we can dispose of the Export instances at the end.
+        _serviceExport = mefLspServices.Select(exportFactory => new Lazy<Export<ILspService>, LspServiceMetadataView>(() => exportFactory.CreateExport(), exportFactory.Metadata));
+        _factoryExport = mefLspServiceFactories.Select(e => new Lazy<Export<ILspServiceFactory>, LspServiceMetadataView>(() => e.CreateExport(), e.Metadata));
+
         // Add services from factories exported for this server kind.
-        foreach (var lazyServiceFactory in mefLspServiceFactories.Where(f => f.Metadata.ServerKind == serverKind))
-            AddSpecificService(new(() => lazyServiceFactory.Value.CreateILspService(this, serverKind), lazyServiceFactory.Metadata));
+        foreach (var lazyServiceFactory in _factoryExport.Where(f => f.Metadata.ServerKind == serverKind))
+            AddSpecificService(new Lazy<ILspService, LspServiceMetadataView>(() => lazyServiceFactory.Value.Value.CreateILspService(this, serverKind), lazyServiceFactory.Metadata));
 
         // Add services exported for this server kind.
-        foreach (var lazyService in mefLspServices.Where(s => s.Metadata.ServerKind == serverKind))
-            AddSpecificService(lazyService);
+        foreach (var lazyService in _serviceExport.Where(s => s.Metadata.ServerKind == serverKind))
+            AddSpecificService(new Lazy<ILspService, LspServiceMetadataView>(() => lazyService.Value.Value, lazyService.Metadata));
 
         // Add services from factories exported for any (if there is not already an existing service for the specific server kind).
-        foreach (var lazyServiceFactory in mefLspServiceFactories.Where(f => f.Metadata.ServerKind == WellKnownLspServerKinds.Any))
-            TryAddAnyService(new(() => lazyServiceFactory.Value.CreateILspService(this, serverKind), lazyServiceFactory.Metadata));
+        foreach (var lazyServiceFactory in _factoryExport.Where(f => f.Metadata.ServerKind == WellKnownLspServerKinds.Any))
+            TryAddAnyService(new Lazy<ILspService, LspServiceMetadataView>(() => lazyServiceFactory.Value.Value.CreateILspService(this, serverKind), lazyServiceFactory.Metadata));
 
         // Add services exported for any (if there is not already an existing service for the specific server kind).
-        foreach (var lazyService in mefLspServices.Where(s => s.Metadata.ServerKind == WellKnownLspServerKinds.Any))
-            TryAddAnyService(lazyService);
+        foreach (var lazyService in _serviceExport.Where(s => s.Metadata.ServerKind == WellKnownLspServerKinds.Any))
+            TryAddAnyService(new Lazy<ILspService, LspServiceMetadataView>(() => lazyService.Value.Value, lazyService.Metadata));
 
         _lazyMefLspServices = serviceMap.ToFrozenDictionary();
 
@@ -147,10 +155,10 @@ internal sealed class LspServices : ILspServices, IMethodHandlerProvider
 
         if (_lazyMefLspServices.TryGetValue(typeName, out var lazyService))
         {
-            // If we are creating a stateful LSP service for the first time, we need to check
+            // If we are creating a LSP service from a factory for the first time, we need to check
             // if it is disposable after creation and keep it around to dispose of on shutdown.
-            // Stateless LSP services will be disposed of on MEF container disposal.
-            var checkDisposal = !lazyService.Metadata.IsStateless && !lazyService.IsValueCreated;
+            // Non-factory services and the factory instance itself will be disposed of when we dispose of the Export.
+            var checkDisposal = lazyService.Metadata.FromFactory && !lazyService.IsValueCreated;
 
             var lspService = lazyService.Value;
             if (checkDisposal && lspService is IDisposable disposable)
@@ -231,6 +239,10 @@ internal sealed class LspServices : ILspServices, IMethodHandlerProvider
             disposableServices = [.. _servicesToDispose];
             _servicesToDispose.Clear();
         }
+
+        // Add the actual MEF Export instances for both the services and factories to ensure MEF can release them and their dependencies.
+        disposableServices.AddRange(_serviceExport.Where(lazy => lazy.IsValueCreated).Select(lazy => (IDisposable)lazy.Value));
+        disposableServices.AddRange(_factoryExport.Where(lazy => lazy.IsValueCreated).Select(lazy => (IDisposable)lazy.Value));
 
         foreach (var disposableService in disposableServices)
         {

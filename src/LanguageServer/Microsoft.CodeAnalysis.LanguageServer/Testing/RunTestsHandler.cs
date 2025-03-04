@@ -14,7 +14,7 @@ using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Testing;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(RunTestsHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(RunTestsHandler)), Shared]
 [Method(RunTestsMethodName)]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]

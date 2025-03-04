@@ -16,7 +16,7 @@ internal sealed class LspServiceMetadataView
     public TypeRef TypeRef { get; }
     public FrozenSet<string> InterfaceNames { get; }
     public WellKnownLspServerKinds ServerKind { get; }
-    public bool IsStateless { get; }
+    public bool FromFactory { get; }
 
     public bool IsMethodHandler => HandlerDetails is not null;
 
@@ -36,7 +36,7 @@ internal sealed class LspServiceMetadataView
         InterfaceNames = FrozenSet.ToFrozenSet(interfaceNames);
 
         ServerKind = (WellKnownLspServerKinds)metadata[nameof(AbstractExportLspServiceAttribute.ServerKind)];
-        IsStateless = (bool)metadata[nameof(AbstractExportLspServiceAttribute.IsStateless)];
+        FromFactory = (bool)metadata[nameof(AbstractExportLspServiceAttribute.FromFactory)];
 
         var methodHandlerData = (string[]?)metadata[nameof(AbstractExportLspServiceAttribute.MethodHandlerData)];
 

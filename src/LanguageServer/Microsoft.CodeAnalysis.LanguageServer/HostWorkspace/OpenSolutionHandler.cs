@@ -10,7 +10,7 @@ using Microsoft.CommonLanguageServerProtocol.Framework;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(OpenSolutionHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(OpenSolutionHandler)), Shared]
 [Method(OpenSolutionName)]
 internal class OpenSolutionHandler : ILspServiceNotificationHandler<OpenSolutionHandler.NotificationParams>
 {

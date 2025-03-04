@@ -164,7 +164,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
             }
         }
 
-        [ExportCSharpVisualBasicStatelessLspService(typeof(StatelessLspService)), Shared]
+        [ExportCSharpVisualBasicLspService(typeof(StatelessLspService)), Shared]
         internal class StatelessLspService : ILspService, IDisposable
         {
             [ImportingConstructor]

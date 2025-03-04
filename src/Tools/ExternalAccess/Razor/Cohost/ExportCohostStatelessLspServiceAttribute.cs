@@ -9,4 +9,4 @@ using Microsoft.CodeAnalysis.LanguageServer;
 namespace Microsoft.CodeAnalysis.ExternalAccess.Razor.Cohost;
 
 [AttributeUsage(AttributeTargets.Class), MetadataAttribute]
-internal sealed class ExportCohostStatelessLspServiceAttribute(Type handlerType) : ExportStatelessLspServiceAttribute(handlerType, ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.AlwaysActiveVSLspServer);
+internal sealed class ExportCohostStatelessLspServiceAttribute(Type handlerType) : ExportLspServiceAttribute(handlerType, ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.AlwaysActiveVSLspServer);

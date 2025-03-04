@@ -7,6 +7,6 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot;
 
-/// <inheritdoc cref="ExportStatelessLspServiceAttribute"/>
+/// <inheritdoc cref="ExportLspServiceAttribute"/>
 internal sealed class ExportCopilotStatelessLspServiceAttribute(Type type) :
-    ExportCSharpVisualBasicStatelessLspServiceAttribute(type, WellKnownLspServerKinds.Any);
+    ExportCSharpVisualBasicLspServiceAttribute(type, WellKnownLspServerKinds.Any);

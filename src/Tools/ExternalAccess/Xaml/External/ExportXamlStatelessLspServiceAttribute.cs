@@ -9,10 +9,10 @@ using Microsoft.CodeAnalysis.LanguageServer;
 namespace Microsoft.CodeAnalysis.ExternalAccess.Xaml;
 
 /// <summary>
-/// Defines an easy to use subclass for <see cref="ExportStatelessLspServiceAttribute"/> with the Roslyn languages contract name.
+/// Defines an easy to use subclass for <see cref="ExportLspServiceAttribute"/> with the Roslyn languages contract name.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class), MetadataAttribute]
-internal sealed class ExportXamlStatelessLspServiceAttribute : ExportStatelessLspServiceAttribute
+internal sealed class ExportXamlStatelessLspServiceAttribute : ExportLspServiceAttribute
 {
     public ExportXamlStatelessLspServiceAttribute(Type handlerType) : base(handlerType, ProtocolConstants.RoslynLspLanguagesContract)
     {

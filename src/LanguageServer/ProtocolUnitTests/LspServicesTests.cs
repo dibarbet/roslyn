@@ -93,7 +93,7 @@ public class LspServicesTests(ITestOutputHelper testOutputHelper) : AbstractLang
         public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind) => new TestLspServiceFromFactory(this.GetType().Name);
     }
 
-    [ExportStatelessLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared]
+    [ExportLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared]
     [method: ImportingConstructor]
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class CSharpLspService() : TestLspService { }
@@ -103,7 +103,7 @@ public class LspServicesTests(ITestOutputHelper testOutputHelper) : AbstractLang
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class CSharpLspServiceFactory() : TestLspServiceFactory { }
 
-    [ExportStatelessLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.Any), Shared]
+    [ExportLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.Any), Shared]
     [method: ImportingConstructor]
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class AnyLspService() : TestLspService { }
@@ -113,7 +113,7 @@ public class LspServicesTests(ITestOutputHelper testOutputHelper) : AbstractLang
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class AnyLspServiceFactory() : TestLspServiceFactory { }
 
-    [ExportStatelessLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared]
+    [ExportLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared]
     [method: ImportingConstructor]
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class DuplicateCSharpLspService() : TestLspService { }
@@ -123,7 +123,7 @@ public class LspServicesTests(ITestOutputHelper testOutputHelper) : AbstractLang
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class DuplicateCSharpLspServiceFactory() : CSharpLspServiceFactory { }
 
-    [ExportStatelessLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.Any), Shared]
+    [ExportLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.Any), Shared]
     [method: ImportingConstructor]
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class DuplicateAnyLspService() : TestLspService { }
@@ -133,7 +133,7 @@ public class LspServicesTests(ITestOutputHelper testOutputHelper) : AbstractLang
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class DuplicateAnyLspServiceFactory() : CSharpLspServiceFactory { }
 
-    [ExportStatelessLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.AlwaysActiveVSLspServer), Shared]
+    [ExportLspService(typeof(TestLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.AlwaysActiveVSLspServer), Shared]
     [method: ImportingConstructor]
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class AlwaysActiveCSharpLspService() : TestLspService { }

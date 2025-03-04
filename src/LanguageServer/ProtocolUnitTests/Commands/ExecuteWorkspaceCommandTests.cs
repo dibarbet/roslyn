@@ -43,7 +43,7 @@ public class ExecuteWorkspaceCommandTests : AbstractLanguageServerProtocolTests
 
     }
 
-    [ExportCSharpVisualBasicStatelessLspService(typeof(TestWorkspaceCommandHandler)), Shared, PartNotDiscoverable]
+    [ExportCSharpVisualBasicLspService(typeof(TestWorkspaceCommandHandler)), Shared, PartNotDiscoverable]
     [Command(CommandName)]
     internal class TestWorkspaceCommandHandler : AbstractExecuteWorkspaceCommandHandler
     {

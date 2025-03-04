@@ -12,7 +12,7 @@ using Microsoft.CommonLanguageServerProtocol.Framework;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 
-[ExportStatelessLspService(typeof(IRequestExecutionQueueProvider<RequestContext>), ProtocolConstants.TypeScriptLanguageContract), Shared]
+[ExportLspService(typeof(IRequestExecutionQueueProvider<RequestContext>), ProtocolConstants.TypeScriptLanguageContract), Shared]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, true)]
 internal sealed class VSTypeScriptRequestExecutionQueueProvider() : IRequestExecutionQueueProvider<RequestContext>

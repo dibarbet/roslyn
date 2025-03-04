@@ -9,8 +9,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer;
 
 /// <summary>
 /// Exports an <see cref="ILspServiceFactory"/> that is used by LSP server instances
-/// to create new instances of the <see cref="ILspService"/> each time an LSP server is started.
-/// 
+/// that require access to other LSP services on creation.
 /// The services created by the <see cref="ILspServiceFactory"/> are disposed of by <see cref="LspServices"/>
 /// when the LSP server instance shuts down.
 /// </summary>
@@ -19,7 +18,7 @@ internal class ExportLspServiceFactoryAttribute : AbstractExportLspServiceAttrib
 {
     public ExportLspServiceFactoryAttribute(
         Type serviceType, string contractName, WellKnownLspServerKinds serverKind = WellKnownLspServerKinds.Any)
-        : base(serviceType, contractName, contractType: typeof(ILspServiceFactory), isStateless: false, serverKind)
+        : base(serviceType, contractName, contractType: typeof(ILspServiceFactory), fromFactory: true, serverKind)
     {
     }
 }

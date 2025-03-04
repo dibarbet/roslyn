@@ -303,7 +303,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
 
         internal record TestRequestTypeThree([property: JsonPropertyName("someValue")] string SomeValue);
 
-        [ExportCSharpVisualBasicStatelessLspService(typeof(TestDocumentHandler)), PartNotDiscoverable, Shared]
+        [ExportCSharpVisualBasicLspService(typeof(TestDocumentHandler)), PartNotDiscoverable, Shared]
         [LanguageServerEndpoint(MethodName, LanguageServerConstants.DefaultLanguageName)]
         [method: ImportingConstructor]
         [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -325,7 +325,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
             }
         }
 
-        [ExportCSharpVisualBasicStatelessLspService(typeof(TestNonMutatingDocumentHandler)), PartNotDiscoverable, Shared]
+        [ExportCSharpVisualBasicLspService(typeof(TestNonMutatingDocumentHandler)), PartNotDiscoverable, Shared]
         [LanguageServerEndpoint(MethodName, LanguageServerConstants.DefaultLanguageName)]
         [method: ImportingConstructor]
         [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -347,7 +347,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
             }
         }
 
-        [ExportCSharpVisualBasicStatelessLspService(typeof(TestRequestHandlerWithNoParams)), PartNotDiscoverable, Shared]
+        [ExportCSharpVisualBasicLspService(typeof(TestRequestHandlerWithNoParams)), PartNotDiscoverable, Shared]
         [LanguageServerEndpoint(MethodName, LanguageServerConstants.DefaultLanguageName)]
         [method: ImportingConstructor]
         [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -427,7 +427,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
         /// <summary>
         /// Defines a language specific handler with the same method as <see cref="TestDocumentHandler"/>
         /// </summary>
-        [ExportCSharpVisualBasicStatelessLspService(typeof(TestLanguageSpecificHandler)), PartNotDiscoverable, Shared]
+        [ExportCSharpVisualBasicLspService(typeof(TestLanguageSpecificHandler)), PartNotDiscoverable, Shared]
         [LanguageServerEndpoint(TestDocumentHandler.MethodName, LanguageNames.FSharp)]
         [method: ImportingConstructor]
         [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -451,7 +451,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
         /// Defines a language specific handler with the same method as <see cref="TestDocumentHandler"/>
         /// but using different request and response types.
         /// </summary>
-        [ExportCSharpVisualBasicStatelessLspService(typeof(TestLanguageSpecificHandlerWithDifferentParams)), PartNotDiscoverable, Shared]
+        [ExportCSharpVisualBasicLspService(typeof(TestLanguageSpecificHandlerWithDifferentParams)), PartNotDiscoverable, Shared]
         [LanguageServerEndpoint(TestDocumentHandler.MethodName, LanguageNames.VisualBasic)]
         [method: ImportingConstructor]
         [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -475,7 +475,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests
         /// Defines a language specific handler with the same method and language as <see cref="TestLanguageSpecificHandler"/>
         /// but with different params (an error)
         /// </summary>
-        [ExportCSharpVisualBasicStatelessLspService(typeof(TestDuplicateLanguageSpecificHandler)), PartNotDiscoverable, Shared]
+        [ExportCSharpVisualBasicLspService(typeof(TestDuplicateLanguageSpecificHandler)), PartNotDiscoverable, Shared]
         [LanguageServerEndpoint(TestDocumentHandler.MethodName, LanguageNames.FSharp)]
         [method: ImportingConstructor]
         [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]

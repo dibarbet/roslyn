@@ -20,7 +20,7 @@ internal record TestRequestWithDocument([property: JsonPropertyName("textDocumen
 
 internal record TestConfigurableResponse([property: JsonPropertyName("response"), JsonRequired] string Response);
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(TestConfigurableDocumentHandler)), PartNotDiscoverable, Shared]
+[ExportCSharpVisualBasicLspService(typeof(TestConfigurableDocumentHandler)), PartNotDiscoverable, Shared]
 [LanguageServerEndpoint(MethodName, LanguageServerConstants.DefaultLanguageName)]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]

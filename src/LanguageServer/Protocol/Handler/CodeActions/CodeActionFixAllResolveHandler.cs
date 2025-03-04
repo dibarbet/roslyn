@@ -17,7 +17,7 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeActions;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(CodeActionFixAllResolveHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(CodeActionFixAllResolveHandler)), Shared]
 [Method("codeAction/resolveFixAll")]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]

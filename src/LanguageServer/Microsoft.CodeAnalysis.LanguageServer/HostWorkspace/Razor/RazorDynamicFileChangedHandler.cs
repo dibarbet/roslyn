@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.Razor;
 
 [Shared]
-[ExportCSharpVisualBasicStatelessLspService(typeof(RazorDynamicFileChangedHandler))]
+[ExportCSharpVisualBasicLspService(typeof(RazorDynamicFileChangedHandler))]
 [Method("razor/dynamicFileInfoChanged")]
 internal class RazorDynamicFileChangedHandler : ILspServiceNotificationHandler<RazorDynamicFileChangedParams>
 {

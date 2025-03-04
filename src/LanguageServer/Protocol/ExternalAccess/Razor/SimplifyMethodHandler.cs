@@ -15,7 +15,7 @@ using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Razor;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(SimplifyMethodHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(SimplifyMethodHandler)), Shared]
 [Method(SimplifyMethodMethodName)]
 internal class SimplifyMethodHandler : ILspServiceDocumentRequestHandler<SimplifyMethodParams, TextEdit[]?>
 {

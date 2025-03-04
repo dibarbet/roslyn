@@ -35,10 +35,9 @@ internal abstract class AbstractExportLspServiceAttribute : ExportAttribute
     public WellKnownLspServerKinds? ServerKind { get; }
 
     /// <summary>
-    /// Services MEF exported as <see cref="ILspService"/> must by definition be stateless as they are
-    /// shared amongst all LSP server instances through restarts.
+    /// Services MEF exported as <see cref="ILspServiceFactory"/> must by definition from a factory.
     /// </summary>
-    public bool IsStateless { get; }
+    public bool FromFactory { get; }
 
     /// <summary>
     /// The full assembly-qualified type names of the interfaces the service implements.
@@ -54,7 +53,7 @@ internal abstract class AbstractExportLspServiceAttribute : ExportAttribute
     public string?[]? MethodHandlerData => _lazyMethodHandlerData?.Value;
 
     protected AbstractExportLspServiceAttribute(
-        Type serviceType, string contractName, Type contractType, bool isStateless, WellKnownLspServerKinds serverKind)
+        Type serviceType, string contractName, Type contractType, bool fromFactory, WellKnownLspServerKinds serverKind)
         : base(contractName, contractType)
     {
         Contract.ThrowIfFalse(serviceType.GetInterfaces().Contains(typeof(ILspService)), $"{serviceType.Name} does not inherit from {nameof(ILspService)}");
@@ -69,7 +68,7 @@ internal abstract class AbstractExportLspServiceAttribute : ExportAttribute
         CodeBase = serviceType.Assembly.CodeBase;
 #pragma warning restore SYSLIB0012 // Type or member is obsolete
 
-        IsStateless = isStateless;
+        FromFactory = fromFactory;
         ServerKind = serverKind;
 
         InterfaceNames = Array.ConvertAll(serviceType.GetInterfaces(), t => t.AssemblyQualifiedName!);

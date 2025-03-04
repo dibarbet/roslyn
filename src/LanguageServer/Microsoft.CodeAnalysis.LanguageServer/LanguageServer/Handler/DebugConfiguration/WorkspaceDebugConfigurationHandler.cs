@@ -8,7 +8,7 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.DebugConfiguration;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(WorkspaceDebugConfigurationHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(WorkspaceDebugConfigurationHandler)), Shared]
 [Method(MethodName)]
 internal class WorkspaceDebugConfigurationHandler : ILspServiceRequestHandler<WorkspaceDebugConfigurationParams, ProjectDebugConfiguration[]>
 {

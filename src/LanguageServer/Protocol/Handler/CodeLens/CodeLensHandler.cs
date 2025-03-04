@@ -20,7 +20,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeLens;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(CodeLensHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(CodeLensHandler)), Shared]
 [Method(LSP.Methods.TextDocumentCodeLensName)]
 internal sealed class CodeLensHandler : ILspServiceDocumentRequestHandler<LSP.CodeLensParams, LSP.CodeLens[]?>
 {

@@ -8,9 +8,9 @@ using System.Composition;
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false), MetadataAttribute]
-internal class ExportCSharpVisualBasicStatelessLspServiceAttribute : ExportStatelessLspServiceAttribute
+internal class ExportCSharpVisualBasicLspServiceAttribute : ExportLspServiceAttribute
 {
-    public ExportCSharpVisualBasicStatelessLspServiceAttribute(Type type, WellKnownLspServerKinds serverKind = WellKnownLspServerKinds.Any) : base(type, ProtocolConstants.RoslynLspLanguagesContract, serverKind)
+    public ExportCSharpVisualBasicLspServiceAttribute(Type type, WellKnownLspServerKinds serverKind = WellKnownLspServerKinds.Any) : base(type, ProtocolConstants.RoslynLspLanguagesContract, serverKind)
     {
     }
 }

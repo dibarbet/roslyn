@@ -9,4 +9,4 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 namespace Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk;
 
 internal class ExportCompilerDeveloperSdkStatelessLspServiceAttribute(Type type) :
-    ExportCSharpVisualBasicStatelessLspServiceAttribute(type, WellKnownLspServerKinds.Any);
+    ExportCSharpVisualBasicLspServiceAttribute(type, WellKnownLspServerKinds.Any);

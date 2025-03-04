@@ -18,7 +18,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Razor;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(FormatNewFileHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(FormatNewFileHandler)), Shared]
 [Method(FormatNewFileMethodName)]
 internal sealed class FormatNewFileHandler : ILspServiceRequestHandler<FormatNewFileParams, string?>
 {

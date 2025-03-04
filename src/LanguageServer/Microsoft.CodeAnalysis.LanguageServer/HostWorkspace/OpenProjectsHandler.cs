@@ -11,7 +11,7 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(OpenProjectHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(OpenProjectHandler)), Shared]
 [Method(OpenProjectName)]
 internal class OpenProjectHandler : ILspServiceNotificationHandler<OpenProjectHandler.NotificationParams>
 {

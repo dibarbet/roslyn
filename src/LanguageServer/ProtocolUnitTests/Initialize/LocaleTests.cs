@@ -78,7 +78,7 @@ public class LocaleTests(ITestOutputHelper? testOutputHelper) : AbstractLanguage
         Assert.Equal(currentCulture, result!.HandlerCulture);
     }
 
-    [ExportCSharpVisualBasicStatelessLspService(typeof(LocaleTestHandler)), PartNotDiscoverable, Shared]
+    [ExportCSharpVisualBasicLspService(typeof(LocaleTestHandler)), PartNotDiscoverable, Shared]
     [Method(MethodName)]
     internal class LocaleTestHandler : ILspServiceRequestHandler<Request, Response>
     {

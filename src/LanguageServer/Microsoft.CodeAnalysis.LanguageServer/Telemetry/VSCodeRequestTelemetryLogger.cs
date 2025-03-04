@@ -11,7 +11,7 @@ using Microsoft.CodeAnalysis.Telemetry;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Telemetry;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(RequestTelemetryLogger), serverKind: WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared]
+[ExportCSharpVisualBasicLspService(typeof(RequestTelemetryLogger), serverKind: WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
 internal class VSCodeRequestTelemetryLogger() : RequestTelemetryLogger(WellKnownLspServerKinds.CSharpVisualBasicLspServer.ToTelemetryString())
