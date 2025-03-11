@@ -67,7 +67,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             Document document,
             IGlobalOptionService globalOptions,
             CompletionCapabilityHelper capabilityHelper,
-            CompletionListCache completionListCache,
+            ResolveCache<CompletionListCache.CacheEntry> completionListCache,
             CancellationToken cancellationToken)
         {
             if (!completionListCache.TryGetCompletionListCacheEntry(completionItem, out var cacheEntry))

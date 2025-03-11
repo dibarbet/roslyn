@@ -13,6 +13,7 @@ using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
 using Roslyn.Utilities;
 using StreamJsonRpc;
+using static Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint.InlayHintCache;
 using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint
@@ -42,7 +43,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint
         internal static async Task<LSP.InlayHint> ResolveInlayHintAsync(
             Document document,
             LSP.InlayHint request,
-            InlayHintCache inlayHintCache,
+            ResolveCache<InlayHintCacheEntry> inlayHintCache,
             InlayHintResolveData resolveData,
             InlineHintsOptions options,
             CancellationToken cancellationToken)
@@ -73,7 +74,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint
             return request;
         }
 
-        private static InlineHint? GetCacheEntry(InlayHintResolveData resolveData, InlayHintCache inlayHintCache)
+        private static InlineHint? GetCacheEntry(InlayHintResolveData resolveData, ResolveCache<InlayHintCacheEntry> inlayHintCache)
         {
             var cacheEntry = inlayHintCache.GetCachedEntry(resolveData.ResultId);
             return cacheEntry?.InlayHintMembers[resolveData.ListIndex];

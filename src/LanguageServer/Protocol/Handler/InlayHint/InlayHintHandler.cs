@@ -14,6 +14,7 @@ using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Shared.Extensions;
 using Roslyn.LanguageServer.Protocol;
+using static Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint.InlayHintCache;
 using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint
@@ -47,7 +48,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint
             return GetInlayHintsAsync(document, request.TextDocument, request.Range, options, displayAllOverride: false, inlayHintCache, cancellationToken);
         }
 
-        internal static async Task<LSP.InlayHint[]?> GetInlayHintsAsync(Document document, TextDocumentIdentifier textDocumentIdentifier, LSP.Range range, InlineHintsOptions options, bool displayAllOverride, InlayHintCache inlayHintCache, CancellationToken cancellationToken)
+        internal static async Task<LSP.InlayHint[]?> GetInlayHintsAsync(Document document, TextDocumentIdentifier textDocumentIdentifier, LSP.Range range, InlineHintsOptions options, bool displayAllOverride, ResolveCache<InlayHintCacheEntry> inlayHintCache, CancellationToken cancellationToken)
         {
             var text = await document.GetValueTextAsync(cancellationToken).ConfigureAwait(false);
             var hints = await CalculateInlayHintsAsync(document, range, options, displayAllOverride, cancellationToken).ConfigureAwait(false);

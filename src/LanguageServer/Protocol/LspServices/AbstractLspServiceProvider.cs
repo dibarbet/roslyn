@@ -6,25 +6,17 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
-internal class AbstractLspServiceProvider
+internal class AbstractLspServiceProvider(
+    IEnumerable<ExportFactory<ILspService, LspServiceMetadataView>> specificLspServices,
+    IEnumerable<ExportFactory<ILspServiceFactory, LspServiceMetadataView>> specificLspServiceFactories)
 {
-    private readonly ImmutableArray<Lazy<ILspService, LspServiceMetadataView>> _lspServices;
-    private readonly ImmutableArray<Lazy<ILspServiceFactory, LspServiceMetadataView>> _lspServiceFactories;
-
-    public AbstractLspServiceProvider(
-        IEnumerable<Lazy<ILspService, LspServiceMetadataView>> specificLspServices,
-        IEnumerable<Lazy<ILspServiceFactory, LspServiceMetadataView>> specificLspServiceFactories)
-    {
-        _lspServices = [.. specificLspServices];
-        _lspServiceFactories = [.. specificLspServiceFactories];
-    }
-
     public LspServices CreateServices(WellKnownLspServerKinds serverKind, FrozenDictionary<string, ImmutableArray<BaseService>> baseServices)
     {
-        var lspServices = new LspServices(_lspServices, _lspServiceFactories, serverKind, baseServices);
+        var lspServices = new LspServices(specificLspServices, specificLspServiceFactories, serverKind, baseServices);
 
         return lspServices;
     }

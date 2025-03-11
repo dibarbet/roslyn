@@ -74,7 +74,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             LSP.CompletionContext? completionContext,
             IGlobalOptionService globalOptions,
             CompletionCapabilityHelper capabilityHelper,
-            CompletionListCache completionListCache,
+            ResolveCache<CompletionListCache.CacheEntry> completionListCache,
             CancellationToken cancellationToken)
         {
             var completionOptions = globalOptions.GetCompletionOptionsForLsp(document.Project.Language, capabilityHelper);
@@ -118,7 +118,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             CompletionOptions completionOptions,
             CompletionCapabilityHelper capabilityHelper,
             CompletionService completionService,
-            CompletionListCache completionListCache,
+            ResolveCache<CompletionListCache.CacheEntry> completionListCache,
             int completionListMaxSize,
             CancellationToken cancellationToken)
         {
@@ -170,7 +170,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler
             CompletionTrigger completionTrigger,
             CompletionOptions completionOptions,
             CompletionService completionService,
-            CompletionListCache completionListCache,
+            ResolveCache<CompletionListCache.CacheEntry> completionListCache,
             CancellationToken cancellationToken)
         {
             var completionList = await completionService.GetCompletionsAsync(document, position, completionOptions, document.Project.Solution.Options, completionTrigger, cancellationToken: cancellationToken).ConfigureAwait(false);

@@ -5,6 +5,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.InlineHints;
+using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.InlayHint;
 using Roslyn.LanguageServer.Protocol;
 using Roslyn.Utilities;
@@ -16,11 +17,11 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.Razor.Cohost.Handlers
         // In the Roslyn LSP server this cache has the same lifetime as the LSP server. For Razor, running OOP, we don't have
         // that same lifetime anywhere, everything is just static. This is likely not ideal, but the inlay hint cache has a
         // max size of 3 items, so it's not a huge deal.
-        private static InlayHintCache? s_resolveCache;
+        private static RazorInlayHintCache? s_resolveCache;
 
         public static Task<InlayHint[]?> GetInlayHintsAsync(Document document, TextDocumentIdentifier textDocumentIdentifier, Range range, bool displayAllOverride, CancellationToken cancellationToken)
         {
-            s_resolveCache ??= new();
+            s_resolveCache ??= new RazorInlayHintCache();
 
             // Currently Roslyn options don't sync to OOP so trying to get the real options out of IGlobalOptionsService will
             // always just result in the defaults, which for inline hints are to not show anything. However, the editor has a
@@ -52,6 +53,11 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.Razor.Cohost.Handlers
             }
 
             return options;
+        }
+
+        private sealed class RazorInlayHintCache() : ResolveCache<InlayHintCache.InlayHintCacheEntry>(3)
+        {
+
         }
     }
 }

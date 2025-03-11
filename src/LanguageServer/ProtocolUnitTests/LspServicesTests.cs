@@ -84,6 +84,26 @@ public class LspServicesTests(ITestOutputHelper testOutputHelper) : AbstractLang
         Assert.True(lspService2 is AlwaysActiveCSharpLspService);
     }
 
+    [Theory, CombinatorialData]
+    public async Task LspServiceLifetimePerServer(bool mutatingLspWorkspace)
+    {
+        var composition = base.Composition.AddParts(typeof(DisposableLspService));
+        var serverOne = await CreateTestLspServerAsync("", mutatingLspWorkspace, initializationOptions: new() { ServerKind = WellKnownLspServerKinds.CSharpVisualBasicLspServer }, composition);
+        var serverTwo = await CreateTestLspServerAsync("", mutatingLspWorkspace, initializationOptions: new() { ServerKind = WellKnownLspServerKinds.CSharpVisualBasicLspServer }, composition);
+
+        var serverOneService = serverOne.GetRequiredLspService<DisposableLspService>();
+        var serverTwoService = serverTwo.GetRequiredLspService<DisposableLspService>();
+
+        Assert.NotEqual(serverOneService, serverTwoService);
+
+        await serverOne.DisposeAsync();
+        Assert.True(serverOneService.Disposed);
+        Assert.False(serverTwoService.Disposed);
+
+        await serverTwo.DisposeAsync();
+        Assert.True(serverTwoService.Disposed);
+    }
+
     internal class TestLspService : ILspService { }
 
     internal record class TestLspServiceFromFactory(string FactoryName) : ILspService { }
@@ -137,4 +157,18 @@ public class LspServicesTests(ITestOutputHelper testOutputHelper) : AbstractLang
     [method: ImportingConstructor]
     [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     internal class AlwaysActiveCSharpLspService() : TestLspService { }
+
+#pragma warning disable RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+    [ExportLspService(typeof(DisposableLspService), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.CSharpVisualBasicLspServer)]
+#pragma warning restore RS0023 // Parts exported with MEFv2 must be marked with 'SharedAttribute'
+    [method: ImportingConstructor]
+    [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    internal class DisposableLspService() : TestLspService, IDisposable
+    {
+        public bool Disposed { get; private set; }
+        public void Dispose()
+        {
+            Disposed = true;
+        }
+    }
 }

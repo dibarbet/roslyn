@@ -47,7 +47,7 @@ internal static class Extensions
     }
 
     public static bool TryGetCompletionListCacheEntry(
-        this CompletionListCache completionListCache,
+        this ResolveCache<CompletionListCache.CacheEntry> completionListCache,
         LSP.CompletionItem request,
         [NotNullWhen(true)] out CompletionListCache.CacheEntry? cacheEntry)
     {

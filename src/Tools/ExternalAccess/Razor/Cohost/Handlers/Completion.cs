@@ -19,10 +19,10 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.Razor.Cohost.Handlers;
 
 internal static class Completion
 {
-    private static CompletionListCache? s_completionListCache;
+    private static RazorCompletionListCache? s_completionListCache;
 
-    private static CompletionListCache GetCache()
-        => s_completionListCache ??= InterlockedOperations.Initialize(ref s_completionListCache, () => new());
+    private static RazorCompletionListCache GetCache()
+        => s_completionListCache ??= InterlockedOperations.Initialize(ref s_completionListCache, () => new RazorCompletionListCache());
 
     public static async Task<LSP.VSInternalCompletionList?> GetCompletionListAsync(
         Document document,
@@ -79,6 +79,11 @@ internal static class Completion
         var xmlSnippetParser = document.Project.Solution.Services.ExportProvider.GetService<XmlSnippetParser>();
 
         return InlineCompletionsHandler.GetInlineCompletionItemsAsync(logger, document, position, options, xmlSnippetParser, cancellationToken);
+    }
+
+    private sealed class RazorCompletionListCache() : ResolveCache<CompletionListCache.CacheEntry>(maxCacheSize: 3)
+    {
+
     }
 
     private sealed class EmptyLogger : ILspLogger

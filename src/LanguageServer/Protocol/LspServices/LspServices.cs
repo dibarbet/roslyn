@@ -214,18 +214,18 @@ internal sealed class LspServices : ILspServices, IMethodHandlerProvider
 
     private IEnumerable<T> GetMefServices<T>()
     {
-        foreach (var (typeName, lazyService) in _lazyMefLspServices)
+        foreach (var kvp in _lazyMefLspServices)
         {
-            if (lazyService.Metadata.InterfaceNames.Contains(typeof(T).AssemblyQualifiedName!))
+            if (kvp.Value.Metadata.InterfaceNames.Contains(typeof(T).AssemblyQualifiedName!))
             {
-                var serviceInstance = GetService(typeName);
+                var serviceInstance = GetService(kvp.Key);
                 if (serviceInstance is not null)
                 {
                     yield return (T)serviceInstance;
                 }
                 else
                 {
-                    throw new InvalidOperationException($"Could not construct service: {typeName}");
+                    throw new InvalidOperationException($"Could not construct service: {kvp.Key}");
                 }
             }
         }
