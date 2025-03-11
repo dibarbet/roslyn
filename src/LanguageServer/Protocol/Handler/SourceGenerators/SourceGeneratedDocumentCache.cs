@@ -14,7 +14,10 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SourceGenerators;
 
 internal record struct SourceGeneratedDocumentGetTextState(Document Document);
 
-internal sealed class SourceGeneratedDocumentCache(string uniqueKey) : VersionedPullCache<(SourceGeneratorExecutionVersion, VersionStamp), object?, SourceGeneratedDocumentGetTextState, SourceText?>(uniqueKey), ILspService
+[ExportCSharpVisualBasicLspService(typeof(SourceGeneratedDocumentCache)), Shared]
+[method: ImportingConstructor]
+[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+internal sealed class SourceGeneratedDocumentCache() : VersionedPullCache<(SourceGeneratorExecutionVersion, VersionStamp), object?, SourceGeneratedDocumentGetTextState, SourceText?>(nameof(SourceGeneratedDocumentCache)), ILspService
 {
     public override async Task<(SourceGeneratorExecutionVersion, VersionStamp)> ComputeCheapVersionAsync(SourceGeneratedDocumentGetTextState state, CancellationToken cancellationToken)
     {
@@ -46,16 +49,5 @@ internal sealed class SourceGeneratedDocumentCache(string uniqueKey) : Versioned
         return unfrozenDocument == null
             ? null
             : await unfrozenDocument.GetTextAsync(cancellationToken).ConfigureAwait(false);
-    }
-}
-
-[ExportCSharpVisualBasicLspServiceFactory(typeof(SourceGeneratedDocumentCache)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class SourceGeneratedDocumentCacheFactory() : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-    {
-        return new SourceGeneratedDocumentCache(this.GetType().Name);
     }
 }

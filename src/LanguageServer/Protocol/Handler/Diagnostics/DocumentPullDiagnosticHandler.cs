@@ -2,27 +2,27 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Composition;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
+using Microsoft.CodeAnalysis.Host.Mef;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics;
 
+[ExportCSharpVisualBasicLspService(typeof(DocumentPullDiagnosticHandler)), Shared]
+[method: ImportingConstructor]
+[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
 [Method(VSInternalMethods.DocumentPullDiagnosticName)]
-internal partial class DocumentPullDiagnosticHandler
-    : AbstractDocumentPullDiagnosticHandler<VSInternalDocumentDiagnosticsParams, VSInternalDiagnosticReport[], VSInternalDiagnosticReport[]>
-{
-    public DocumentPullDiagnosticHandler(
-        IDiagnosticAnalyzerService analyzerService,
+internal partial class DocumentPullDiagnosticHandler(IDiagnosticAnalyzerService analyzerService,
         IDiagnosticSourceManager diagnosticSourceManager,
         IDiagnosticsRefresher diagnosticRefresher,
         IGlobalOptionService globalOptions)
-        : base(analyzerService, diagnosticRefresher, diagnosticSourceManager, globalOptions)
-    {
-    }
-
+    : AbstractDocumentPullDiagnosticHandler<VSInternalDocumentDiagnosticsParams, VSInternalDiagnosticReport[], VSInternalDiagnosticReport[]>(analyzerService, diagnosticRefresher, diagnosticSourceManager, globalOptions)
+{
     protected override string? GetRequestDiagnosticCategory(VSInternalDocumentDiagnosticsParams diagnosticsParams)
         => diagnosticsParams.QueryingDiagnosticKind?.Value;
 

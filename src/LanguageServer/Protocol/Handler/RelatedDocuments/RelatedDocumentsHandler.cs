@@ -17,17 +17,11 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.RelatedDocuments;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(RelatedDocumentsHandler)), Shared]
+[ExportCSharpVisualBasicLspService(typeof(RelatedDocumentsHandler)), Shared]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class RelatedDocumentsHandlerFactory() : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new RelatedDocumentsHandler();
-}
-
 [Method(VSInternalMethods.CopilotRelatedDocumentsName)]
-internal sealed class RelatedDocumentsHandler
+internal sealed class RelatedDocumentsHandler()
     : ILspServiceRequestHandler<VSInternalRelatedDocumentParams, VSInternalRelatedDocumentReport[]?>,
       ITextDocumentIdentifierHandler<VSInternalRelatedDocumentParams, TextDocumentIdentifier>
 {
