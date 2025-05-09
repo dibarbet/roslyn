@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Diagnostics;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.Logging;
 using Microsoft.CommonLanguageServerProtocol.Framework;
@@ -26,21 +27,29 @@ internal sealed class LanguageServerHost
     private readonly AbstractLanguageServer<RequestContext> _roslynLanguageServer;
     private readonly JsonRpc _jsonRpc;
 
-    public LanguageServerHost(Stream inputStream, Stream outputStream, ExportProvider exportProvider, ILogger logger, AbstractTypeRefResolver typeRefResolver)
+    public LanguageServerHost(Stream inputStream, Stream outputStream, ExportProvider exportProvider, ILoggerFactory loggerFactory, AbstractTypeRefResolver typeRefResolver)
     {
         var messageFormatter = RoslynLanguageServer.CreateJsonMessageFormatter();
 
         var handler = new HeaderDelimitedMessageHandler(outputStream, inputStream, messageFormatter);
 
+        // TODO - maybe don't need the source, just need to set correlation manager to get the activity ids...
+        // this is not the client id - still need to figure out if the client id is the same as request id, and if so how to get from jsonrpc.
+        var jsonRpcLogger = loggerFactory.CreateLogger("LSPJsonRpc");
+        var traceSource = new TraceSource("LSPJsonRpc");
+        traceSource.Listeners.Add(new LoggerTraceListener(jsonRpcLogger));
+
         // If there is a jsonrpc disconnect or server shutdown, that is handled by the AbstractLanguageServer.  No need to do anything here.
         _jsonRpc = new JsonRpc(handler)
         {
             ExceptionStrategy = ExceptionProcessing.CommonErrorData,
+            ActivityTracingStrategy = new CorrelationManagerTracingStrategy() { TraceSource = traceSource },
         };
 
         var roslynLspFactory = exportProvider.GetExportedValue<ILanguageServerFactory>();
         var capabilitiesProvider = new ServerCapabilitiesProvider(exportProvider.GetExportedValue<ExperimentalCapabilitiesProvider>());
 
+        var logger = loggerFactory.CreateLogger("LSP");
         _logger = logger;
         var lspLogger = new LspServiceLogger(_logger);
 
@@ -53,6 +62,19 @@ internal sealed class LanguageServerHost
             lspLogger,
             hostServices,
             typeRefResolver);
+    }
+
+    private class LoggerTraceListener(ILogger logger) : TraceListener
+    {
+        public override void Write(string? message)
+        {
+            logger.LogTrace(message);
+        }
+
+        public override void WriteLine(string? message)
+        {
+            logger.LogTrace(message);
+        }
     }
 
     public void Start()
