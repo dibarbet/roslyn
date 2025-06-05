@@ -83,6 +83,7 @@ internal sealed class PdbSourceDocumentMetadataAsSourceFileProvider(
         bool signaturesOnly,
         MetadataAsSourceOptions options,
         string tempPath,
+        MetadataFileKind metadataFileKind,
         TelemetryMessage? telemetryMessage,
         CancellationToken cancellationToken)
     {

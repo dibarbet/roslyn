@@ -217,6 +217,8 @@ internal sealed class DecompilationMetadataAsSourceFileProvider(IImplementationA
 
         var documentTooltip = topLevelNamedType.ToDisplayString(new SymbolDisplayFormat(typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
 
+        var metadataFile = new F
+
         return new MetadataAsSourceFile(fileInfo.TemporaryFilePath, navigateLocation, documentName, documentTooltip);
     }
 
@@ -287,6 +289,8 @@ internal sealed class DecompilationMetadataAsSourceFileProvider(IImplementationA
             if (_generatedFilenameToInformation.TryGetValue(filePath, out var fileInfo))
             {
                 Contract.ThrowIfTrue(_openedDocumentIds.ContainsKey(fileInfo));
+
+                // TODO - this probably doesn't actually need to load the file from disk, as we're just going to replace it with the source text container we have.
 
                 // We do own the file, so let's open it up in our workspace
                 (var projectInfo, documentId) = fileInfo.GetProjectInfoAndDocumentId(workspace.Services.SolutionServices, loadFileFromDisk: true);

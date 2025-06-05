@@ -6,16 +6,19 @@ namespace Microsoft.CodeAnalysis.MetadataAsSource;
 
 internal sealed class MetadataAsSourceFile
 {
-    internal MetadataAsSourceFile(string filePath, Location identifierLocation, string documentTitle, string documentTooltip)
+    internal MetadataAsSourceFile(string filePath, Location identifierLocation, string documentTitle, string documentTooltip, TextLoader loader)
     {
         FilePath = filePath;
         IdentifierLocation = identifierLocation;
         DocumentTitle = documentTitle;
         DocumentTooltip = documentTooltip;
+        Loader = loader;
     }
 
     public string FilePath { get; }
     public Location IdentifierLocation { get; }
     public string DocumentTitle { get; }
     public string DocumentTooltip { get; }
+
+    public TextLoader Loader { get; }
 }
