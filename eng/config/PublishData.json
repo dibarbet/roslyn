@@ -204,5 +204,15 @@
       "insertionCreateDraftPR": false,
       "insertionTitlePrefix": "[dNext]"
     }
+  },
+  "release/dev-test-2": {
+    "nugetKind": [
+      "Shipping",
+      "NonShipping"
+    ],
+    "vsBranch": "releaseblag",
+    "vsMajorVersion": 17,
+    "insertionTitlePrefix": "[17.13.P1]",
+    "insertionCreateDraftPR": false
   }
 }
