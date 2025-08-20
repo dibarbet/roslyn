@@ -136,6 +136,7 @@ internal abstract class AbstractLanguageServer<TRequestContext>
             var delegatingEntryPoint = CreateDelegatingEntryPoint(methodGroup.Key);
             var methodAttribute = new JsonRpcMethodAttribute(methodGroup.Key)
             {
+                ClientRequiresNamedArguments = true,
                 UseSingleObjectParameterDeserialization = true,
             };
 
