@@ -3,20 +3,97 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Immutable;
+using System.Composition;
 using System.Text.Json.Serialization;
+using Microsoft.CodeAnalysis.Host.Mef;
+using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using NuGet.ProjectModel;
 using NuGet.Versioning;
+using Roslyn.LanguageServer.Protocol;
 using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
-internal static class ProjectDependencyHelper
+[Export, Shared]
+[method: ImportingConstructor]
+[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+internal class RestoreHelper(DotnetCliHelper dotnetCliHelper, ILoggerFactory loggerFactory)
 {
-    internal const string ProjectNeedsRestoreName = "workspace/_roslyn_projectNeedsRestore";
+    private readonly ILogger _logger = loggerFactory.CreateLogger("Restore");
+
+    public async Task RestoreWithWorkDoneProgressAsync(ImmutableArray<string> restorePaths, IClientLanguageServerManager languageServerManager, CancellationToken cancellationToken)
+    {
+        if (restorePaths.IsEmpty)
+        {
+            return;
+        }
+
+        var progressGuid = Guid.NewGuid().ToString();
+        await languageServerManager.SendRequestAsync(Methods.WindowWorkDoneProgressCreateName, new WorkDoneProgressCreateParams()
+        {
+            Token = progressGuid
+        }, cancellationToken);
+
+        _logger.LogInformation(LanguageServerResources.Restore_started);
+        await languageServerManager.SendNotificationAsync(Methods.ProgressNotificationName, new WorkDoneProgressImpl()
+        {
+            Token = progressGuid,
+            Value = new WorkDoneProgressBegin()
+            {
+                Title = LanguageServerResources.Restore,
+                Cancellable = true,
+                Message = LanguageServerResources.Restore_started,
+                Percentage = 0
+            }
+        }, cancellationToken);
+
+        _logger.LogDebug($"Running restore on {restorePaths.Length} paths, starting with '{restorePaths.First()}'.");
+
+        var success = await RestoreAsync(restorePaths, ReportProgressAsync, dotnetCliHelper, cancellationToken);
+
+        // TODO - handle client sending cancel.
+
+        await languageServerManager.SendNotificationAsync(Methods.ProgressNotificationName, new WorkDoneProgressImpl()
+        {
+            Token = progressGuid,
+            Value = new WorkDoneProgressEnd()
+            {
+                Message = LanguageServerResources.Restore_complete
+            }
+        }, cancellationToken);
+
+        if (success)
+        {
+            _logger.LogInformation($"Restore completed successfully.");
+        }
+        else
+        {
+            _logger.LogError($"Restore completed with errors.");
+        }
+
+        async ValueTask ReportProgressAsync(string stage, string? restoreOutput)
+        {
+            if (restoreOutput != null)
+            {
+                _logger.LogInformation(restoreOutput);
+                await languageServerManager.SendNotificationAsync(Methods.ProgressNotificationName, new WorkDoneProgressImpl()
+                {
+                    Token = progressGuid,
+                    Value = new WorkDoneProgressReport()
+                    {
+                        Message = stage,
+                        Percentage = null,
+                        Cancellable = true
+                    }
+                }, cancellationToken);
+            }
+        }
+    }
 
     internal static bool NeedsRestore(ProjectFileInfo newProjectFileInfo, ProjectFileInfo? previousProjectFileInfo, ILogger logger)
     {
@@ -121,20 +198,47 @@ internal static class ProjectDependencyHelper
         }
     }
 
-    internal static async Task SendProjectNeedsRestoreRequestAsync(ImmutableArray<string> projectPaths, CancellationToken cancellationToken)
+    /// <returns>True if all restore invocations exited with code 0. Otherwise, false.</returns>
+    private static async Task<bool> RestoreAsync(ImmutableArray<string> pathsToRestore, Func<string, string?, ValueTask> reportProgress, DotnetCliHelper dotnetCliHelper, CancellationToken cancellationToken)
     {
-        if (projectPaths.IsEmpty)
-            return;
+        bool success = true;
+        foreach (var path in pathsToRestore)
+        {
+            var arguments = new string[] { "restore", path };
+            var workingDirectory = Path.GetDirectoryName(path);
+            var stageName = string.Format(LanguageServerResources.Restoring_0, Path.GetFileName(path));
+            await reportProgress(stageName, string.Format(LanguageServerResources.Running_dotnet_restore_on_0, path));
 
-        Contract.ThrowIfNull(LanguageServerHost.Instance, "We don't have an LSP channel yet to send this request through.");
+            var process = dotnetCliHelper.Run(arguments, workingDirectory, shouldLocalizeOutput: true);
 
-        var languageServerManager = LanguageServerHost.Instance.GetRequiredLspService<IClientLanguageServerManager>();
+            cancellationToken.Register(() =>
+            {
+                process?.Kill();
+            });
 
-        // Ensure we only pass unique paths back to be restored.
-        var unresolvedParams = new UnresolvedDependenciesParams([.. projectPaths.Distinct()]);
-        await languageServerManager.SendRequestAsync(ProjectNeedsRestoreName, unresolvedParams, cancellationToken);
+            process.OutputDataReceived += (sender, args) => reportProgress(stageName, args.Data);
+            process.ErrorDataReceived += (sender, args) => reportProgress(stageName, args.Data);
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0)
+            {
+                await reportProgress(stageName, string.Format(LanguageServerResources.Failed_to_run_restore_on_0, path));
+                success = false;
+            }
+        }
+
+        return success;
     }
 
-    private sealed record UnresolvedDependenciesParams(
-        [property: JsonPropertyName("projectFilePaths")] string[] ProjectFilePaths);
+    private class WorkDoneProgressImpl
+    {
+        [JsonPropertyName("token")]
+        public required string Token { get; init; }
+
+        [JsonPropertyName("value")]
+        public required WorkDoneProgress Value { get; init; }
+    }
 }

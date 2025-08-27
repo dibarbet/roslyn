@@ -5,7 +5,9 @@
 using System.Collections.Immutable;
 using System.Composition;
 using Microsoft.CodeAnalysis.Host.Mef;
-using Microsoft.Extensions.Logging;
+using Microsoft.CodeAnalysis.LanguageServer.Handler.Commands;
+using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
+using Roslyn.LanguageServer.Protocol;
 using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
@@ -15,91 +17,37 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 /// back to the client to display.
 /// </summary>
 [ExportCSharpVisualBasicStatelessLspService(typeof(RestoreHandler)), Shared]
-[Method(MethodName)]
+[Command(ServerRestoreCommand)]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class RestoreHandler(DotnetCliHelper dotnetCliHelper, ILoggerFactory loggerFactory) : ILspServiceRequestHandler<RestoreParams, RestorePartialResult[]>
+internal sealed class RestoreHandler(RestoreHelper restoreHelper) : AbstractExecuteWorkspaceCommandHandler
 {
-    internal const string MethodName = "workspace/_roslyn_restore";
+    internal const string ServerRestoreCommand = "dotnet.server.restore";
 
-    public bool MutatesSolutionState => false;
+    public override bool MutatesSolutionState => false;
 
-    public bool RequiresLSPSolution => true;
+    public override bool RequiresLSPSolution => true;
 
-    private readonly ILogger<RestoreHandler> _logger = loggerFactory.CreateLogger<RestoreHandler>();
+    public override string Command => ServerRestoreCommand;
 
-    public async Task<RestorePartialResult[]> HandleRequestAsync(RestoreParams request, RequestContext context, CancellationToken cancellationToken)
+    public override async Task<object> HandleRequestAsync(ExecuteCommandParams request, RequestContext context, CancellationToken cancellationToken)
     {
-        Contract.ThrowIfNull(context.Solution);
-        using var progress = BufferedProgress.Create(request.PartialResultToken);
+        Contract.ThrowIfNull(context.Solution, "Solution cannot be null");
 
-        progress.Report(new RestorePartialResult(LanguageServerResources.Restore, LanguageServerResources.Restore_started));
+        var restoreParams = request.Arguments?.FirstOrDefault() as RestoreParams;
+        Contract.ThrowIfNull(restoreParams, "Restore command arguments are not correct");
 
-        var restorePaths = GetRestorePaths(request, context.Solution, context);
+        var restorePaths = GetRestorePaths(restoreParams, context.Solution, context);
         if (restorePaths.IsEmpty)
         {
-            _logger.LogDebug($"Restore was requested but no paths were provided.");
-            progress.Report(new RestorePartialResult(LanguageServerResources.Restore, LanguageServerResources.Nothing_found_to_restore));
-            return progress.GetValues() ?? [];
+            context.TraceInformation($"Restore was requested but no paths were provided.");
+            return new object();
         }
 
-        _logger.LogDebug($"Running restore on {restorePaths.Length} paths, starting with '{restorePaths.First()}'.");
-        bool success = await RestoreAsync(restorePaths, progress, cancellationToken);
+        var languageServerManager = context.GetRequiredLspService<IClientLanguageServerManager>();
+        await restoreHelper.RestoreWithWorkDoneProgressAsync(restorePaths, languageServerManager, cancellationToken);
 
-        progress.Report(new RestorePartialResult(LanguageServerResources.Restore, $"{LanguageServerResources.Restore_complete}{Environment.NewLine}"));
-        if (success)
-        {
-            _logger.LogDebug($"Restore completed successfully.");
-        }
-        else
-        {
-            _logger.LogError($"Restore completed with errors.");
-        }
-
-        return progress.GetValues() ?? [];
-    }
-
-    /// <returns>True if all restore invocations exited with code 0. Otherwise, false.</returns>
-    private async Task<bool> RestoreAsync(ImmutableArray<string> pathsToRestore, BufferedProgress<RestorePartialResult> progress, CancellationToken cancellationToken)
-    {
-        bool success = true;
-        foreach (var path in pathsToRestore)
-        {
-            var arguments = new string[] { "restore", path };
-            var workingDirectory = Path.GetDirectoryName(path);
-            var stageName = string.Format(LanguageServerResources.Restoring_0, Path.GetFileName(path));
-            ReportProgress(progress, stageName, string.Format(LanguageServerResources.Running_dotnet_restore_on_0, path));
-
-            var process = dotnetCliHelper.Run(arguments, workingDirectory, shouldLocalizeOutput: true);
-
-            cancellationToken.Register(() =>
-            {
-                process?.Kill();
-            });
-
-            process.OutputDataReceived += (sender, args) => ReportProgress(progress, stageName, args.Data);
-            process.ErrorDataReceived += (sender, args) => ReportProgress(progress, stageName, args.Data);
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            await process.WaitForExitAsync(cancellationToken);
-
-            if (process.ExitCode != 0)
-            {
-                ReportProgress(progress, stageName, string.Format(LanguageServerResources.Failed_to_run_restore_on_0, path));
-                success = false;
-            }
-        }
-
-        return success;
-
-        static void ReportProgress(BufferedProgress<RestorePartialResult> progress, string stage, string? restoreOutput)
-        {
-            if (restoreOutput != null)
-            {
-                progress.Report(new RestorePartialResult(stage, restoreOutput));
-            }
-        }
+        return new object();
     }
 
     private static ImmutableArray<string> GetRestorePaths(RestoreParams request, Solution solution, RequestContext context)
@@ -127,5 +75,10 @@ internal sealed class RestoreHandler(DotnetCliHelper dotnetCliHelper, ILoggerFac
 
         context.TraceDebug($"Found {projects.Length} restorable projects from {solution.Projects.Count()} projects in solution");
         return projects;
+    }
+
+    public override TextDocumentIdentifier GetTextDocumentIdentifier(ExecuteCommandParams request)
+    {
+        throw new NotImplementedException();
     }
 }

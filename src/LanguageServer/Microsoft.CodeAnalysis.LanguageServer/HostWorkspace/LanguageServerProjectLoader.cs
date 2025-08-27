@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.Collections;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.DebugConfiguration;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.ProjectTelemetry;
+using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.PooledObjects;
@@ -184,7 +185,9 @@ internal abstract class LanguageServerProjectLoader
                 // Tracking: https://github.com/dotnet/vscode-csharp/issues/6675
                 //
                 // The request blocks to ensure we aren't trying to run a design time build at the same time as a restore.
-                await ProjectDependencyHelper.SendProjectNeedsRestoreRequestAsync(projectsThatNeedRestore, cancellationToken);
+                Contract.ThrowIfNull(LanguageServerHost.Instance, "We don't have an LSP channel yet to send this request through.");
+                var languageServerManager = LanguageServerHost.Instance.GetRequiredLspService<IClientLanguageServerManager>();
+                await restoreHelper.RestoreWithWorkDoneProgressAsync(projectsThatNeedRestore.Distinct(), languageServerManager, cancellationToken);
             }
         }
         finally
