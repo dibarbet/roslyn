@@ -521,9 +521,9 @@ function TestUsingRunTests() {
       }
 
       if ($vsId) {
-        $activityLogPath = Join-Path ${env:USERPROFILE} "AppData\Roaming\Microsoft\VisualStudio\$vsMajorVersion.0_$($vsId)RoslynDev\ActivityLog.xml"
-        $devenvExeConfig = Join-Path ${env:USERPROFILE} "AppData\Local\Microsoft\VisualStudio\$vsMajorVersion.0_$($vsId)RoslynDev\devenv.exe.config"
-        $mefErrors = Join-Path ${env:USERPROFILE} "AppData\Local\Microsoft\VisualStudio\$vsMajorVersion.0_$($vsId)RoslynDev\ComponentModelCache\Microsoft.VisualStudio.Default.err"
+        $activityLogPath = Join-Path ${env:USERPROFILE} "AppData\Roaming\Microsoft\VisualStudio\$vsMajorVersion.0_$($vsId)$hive\ActivityLog.xml"
+        $devenvExeConfig = Join-Path ${env:USERPROFILE} "AppData\Local\Microsoft\VisualStudio\$vsMajorVersion.0_$($vsId)$hive\devenv.exe.config"
+        $mefErrors = Join-Path ${env:USERPROFILE} "AppData\Local\Microsoft\VisualStudio\$vsMajorVersion.0_$($vsId)$hive\ComponentModelCache\Microsoft.VisualStudio.Default.err"
         CopyToArtifactLogs $activityLogPath
         CopyToArtifactLogs $devenvExeConfig
         CopyToArtifactLogs $mefErrors
@@ -597,13 +597,13 @@ function Deploy-VsixViaTool() {
     $script:vsMajorVersion = $vsInfo.installationVersion.Split('.')[0]
     $displayVersion = $vsInfo.catalog.productDisplayVersion
 
-    $hive = "RoslynDev"
+    $script:hive = ""
 
     Write-Host "Using VS Instance $vsId ($displayVersion) at `"$vsDir`""
 
     # InstanceIds is required here to ensure it installs the vsixes only into the specified VS instance.
     # The default installer behavior without it is to install into every installed VS instance.
-    $baseArgs = "/rootSuffix:$hive /quiet /shutdownprocesses /instanceIds:$vsId /logFile:$logFileName"
+    $baseArgs = "/quiet /shutdownprocesses /instanceIds:$vsId /logFile:$logFileName"
 
     # Write the file location out to a variable so we can upload it later.
     $fullLogPath = Join-Path $env:TEMP $logFileName
@@ -692,7 +692,13 @@ function Deploy-VsixViaTool() {
     $oop64bitValue = [int]$oop64bit.ToBool()
     &$vsRegEdit set "$vsDir" $hive HKCU "Roslyn\Internal\OnOff\Features" OOP64Bit dword $oop64bitValue
 
+    $fusionLogPath = Join-Path $LogDir "FusionLogs"
+
+    &$vsRegEdit set "$vsDir" $hive HKLM "Software\Microsoft\Fusion" ForceLog dword 1
+    &$vsRegEdit set "$vsDir" $hive HKLM "Software\Microsoft\Fusion" LogFailures dword 1
+    &$vsRegEdit set "$vsDir" $hive HKLM "Software\Microsoft\Fusion" LogResourceBinds dword 1
     &$vsRegEdit set "$vsDir" $hive HKLM "Software\Microsoft\Fusion" EnableLog dword 1
+    &$vsRegEdit set "$vsDir" $hive HKLM "Software\Microsoft\Fusion" LogPath string $fusionLogPath
 
     # Disable targeted notifications
     if ($ci) {
@@ -702,12 +708,7 @@ function Deploy-VsixViaTool() {
     }
   } finally {
     $vsixInstallerLogs = Join-Path $TempDir $logFileName
-    if (Test-Path $vsixInstallerLogs) {
-      Write-Host "Copying VSIXInstaller logs to $LogDir"
-      Copy-Item -Path $vsixInstallerLogs -Destination $LogDir
-    } else {
-      Write-Host "No VSIXInstaller logs found to copy"
-    }
+    CopyToArtifactLogs $vsixInstallerLogs
   }
 }
 
