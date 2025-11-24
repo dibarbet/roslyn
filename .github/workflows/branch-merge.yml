@@ -2,6 +2,7 @@
 
 name: Branch merge
 on:
+  push:
   workflow_dispatch:
     inputs:
       configuration_file_branch:
