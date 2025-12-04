@@ -64,4 +64,9 @@
     <PackageReference Include="UIAComWrapper" />
     <PackageReference Include="xunit.extensibility.core" />
   </ItemGroup>
+  
+  <!--
+    TODO Need to include the targets which add the assembly attribute.  previously worked in nuget package but not project reference. 
+    https://github.com/dotnet/msbuild/issues/5797
+  -->
 </Project>
