@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CommonLanguageServerProtocol.Framework;
+using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
@@ -37,5 +38,27 @@ internal sealed class OpenSolutionHandler : ILspServiceNotificationHandler<OpenS
     {
         [JsonPropertyName("solution")]
         public required Uri Solution { get; set; }
+    }
+}
+
+[ExportCSharpVisualBasicStatelessLspService(typeof(AutoOpenSolutionOnInitialized)), Shared]
+internal sealed class AutoOpenSolutionOnInitialized : IOnInitialized, ILspService
+{
+    private readonly LanguageServerProjectSystem _projectSystem;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public AutoOpenSolutionOnInitialized(LanguageServerProjectSystem projectSystem)
+    {
+        _projectSystem = projectSystem;
+    }
+
+    public async Task OnInitializedAsync(ClientCapabilities clientCapabilities, RequestContext context, CancellationToken cancellationToken)
+    {
+        var slnPath = Environment.GetEnvironmentVariable("CLAUDE_ROSLYN_SLN");
+        if (!string.IsNullOrEmpty(slnPath))
+        {
+            await _projectSystem.OpenSolutionAsync(slnPath);
+        }
     }
 }

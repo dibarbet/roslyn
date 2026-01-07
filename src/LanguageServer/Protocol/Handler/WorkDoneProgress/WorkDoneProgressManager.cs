@@ -124,7 +124,7 @@ class WorkDoneProgressManager(IClientLanguageServerManager clientLanguageServerM
             };
 
             CancellationToken.ThrowIfCancellationRequested();
-            await _manager._clientLanguageServerManager.SendRequestAsync(Methods.WindowWorkDoneProgressCreateName, workDoneParams, CancellationToken).ConfigureAwait(false);
+            //await _manager._clientLanguageServerManager.SendRequestAsync(Methods.WindowWorkDoneProgressCreateName, workDoneParams, CancellationToken).ConfigureAwait(false);
         }
 
         public void Report(WorkDoneProgress progress)
@@ -135,7 +135,7 @@ class WorkDoneProgressManager(IClientLanguageServerManager clientLanguageServerM
         private async Task ReportProgressAsync(WorkDoneProgress progress, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await _manager._clientLanguageServerManager.SendNotificationAsync(Methods.ProgressNotificationName, new ProgressReportType(_token, progress), cancellationToken).ConfigureAwait(false);
+            //await _manager._clientLanguageServerManager.SendNotificationAsync(Methods.ProgressNotificationName, new ProgressReportType(_token, progress), cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

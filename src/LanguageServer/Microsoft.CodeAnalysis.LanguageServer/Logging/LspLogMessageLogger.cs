@@ -29,7 +29,7 @@ internal sealed class LspLogMessageLogger(string categoryName, ILoggerFactory fa
         }
 
         var server = LanguageServerHost.Instance;
-        if (server == null)
+        if (/*server == null*/true)
         {
             // If the language server has not been initialized yet, log using the fallback logger.
             _fallbackLogger.Value.Log(logLevel, eventId, state, exception, formatter);
