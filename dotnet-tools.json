@@ -5,13 +5,22 @@
       "version": "7.0.360304",
       "commands": [
         "dotnet-format"
-      ]
+      ],
+      "rollForward": false
     },
     "powershell": {
       "version": "7.0.0",
       "commands": [
         "pwsh"
-      ]
+      ],
+      "rollForward": false
+    },
+    "roslyn-language-server": {
+      "version": "5.5.0-2.26102.106",
+      "commands": [
+        "roslyn-language-server"
+      ],
+      "rollForward": false
     }
   }
 }

@@ -19,8 +19,9 @@ namespace Roslyn.LanguageServer.Protocol;
 /// Compounding this problem, System.Uri will fail to parse various RFC spec valid URIs. In order to gracefully handle
 /// these issues, we defer the parsing of the URI until someone actually asks for it (and can handle the failure).
 /// </remarks>
-internal sealed record class DocumentUri(string UriString)
+internal sealed partial class DocumentUri(string uriString)
 {
+    public string UriString { get; } = uriString;
     private Optional<Uri> _parsedUri;
 
     public DocumentUri(Uri parsedUri) : this(parsedUri.AbsoluteUri)
@@ -63,6 +64,9 @@ internal sealed record class DocumentUri(string UriString)
 
     public override string ToString() => UriString;
 
+    public override bool Equals(object? obj)
+        => obj is DocumentUri other && Equals(other);
+
     public bool Equals(DocumentUri otherUri)
     {
         if (otherUri is null)
@@ -79,22 +83,7 @@ internal sealed record class DocumentUri(string UriString)
         if (otherUri.ParsedUri is null || this.ParsedUri is null)
             return false;
 
-        // Next we compare the parsed URIs to handle various casing and encoding scenarios (for example - different
-        // schemes may handle casing differently).
-
-        // Uri.Equals will not always consider a percent encoded URI equal to an unencoded URI, even if they point to
-        // the same resource. As above, the client is supposed to be consistent in which kind of URI they send.
-        //
-        // However, there are rare cases where we are comparing an unencoded URI to an encoded URI and should consider
-        // them equivalent if they point to the same file path. For example - say the client generally sends us the
-        // unencoded URI.  When we serialize URIs back to the client, we always serialize the AbsoluteUri property (see
-        // FromUri). The AbsoluteUri property is *always* percent encoded - if this URI gets sent back to us as part of
-        // a data object on a request (e.g. codelens/resolve), the client will leave the URI untouched, even if they
-        // generally send unencoded URIs.  In such cases we need to consider the encoded and unencoded URI equivalent.
-        //
-        // To handle that, we first compare the AbsoluteUri properties on both, which are always percent encoded.
-        return (this.ParsedUri.IsAbsoluteUri && otherUri.ParsedUri.IsAbsoluteUri && this.ParsedUri.AbsoluteUri == otherUri.ParsedUri.AbsoluteUri) ||
-            Equals(this.ParsedUri, otherUri.ParsedUri);
+        return Equals(this.ParsedUri, otherUri.ParsedUri);
     }
 
     public override int GetHashCode()

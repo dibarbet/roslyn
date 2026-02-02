@@ -1,3 +1,27 @@
+** CRITICAL - ALWAYS USE LSP FOR CODE NAVIGATION **
+
+This repository is extremely large. **You MUST use LSP tools for any code navigation task.** Never use grep or text search when an LSP tool can accomplish the same goal.
+
+**LSP tools you MUST use (in order of preference):**
+- **Go to Definition** - Find where any symbol is defined (classes, methods, properties, fields, operators like `==`, etc.)
+- **Find All References / List Usages** - Find all usages of a symbol across the codebase
+- **Go to Implementation** - Find implementations of interfaces or abstract members
+
+**When to use LSP (ALWAYS prefer these over grep/text search):**
+- Finding where a class, method, or type is defined → **Use "Go to Definition"**
+- Finding all places a method is called → **Use "Find All References" / "List Usages"**
+- Finding implementations of an interface → **Use "Go to Implementation"**
+- Understanding what a symbol refers to → **Use "Go to Definition"**
+- Navigating to base types or overridden members → **Use LSP navigation**
+- Finding where a variable is assigned or read → **Use "Find All References"**
+
+**Only use grep/text search as a LAST RESORT when:**
+- Searching for string literals, comments, or non-code text
+- LSP tools are unavailable or explicitly fail after trying
+- Searching for patterns that aren't navigable symbols (e.g., TODO comments, magic strings)
+
+**Why this is mandatory:** LSP tools are semantic and understand the code structure. Grep is just text matching and will give incomplete, incorrect, or overwhelming results in a codebase this size. Using grep when LSP works wastes time and produces inferior results.
+
 # Roslyn (.NET Compiler Platform) AI Coding Instructions
 
 ## Architecture Overview

@@ -21,9 +21,9 @@ using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests;
 
-public sealed class UriTests : AbstractLanguageServerProtocolTests
+public sealed class DocumentLookupTests : AbstractLanguageServerProtocolTests
 {
-    public UriTests(ITestOutputHelper? testOutputHelper) : base(testOutputHelper)
+    public DocumentLookupTests(ITestOutputHelper? testOutputHelper) : base(testOutputHelper)
     {
     }
 
