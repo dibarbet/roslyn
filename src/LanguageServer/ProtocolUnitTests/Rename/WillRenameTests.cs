@@ -74,12 +74,12 @@ public sealed class WillRenameTests(ITestOutputHelper testOutputHelper) : Abstra
         var expected = new WorkspaceEdit()
         {
             DocumentChanges = new TextDocumentEdit[] {
-                new() { TextDocument = new() { DocumentUri = new("file://file1.cs") } },
+                new() { TextDocument = new() { DocumentUri = new(LanguageServerTests.TestFileUri) } },
                 new() { TextDocument = new() { DocumentUri = new("file://file2.cs") } }
             }
         };
 
-        listeners[0].Result = new WorkspaceEdit() { DocumentChanges = new TextDocumentEdit[] { new() { TextDocument = new() { DocumentUri = new("file://file1.cs") } } } };
+        listeners[0].Result = new WorkspaceEdit() { DocumentChanges = new TextDocumentEdit[] { new() { TextDocument = new() { DocumentUri = new(LanguageServerTests.TestFileUri) } } } };
         listeners[1].Result = new WorkspaceEdit() { DocumentChanges = new TextDocumentEdit[] { new() { TextDocument = new() { DocumentUri = new("file://file2.cs") } } } };
 
         var edit = await RunWillRenameAsync(testLspServer);
@@ -98,12 +98,12 @@ public sealed class WillRenameTests(ITestOutputHelper testOutputHelper) : Abstra
         var expected = new WorkspaceEdit()
         {
             DocumentChanges = new SumType<TextDocumentEdit, CreateFile, RenameFile, DeleteFile>[] {
-                new TextDocumentEdit() { TextDocument = new() { DocumentUri = new("file://file1.cs") } },
+                new TextDocumentEdit() { TextDocument = new() { DocumentUri = new(LanguageServerTests.TestFileUri) } },
                 new RenameFile() { OldDocumentUri = new("file://file2.cs") }
             }
         };
 
-        listeners[0].Result = new WorkspaceEdit() { DocumentChanges = new TextDocumentEdit[] { new() { TextDocument = new() { DocumentUri = new("file://file1.cs") } } } };
+        listeners[0].Result = new WorkspaceEdit() { DocumentChanges = new TextDocumentEdit[] { new() { TextDocument = new() { DocumentUri = new(LanguageServerTests.TestFileUri) } } } };
         listeners[1].Result = new WorkspaceEdit() { DocumentChanges = new SumType<TextDocumentEdit, CreateFile, RenameFile, DeleteFile>[] { new RenameFile() { OldDocumentUri = new("file://file2.cs") } } };
 
         var edit = await RunWillRenameAsync(testLspServer);
@@ -123,12 +123,12 @@ public sealed class WillRenameTests(ITestOutputHelper testOutputHelper) : Abstra
         {
             Changes = new Dictionary<string, TextEdit[]>
             {
-                { "file://file1.cs", []},
+                { LanguageServerTests.TestFileUri, []},
                 { "file://file2.cs", [] }
             }
         };
 
-        listeners[0].Result = new WorkspaceEdit() { Changes = new Dictionary<string, TextEdit[]> { { "file://file1.cs", [] } } };
+        listeners[0].Result = new WorkspaceEdit() { Changes = new Dictionary<string, TextEdit[]> { { LanguageServerTests.TestFileUri, [] } } };
         listeners[1].Result = new WorkspaceEdit() { Changes = new Dictionary<string, TextEdit[]> { { "file://file2.cs", [] } } };
 
         var edit = await RunWillRenameAsync(testLspServer);

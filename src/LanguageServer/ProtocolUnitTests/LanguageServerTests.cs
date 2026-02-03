@@ -9,6 +9,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests;
 
 public sealed class LanguageServerTests
 {
+    public static string TestFileUri = "file:///c:/project/test.cs";
+
     [Fact]
     public void TestObjectEquals_SameUri()
     {
@@ -17,6 +19,17 @@ public sealed class LanguageServerTests
 
         Assert.True(uri1.Equals(uri2));
         Assert.True(uri2.Equals(uri1));
+    }
+
+    [Fact]
+    public void TestObjectEquals_DifferentCasing()
+    {
+        var upperCase = new DocumentUri("file:///C:/Test.cs");
+        var lowerCase = new DocumentUri("file:///c:/test.cs");
+
+        // File URIs are case-insensitive on Windows
+        Assert.True(upperCase.Equals(lowerCase));
+        Assert.True(lowerCase.Equals(upperCase));
     }
 
     [Fact]
@@ -62,7 +75,7 @@ public sealed class LanguageServerTests
         var uri = new DocumentUri("file:///c:/test.cs");
 
         Assert.False(uri.Equals((object?)null));
-        Assert.False(uri.Equals((DocumentUri?)null));
+        Assert.False(uri.Equals(null));
     }
 
     [Fact]
