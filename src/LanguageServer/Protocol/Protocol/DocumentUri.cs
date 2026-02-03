@@ -83,7 +83,7 @@ internal sealed partial class DocumentUri(string uriString)
         if (otherUri.ParsedUri is null || this.ParsedUri is null)
             return false;
 
-        return Equals(this.ParsedUri, otherUri.ParsedUri);
+        return Equals(this.ParsedUri.ToString(), otherUri.ParsedUri.ToString());
     }
 
     public override int GetHashCode()

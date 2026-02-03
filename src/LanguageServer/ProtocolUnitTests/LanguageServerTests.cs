@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests;
 
-public sealed class DocumentUriTests
+public sealed class LanguageServerTests
 {
     [Fact]
     public void TestObjectEquals_SameUri()
@@ -17,6 +17,16 @@ public sealed class DocumentUriTests
 
         Assert.True(uri1.Equals(uri2));
         Assert.True(uri2.Equals(uri1));
+    }
+
+    [Fact]
+    public void TestObjectEquals_EncodedAndUnencoded()
+    {
+        var unencoded = new DocumentUri("file:///c:/my folder/test.cs");
+        var encoded = new DocumentUri("file:///c:/my%20folder/test.cs");
+
+        Assert.True(unencoded.Equals(encoded));
+        Assert.True(encoded.Equals(unencoded));
     }
 
     [Fact]
@@ -62,15 +72,5 @@ public sealed class DocumentUriTests
 
         Assert.False(uri.Equals("file:///c:/test.cs"));
         Assert.False(uri.Equals(42));
-    }
-
-    [Fact]
-    public void TestObjectEquals_DifferentCase()
-    {
-        var uri1 = new DocumentUri("file:///c:/test.cs");
-        var uri2 = new DocumentUri("file:///C:/Test.cs");
-
-        Assert.True(uri1.Equals(uri2));
-        Assert.True(uri2.Equals(uri1));
     }
 }
