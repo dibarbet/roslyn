@@ -4,6 +4,7 @@
 
 using System;
 using System.Composition;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,6 +30,17 @@ internal class DidChangeHandler() : ILspServiceDocumentRequestHandler<DidChangeT
     public async Task<object?> HandleRequestAsync(DidChangeTextDocumentParams request, RequestContext context, CancellationToken cancellationToken)
     {
         var text = context.GetTrackedDocumentInfo(request.TextDocument.DocumentUri).SourceText;
+
+        if (Environment.GetEnvironmentVariable("ROSLYNLSPCRASH") == "AV")
+        {
+            throw new AccessViolationException("DIE DIE DIE");
+        }
+        else if (Environment.GetEnvironmentVariable("ROSLYNLSPCRASH") == "EX")
+        {
+            throw new Exception("oh no pls shutdown");
+        }
+
+        // TODO test non-mutating failure (toast, none, etc?)
 
         text = GetUpdatedSourceText(request.ContentChanges, text);
 
