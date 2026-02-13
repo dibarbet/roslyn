@@ -44,8 +44,6 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
     public override void RecordCancellation()
     {
         _result = RequestTelemetryLogger.Result.Cancelled;
-        _executeActivity?.SetStatus(ActivityStatusCode.Ok, "Cancelled");
-        _activity?.SetStatus(ActivityStatusCode.Ok, "Cancelled");
     }
 
     public override void RecordException(Exception exception)
@@ -54,17 +52,11 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
         ReportNonFatalError(exception);
 
         _result = RequestTelemetryLogger.Result.Failed;
-
-        var exceptionTags = new ActivityTagsCollection
+        _executeActivity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
         {
             { "exception.type", exception.GetType().FullName },
             { "exception.message", exception.Message },
-        };
-
-        _executeActivity?.SetStatus(ActivityStatusCode.Error, exception.Message);
-        _executeActivity?.AddEvent(new ActivityEvent("exception", tags: exceptionTags));
-
-        _activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
+        }));
     }
 
     public override void RecordWarning(string message)
@@ -82,9 +74,17 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
 
         _executeActivity?.Dispose();
 
+        // Set final status on the parent activity based on the result.
+        var status = _result switch
+        {
+            RequestTelemetryLogger.Result.Succeeded => ActivityStatusCode.Ok,
+            RequestTelemetryLogger.Result.Cancelled => ActivityStatusCode.Ok,
+            RequestTelemetryLogger.Result.Failed => ActivityStatusCode.Error,
+            _ => ActivityStatusCode.Unset,
+        };
+        _activity?.SetStatus(status, _result.ToString());
         _activity?.SetTag("lsp.language", Language);
         _activity?.SetTag("lsp.result", _result.ToString());
-        _activity?.SetTag("lsp.duration_ms", requestDuration.TotalMilliseconds);
         _activity?.Dispose();
 
         _telemetryLogger.UpdateTelemetryData(Name, Language, _queuedDuration, requestDuration, _result);

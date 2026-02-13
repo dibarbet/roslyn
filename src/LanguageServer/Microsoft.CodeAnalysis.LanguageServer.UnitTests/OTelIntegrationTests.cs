@@ -160,7 +160,7 @@ public sealed class OTelIntegrationTests(ITestOutputHelper testOutputHelper)
         // Verify expected tags from RequestTelemetryScope
         Assert.Equal("textDocument/didOpen", requestActivity.GetTagItem("lsp.method"));
         Assert.NotNull(requestActivity.GetTagItem("lsp.result"));
-        Assert.NotNull(requestActivity.GetTagItem("lsp.duration_ms"));
+        Assert.True(requestActivity.Duration > TimeSpan.Zero, "Activity should have non-zero duration");
     }
 
     [Fact]
