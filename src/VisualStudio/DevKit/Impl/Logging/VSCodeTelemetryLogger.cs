@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis.Contracts.Telemetry;
 using Microsoft.CodeAnalysis.Host.Mef;
+using Microsoft.CodeAnalysis.Internal.Log;
 using Microsoft.CodeAnalysis.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Telemetry;
@@ -19,6 +20,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry;
 using OpenTelemetry.Trace;
 using Roslyn.LanguageServer.Protocol;
+using Microsoft.VisualStudio.Telemetry.Metrics.Events;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Logging;
 
@@ -30,9 +32,29 @@ internal sealed class VSCodeTelemetryLogger : ITelemetryReporter
     private const string CollectorApiKey = "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255";
     private static int _dumpsSubmitted = 0;
 
-    private readonly ILogger _logger;
+    private readonly Microsoft.Extensions.Logging.ILogger _logger;
 
     private static readonly ConcurrentDictionary<int, object> _pendingScopes = new(concurrencyLevel: 2, capacity: 10);
+
+    /// <summary>
+    /// Lazily-initialized VSTelemetry meter provider used to create meters for histogram reporting.
+    /// </summary>
+    private VSTelemetryMeterProvider? _meterProvider;
+
+    /// <summary>
+    /// Cache of VSTelemetry meters keyed by meter name.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, IMeter> _meters = new();
+
+    /// <summary>
+    /// Cache of VSTelemetry histogram instruments keyed by metric name.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, IHistogram<long>> _histograms = new();
+
+    /// <summary>
+    /// Cache of VSTelemetry counter instruments keyed by metric name.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, ICounter<long>> _counters = new();
 
     [ImportingConstructor]
     [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -72,28 +94,90 @@ internal sealed class VSCodeTelemetryLogger : ITelemetryReporter
         _telemetrySession.PostEvent(telemetryEvent);
     }
 
-    public void LogHistogram(Metric metric)
+    public void LogMetric(Metric metric)
     {
-        
-        var builder = Sdk.CreateMeterProviderBuilder()
-            .AddMeter(OpenTelemetryConstants.RoslynLogger);
-
-        if (telemetryReporter is not null)
-            builder.AddReader(new SignalExporter(new VSTelemetryMetricExporter(telemetryReporter), exportIntervalMilliseconds: VSTelemetryExportIntervalMilliseconds));
-
-        return builder.Build();
-
-        // Todo - share meters.
-        var meterProvider = new VSTelemetryMeterProvider();
-        var meter = meterProvider.CreateMeter(metric.MeterName, version: metric.MeterVersion);
-
-        var histogram = meter.CreateHistogram<long>(metric.MeterName, _histogramConfiguration);
-
         Debug.Assert(_telemetrySession != null);
 
-        var histogramEvent = new HistogramEvent(name, value);
-        SetProperties(histogramEvent, properties);
-        _telemetrySession.PostEvent(histogramEvent);
+        if (metric.MetricType.IsHistogram())
+            LogHistogram(metric);
+        else if (metric.MetricType.IsLong())
+            LogCounter(metric);
+    }
+
+    public void LogHistogram(Metric metric)
+    {
+        Debug.Assert(_telemetrySession != null);
+
+        if (!metric.MetricType.IsHistogram())
+            return;
+
+        _meterProvider ??= new VSTelemetryMeterProvider();
+        var meter = _meters.GetOrAdd(metric.MeterName, name => _meterProvider.CreateMeter(name, version: metric.MeterVersion));
+
+        foreach (var metricPoint in metric.GetMetricPoints())
+        {
+            var telemetryEvent = new TelemetryEvent(metric.Name);
+
+            // Add tags as properties
+            foreach (var tag in metricPoint.Tags)
+            {
+                telemetryEvent.Properties.Add(tag.Key, tag.Value);
+            }
+
+            var histogram = _histograms.GetOrAdd(metric.Name, name => meter.CreateHistogram<long>(name));
+
+            // Replay pre-aggregated histogram bucket data into the VSTelemetry histogram
+            // by recording a representative value (bucket midpoint) for each count in each bucket.
+            double previousBound = 0;
+            foreach (var bucket in metricPoint.GetHistogramBuckets())
+            {
+                if (bucket.BucketCount > 0)
+                {
+                    var representativeValue = double.IsPositiveInfinity(bucket.ExplicitBound)
+                        ? (long)previousBound
+                        : (long)((previousBound + bucket.ExplicitBound) / 2);
+
+                    for (long i = 0; i < bucket.BucketCount; i++)
+                    {
+                        histogram.Record(representativeValue);
+                    }
+                }
+
+                if (!double.IsPositiveInfinity(bucket.ExplicitBound))
+                    previousBound = bucket.ExplicitBound;
+            }
+
+            var histogramEvent = new TelemetryHistogramEvent<long>(telemetryEvent, histogram);
+            _telemetrySession.PostMetricEvent(histogramEvent);
+        }
+    }
+
+    public void LogCounter(Metric metric)
+    {
+        Debug.Assert(_telemetrySession != null);
+
+        if (!metric.MetricType.IsLong())
+            return;
+
+        _meterProvider ??= new VSTelemetryMeterProvider();
+        var meter = _meters.GetOrAdd(metric.MeterName, name => _meterProvider.CreateMeter(name, version: metric.MeterVersion));
+
+        foreach (var metricPoint in metric.GetMetricPoints())
+        {
+            var telemetryEvent = new TelemetryEvent(metric.Name);
+
+            // Add tags as properties
+            foreach (var tag in metricPoint.Tags)
+            {
+                telemetryEvent.Properties.Add(tag.Key, tag.Value);
+            }
+
+            var counter = _counters.GetOrAdd(metric.Name, name => meter.CreateCounter<long>(name));
+            counter.Add(metricPoint.GetSumLong());
+
+            var counterEvent = new TelemetryCounterEvent<long>(telemetryEvent, counter);
+            _telemetrySession.PostMetricEvent(counterEvent);
+        }
     }
 
     public void LogBlockStart(string eventName, int kind, int blockId)

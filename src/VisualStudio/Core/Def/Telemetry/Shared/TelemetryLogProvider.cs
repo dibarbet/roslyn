@@ -23,7 +23,7 @@ internal sealed class TelemetryLogProvider : ITelemetryLogProvider
     private ImmutableDictionary<FunctionId, TelemetryBlockLog> _logs = ImmutableDictionary<FunctionId, TelemetryBlockLog>.Empty;
 
     /// <summary>
-    /// Manages instances of <see cref="AggregatingHistogramLog"/> to provide in <see cref="GetHistogramLog(FunctionId, double[])"/>
+    /// Manages instances of <see cref="AggregatingHistogramLog"/> to provide in <see cref="GetHistogramLog(FunctionId)"/>
     /// </summary>
     private ImmutableDictionary<FunctionId, AggregatingHistogramLog> _histogramLogs = ImmutableDictionary<FunctionId, AggregatingHistogramLog>.Empty;
 
@@ -61,7 +61,7 @@ internal sealed class TelemetryLogProvider : ITelemetryLogProvider
     /// <summary>
     /// Returns an aggregating <see cref="ITelemetryLog"/> for logging telemetry.
     /// </summary>
-    public ITelemetryBlockLog? GetHistogramLog(FunctionId functionId, double[]? bucketBoundaries)
+    public ITelemetryBlockLog? GetHistogramLog(FunctionId functionId)
     {
         if (!_session.IsOptedIn)
             return null;
@@ -69,8 +69,8 @@ internal sealed class TelemetryLogProvider : ITelemetryLogProvider
         return ImmutableInterlocked.GetOrAdd(
             ref _histogramLogs,
             functionId,
-            static (functionId, arg) => new AggregatingHistogramLog(arg._session, functionId, arg.bucketBoundaries),
-            factoryArgument: (_session, bucketBoundaries));
+            static (functionId, arg) => new AggregatingHistogramLog(arg, functionId),
+            factoryArgument: _session);
     }
 
     public ITelemetryLog? GetCounterLog(FunctionId functionId)

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Diagnostics;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.DebugConfiguration;
 using Microsoft.CodeAnalysis.Remote.ProjectSystem;
@@ -17,18 +18,28 @@ internal sealed class WorkspaceProject : IWorkspaceProject
     private readonly ProjectTargetFrameworkManager _targetFrameworkManager;
     private readonly ILogger _logger;
 
-    public WorkspaceProject(ProjectSystemProject project, SolutionServices solutionServices, ProjectTargetFrameworkManager targetFrameworkManager, ILoggerFactory logger)
+    /// <summary>
+    /// A long-lived activity representing the entire lifetime of this workspace project.
+    /// All per-operation activities are created as children of this activity.
+    /// </summary>
+    private readonly Activity? _projectActivity;
+
+    public WorkspaceProject(ProjectSystemProject project, SolutionServices solutionServices, ProjectTargetFrameworkManager targetFrameworkManager, ILoggerFactory logger, Activity? parentActivity = null)
     {
         _project = project;
         _optionsProcessor = new ProjectSystemProjectOptionsProcessor(_project, solutionServices);
         _targetFrameworkManager = targetFrameworkManager;
         _logger = logger.CreateLogger<WorkspaceProject>();
+
+        _projectActivity = ProjectLoadActivityScope.StartChildActivity($"workspace-project/{_project.DisplayName}", parentActivity);
+        _projectActivity?.SetTag("project.path", _project.FilePath);
+        _projectActivity?.SetTag("project.name", _project.DisplayName);
     }
 
     [Obsolete($"Call the {nameof(AddAdditionalFilesAsync)} overload that takes {nameof(SourceFileInfo)}.")]
     public Task AddAdditionalFilesAsync(IReadOnlyList<string> additionalFilePaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("add-additional-files", () =>
         {
             foreach (var additionalFilePath in additionalFilePaths)
                 _project.AddAdditionalFile(additionalFilePath);
@@ -37,7 +48,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task AddAdditionalFilesAsync(IReadOnlyList<SourceFileInfo> additionalFiles, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("add-additional-files", () =>
         {
             foreach (var additionalFile in additionalFiles)
                 _project.AddAdditionalFile(additionalFile.FilePath, folders: [.. additionalFile.FolderNames]);
@@ -46,7 +57,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task AddAnalyzerConfigFilesAsync(IReadOnlyList<string> analyzerConfigPaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("add-analyzer-config-files", () =>
         {
             foreach (var analyzerConfigPath in analyzerConfigPaths)
                 _project.AddAnalyzerConfigFile(analyzerConfigPath);
@@ -55,7 +66,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task AddAnalyzerReferencesAsync(IReadOnlyList<string> analyzerPaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("add-analyzer-references", () =>
         {
             foreach (var analyzerPath in analyzerPaths)
                 _project.AddAnalyzerReference(analyzerPath);
@@ -64,7 +75,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task AddDynamicFilesAsync(IReadOnlyList<string> dynamicFilePaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("add-dynamic-files", () =>
         {
             foreach (var dynamicFilePath in dynamicFilePaths)
                 _project.AddDynamicSourceFile(dynamicFilePath, folders: []);
@@ -73,7 +84,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task AddMetadataReferencesAsync(IReadOnlyList<MetadataReferenceInfo> metadataReferences, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("add-metadata-references", () =>
         {
             foreach (var metadataReference in metadataReferences)
                 _project.AddMetadataReference(metadataReference.FilePath, metadataReference.CreateProperties());
@@ -82,7 +93,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task AddSourceFilesAsync(IReadOnlyList<SourceFileInfo> sourceFiles, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("add-source-files", () =>
         {
             foreach (var sourceFile in sourceFiles)
                 _project.AddSourceFile(sourceFile.FilePath, folders: [.. sourceFile.FolderNames]);
@@ -92,11 +103,14 @@ internal sealed class WorkspaceProject : IWorkspaceProject
     public void Dispose()
     {
         _project.RemoveFromWorkspace();
+
+        _projectActivity?.SetStatus(ActivityStatusCode.Ok);
+        _projectActivity?.Dispose();
     }
 
     public Task RemoveAdditionalFilesAsync(IReadOnlyList<string> additionalFilePaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("remove-additional-files", () =>
         {
             foreach (var additionalFilePath in additionalFilePaths)
                 _project.RemoveAdditionalFile(additionalFilePath);
@@ -105,7 +119,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task RemoveAnalyzerConfigFilesAsync(IReadOnlyList<string> analyzerConfigPaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("remove-analyzer-config-files", () =>
         {
             foreach (var analyzerConfigPath in analyzerConfigPaths)
                 _project.RemoveAnalyzerConfigFile(analyzerConfigPath);
@@ -114,7 +128,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task RemoveAnalyzerReferencesAsync(IReadOnlyList<string> analyzerPaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("remove-analyzer-references", () =>
         {
             foreach (var analyzerPath in analyzerPaths)
                 _project.RemoveAnalyzerReference(analyzerPath);
@@ -123,7 +137,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task RemoveDynamicFilesAsync(IReadOnlyList<string> dynamicFilePaths, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("remove-dynamic-files", () =>
         {
             foreach (var dynamicFilePath in dynamicFilePaths)
                 _project.RemoveDynamicSourceFile(dynamicFilePath);
@@ -132,7 +146,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task RemoveMetadataReferencesAsync(IReadOnlyList<MetadataReferenceInfo> metadataReferences, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("remove-metadata-references", () =>
         {
             foreach (var metadataReference in metadataReferences)
                 _project.RemoveMetadataReference(metadataReference.FilePath, metadataReference.CreateProperties());
@@ -141,7 +155,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task RemoveSourceFilesAsync(IReadOnlyList<string> sourceFiles, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("remove-source-files", () =>
         {
             foreach (var sourceFile in sourceFiles)
                 _project.RemoveSourceFile(sourceFile);
@@ -150,7 +164,7 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task SetBuildSystemPropertiesAsync(IReadOnlyDictionary<string, string> properties, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() =>
+        return RunAndReportNFWAsync("set-build-system-properties", () =>
         {
             string? fileDirectory = null;
 
@@ -193,17 +207,17 @@ internal sealed class WorkspaceProject : IWorkspaceProject
 
     public Task SetCommandLineArgumentsAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() => _optionsProcessor.SetCommandLine([.. arguments]), cancellationToken);
+        return RunAndReportNFWAsync("set-command-line-arguments", () => _optionsProcessor.SetCommandLine([.. arguments]), cancellationToken);
     }
 
     public Task SetDisplayNameAsync(string displayName, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() => _project.DisplayName = displayName, cancellationToken);
+        return RunAndReportNFWAsync("set-display-name", () => _project.DisplayName = displayName, cancellationToken);
     }
 
     public Task SetProjectHasAllInformationAsync(bool hasAllInformation, CancellationToken cancellationToken)
     {
-        return RunAndReportNFWAsync(() => _project.HasAllInformation = hasAllInformation, cancellationToken);
+        return RunAndReportNFWAsync("set-project-has-all-information", () => _project.HasAllInformation = hasAllInformation, cancellationToken);
     }
 
     public async Task<IWorkspaceProjectBatch> StartBatchAsync(CancellationToken cancellationToken)
@@ -215,13 +229,18 @@ internal sealed class WorkspaceProject : IWorkspaceProject
         return new WorkspaceProjectBatch(_project.CreateBatchScope(), _logger);
     }
 
-    private async Task RunAndReportNFWAsync(Action action, CancellationToken cancellationToken)
+    private async Task RunAndReportNFWAsync(string operationName, Action action, CancellationToken cancellationToken)
     {
+        using var activity = ProjectLoadActivityScope.StartChildActivity($"workspace-project/{operationName}", _projectActivity);
+        activity?.SetTag("project.path", _project.FilePath);
+
         try
         {
             var disposableBatchScope = await _project.CreateBatchScopeAsync(cancellationToken).ConfigureAwait(false);
             await using var _ = disposableBatchScope.ConfigureAwait(false);
             action();
+
+            activity?.SetStatus(ActivityStatusCode.Ok);
         }
         catch (Exception e) when (LanguageServerFatalError.ReportAndLogAndPropagate(e, _logger, "Error applying project system update."))
         {

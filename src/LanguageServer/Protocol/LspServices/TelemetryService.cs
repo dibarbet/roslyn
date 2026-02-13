@@ -20,6 +20,6 @@ internal sealed class TelemetryService : AbstractTelemetryService, ILspService
 
     public override AbstractRequestScope CreateRequestScope(string lspMethodName)
     {
-        return new RequestTelemetryScope(lspMethodName, _requestTelemetryLogger);
+        return new RequestActivityScope(lspMethodName, _requestTelemetryLogger);
     }
 }

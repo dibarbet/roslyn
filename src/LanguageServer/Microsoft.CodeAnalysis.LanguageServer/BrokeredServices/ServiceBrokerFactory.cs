@@ -4,11 +4,13 @@
 
 using System.Collections.Immutable;
 using System.ComponentModel.Composition;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis.BrokeredServices;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.ServiceHub.Framework;
 using Microsoft.VisualStudio.Composition;
 using Microsoft.VisualStudio.Shell.ServiceBroker;
+using Roslyn.LanguageServer.Protocol;
 using ExportProvider = Microsoft.VisualStudio.Composition.ExportProvider;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
@@ -27,6 +29,8 @@ namespace Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
 [Export]
 internal sealed class ServiceBrokerFactory
 {
+    private static readonly ActivitySource s_activitySource = new(OpenTelemetryConstants.LanguageServer);
+
     private BrokeredServiceContainer? _container;
     private readonly ExportProvider _exportProvider;
     private readonly WrappedServiceBroker _wrappedServiceBroker;
@@ -62,6 +66,8 @@ internal sealed class ServiceBrokerFactory
     /// </summary>
     public async Task CreateAsync()
     {
+        using var activity = s_activitySource.StartDetachedActivity("brokered-services/create");
+
         Contract.ThrowIfFalse(_container == null, "We should only create one container.");
 
         _container = await BrokeredServiceContainer.CreateAsync(_exportProvider, _cancellationTokenSource.Token);
@@ -77,19 +83,30 @@ internal sealed class ServiceBrokerFactory
             {
             }
         }
+
+        activity?.SetStatus(ActivityStatusCode.Ok);
     }
 
     public async Task CreateAndConnectAsync(string brokeredServicePipeName)
     {
+        using var activity = s_activitySource.StartDetachedActivity("brokered-services/create-and-connect");
+        activity?.SetTag("brokered_services.pipe_name", brokeredServicePipeName);
+
         await CreateAsync();
 
         var bridgeProvider = _exportProvider.GetExportedValue<BrokeredServiceBridgeProvider>();
         _bridgeCompletionTask = bridgeProvider.SetupBrokeredServicesBridgeAsync(brokeredServicePipeName, _container!, _cancellationTokenSource.Token);
+
+        activity?.SetStatus(ActivityStatusCode.Ok);
     }
 
     public Task ShutdownAndWaitForCompletionAsync()
     {
+        using var activity = s_activitySource.StartDetachedActivity("brokered-services/shutdown");
+
         _cancellationTokenSource.Cancel();
+
+        activity?.SetStatus(ActivityStatusCode.Ok);
 
         // Return the task we created when we created the bridge; if we never started it in the first place, we'll just return the
         // completed task set in the constructor, so the waiter no-ops.

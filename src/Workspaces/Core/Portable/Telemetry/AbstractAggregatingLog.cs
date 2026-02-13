@@ -62,8 +62,11 @@ internal abstract class AbstractAggregatingLog<TValue> : ITelemetryLog
         if (!logMessage.Properties.TryGetValue(TelemetryLogging.KeyMetricName, out var metricNameValue) || metricNameValue is not string metricName)
             metricName = name;
 
-        foreach (var (curName, curValue) in logMessage.Properties)
+        foreach (var kvp in logMessage.Properties)
         {
+            var curName = kvp.Key;
+            var curValue = kvp.Value;
+
             if (curName is not TelemetryLogging.KeyName and not TelemetryLogging.KeyValue and not TelemetryLogging.KeyMetricName)
             {
                 var propertyName = TelemetryNaming.GetPropertyName(FunctionId, curName);

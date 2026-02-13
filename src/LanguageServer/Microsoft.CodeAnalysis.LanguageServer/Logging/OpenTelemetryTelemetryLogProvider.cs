@@ -26,7 +26,7 @@ internal sealed class OpenTelemetryTelemetryLogProvider(MeterProvider meterProvi
     public ITelemetryBlockLog? GetLog(FunctionId functionId)
         => ImmutableInterlocked.GetOrAdd(ref _blockLogs, functionId, fid => new TelemetryBlockLog(openTelemetryRoslynLogger, fid));
 
-    public ITelemetryBlockLog? GetHistogramLog(FunctionId functionId, double[]? bucketBoundaries = null)
+    public ITelemetryBlockLog? GetHistogramLog(FunctionId functionId)
         => ImmutableInterlocked.GetOrAdd(ref _histogramLogs, functionId, static fid => new OpenTelemetryHistogramLog(fid));
 
     public ITelemetryLog? GetCounterLog(FunctionId functionId)

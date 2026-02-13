@@ -6,6 +6,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,6 +32,8 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
     : ILspServiceRequestHandler<TDiagnosticsParams, TReturn?>
     where TDiagnosticsParams : IPartialResultParams<TReport>
 {
+    private static readonly ActivitySource s_activitySource = new(OpenTelemetryConstants.LanguageServer);
+
     /// <summary>
     /// Special value we use to designate workspace diagnostics vs document diagnostics.  Document diagnostics
     /// should always <see cref="VSInternalDiagnosticReport.Supersedes"/> a workspace diagnostic as the former are 'live'
@@ -149,6 +152,10 @@ internal abstract partial class AbstractPullDiagnosticHandler<TDiagnosticsParams
 
             foreach (var diagnosticSource in orderedSources)
             {
+                using var diagnosticActivity = s_activitySource.StartActivity(
+                    $"diagnostics/{diagnosticSource.ToDisplayString()}", ActivityKind.Internal);
+                diagnosticActivity?.SetTag("diagnostics.source", diagnosticSource.ToDisplayString());
+
                 seenDiagnosticSourceIds.Add(diagnosticSource.GetId());
                 var globalStateVersion = _diagnosticRefresher.GlobalStateVersion;
 

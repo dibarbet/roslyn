@@ -26,25 +26,7 @@ internal sealed class VSTelemetryMetricExporter(ITelemetryReporter reporter) : B
 
                 foreach (var metricPoint in metric.GetMetricPoints())
                 {
-                    var properties = new List<KeyValuePair<string, object?>>();
-
-                    // Add tags as properties
-                    foreach (var tag in metricPoint.Tags)
-                    {
-                        properties.Add(new(TelemetryNaming.PropertyPrefix + metric.Name.Replace('.', '.') + "." + tag.Key.ToLowerInvariant(), tag.Value));
-                    }
-
-                    if (metric.MetricType.IsHistogram())
-                    {
-                        properties.Add(new(TelemetryNaming.PropertyPrefix + metric.Name + ".count", metricPoint.GetHistogramCount()));
-                        properties.Add(new(TelemetryNaming.PropertyPrefix + metric.Name + ".sum", metricPoint.GetHistogramSum()));
-                    }
-                    else if (metric.MetricType.IsLong())
-                    {
-                        properties.Add(new(TelemetryNaming.PropertyPrefix + metric.Name + ".value", metricPoint.GetSumLong()));
-                    }
-
-                    reporter.Log(eventName, properties);
+                    reporter.LogMetric(metric);
                 }
             }
             catch

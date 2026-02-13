@@ -4,6 +4,7 @@
 
 using System.Collections.Immutable;
 using System.Composition;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.ProjectTelemetry;
 using Microsoft.CodeAnalysis.Options;
@@ -53,16 +54,23 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
 
     public async Task OpenSolutionAsync(string solutionFilePath)
     {
+        using var activity = ProjectLoadActivityScope.StartActivity("open-solution");
+        activity?.SetTag("solution.path", solutionFilePath);
+
         _logger.LogInformation(string.Format(LanguageServerResources.Loading_0, solutionFilePath));
         _hostProjectFactory.SolutionPath = solutionFilePath;
 
         var (_, projects) = await SolutionFileReader.ReadSolutionFileAsync(solutionFilePath, DiagnosticReportingMode.Throw, CancellationToken.None);
+        activity?.SetTag("solution.project_count", projects.Length);
+
         foreach (var (path, guid) in projects)
         {
             await BeginLoadingProjectAsync(path, guid);
         }
         await WaitForProjectsToFinishLoadingAsync();
         await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync();
+
+        activity?.SetStatus(ActivityStatusCode.Ok);
     }
 
     public async Task OpenProjectsAsync(ImmutableArray<string> projectFilePaths)
@@ -70,12 +78,17 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
         if (!projectFilePaths.Any())
             return;
 
+        using var activity = ProjectLoadActivityScope.StartActivity("open-projects");
+        activity?.SetTag("projects.count", projectFilePaths.Length);
+
         foreach (var path in projectFilePaths)
         {
             await BeginLoadingProjectAsync(path, projectGuid: null);
         }
         await WaitForProjectsToFinishLoadingAsync();
         await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync();
+
+        activity?.SetStatus(ActivityStatusCode.Ok);
     }
 
     protected override async Task<RemoteProjectLoadResult?> TryLoadProjectInMSBuildHostAsync(

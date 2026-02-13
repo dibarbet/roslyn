@@ -116,8 +116,9 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
             _tracerProvider = OpenTelemetryHelpers.InitializeTracerProvider(telemetryReporter);
             _meterProvider = OpenTelemetryHelpers.InitializeMeterProvider(telemetryReporter);
 
-            Logger.SetLogger(new OpenTelemetryRoslynLogger());
-            TelemetryLogging.SetLogProvider(new OpenTelemetryTelemetryLogProvider(_meterProvider));
+            var logger = new OpenTelemetryRoslynLogger(logDelta: false);
+            Logger.SetLogger(logger);
+            TelemetryLogging.SetLogProvider(new OpenTelemetryTelemetryLogProvider(_meterProvider, logger));
 
             var (clientStream, serverStream) = FullDuplexStream.CreatePair();
             _serverStream = serverStream;

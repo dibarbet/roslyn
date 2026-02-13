@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.ComponentModel.Composition;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Telemetry;
 using Microsoft.CodeAnalysis.Remote.ProjectSystem;
@@ -37,6 +38,10 @@ internal sealed class WorkspaceProjectFactoryService(
 
     public async Task<IWorkspaceProject> CreateAndAddProjectAsync(WorkspaceProjectCreationInfo creationInfo, CancellationToken _)
     {
+        using var activity = ProjectLoadActivityScope.StartActivity($"workspace-project-create/{creationInfo.DisplayName}");
+        activity?.SetTag("project.path", creationInfo.FilePath);
+        activity?.SetTag("project.name", creationInfo.DisplayName);
+
         _logger.LogInformation(string.Format(LanguageServerResources.Project_0_loaded_by_CSharp_Dev_Kit, creationInfo.FilePath));
         VSCodeRequestTelemetryLogger.ReportProjectLoadStarted();
         try
@@ -52,11 +57,12 @@ internal sealed class WorkspaceProjectFactoryService(
                 new Workspaces.ProjectSystem.ProjectSystemProjectCreationInfo { FilePath = creationInfo.FilePath },
                 _workspaceFactory.ProjectSystemHostInfo);
 
-            var workspaceProject = new WorkspaceProject(project, _workspaceFactory.HostWorkspace.Services.SolutionServices, _workspaceFactory.TargetFrameworkManager, _loggerFactory);
+            var workspaceProject = new WorkspaceProject(project, _workspaceFactory.HostWorkspace.Services.SolutionServices, _workspaceFactory.TargetFrameworkManager, _loggerFactory, parentActivity: activity);
 
             // We've created a new project, so initialize properties we have
             await workspaceProject.SetBuildSystemPropertiesAsync(creationInfo.BuildSystemProperties, CancellationToken.None);
 
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return workspaceProject;
         }
         catch (Exception e) when (LanguageServerFatalError.ReportAndLogAndPropagate(e, _logger, $"Failed to create project {creationInfo.DisplayName}"))

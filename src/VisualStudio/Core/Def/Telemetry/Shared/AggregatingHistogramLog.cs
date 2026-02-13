@@ -15,25 +15,13 @@ namespace Microsoft.CodeAnalysis.Telemetry;
 /// of this class corresponds to a specific FunctionId operation and can support aggregated values for each
 /// metric name logged.
 /// </summary>
-internal sealed class AggregatingHistogramLog : AbstractAggregatingLog<IHistogram<long>, long>, ITelemetryBlockLog
+/// <remarks>
+/// Creates a new aggregating telemetry log
+/// </remarks>
+/// <param name="session">Telemetry session used to post events</param>
+/// <param name="functionId">Used to derive meter name</param>
+internal sealed class AggregatingHistogramLog(TelemetrySession session, FunctionId functionId) : AbstractAggregatingLog<IHistogram<long>, long>(session, functionId), ITelemetryBlockLog
 {
-    private readonly HistogramConfiguration? _histogramConfiguration;
-
-    /// <summary>
-    /// Creates a new aggregating telemetry log
-    /// </summary>
-    /// <param name="session">Telemetry session used to post events</param>
-    /// <param name="functionId">Used to derive meter name</param>
-    /// <param name="bucketBoundaries">Optional values indicating bucket boundaries in milliseconds. If not specified, 
-    /// all histograms created will use the default histogram configuration</param>
-    public AggregatingHistogramLog(TelemetrySession session, FunctionId functionId, double[]? bucketBoundaries) : base(session, functionId)
-    {
-        if (bucketBoundaries != null)
-        {
-            _histogramConfiguration = new HistogramConfiguration(bucketBoundaries);
-        }
-    }
-
     public IDisposable? LogBlockTime(KeyValueLogMessage logMessage, int minThresholdMs)
     {
         if (!IsEnabled)
@@ -47,7 +35,7 @@ internal sealed class AggregatingHistogramLog : AbstractAggregatingLog<IHistogra
 
     protected override IHistogram<long> CreateAggregator(IMeter meter, string metricName)
     {
-        return meter.CreateHistogram<long>(metricName, _histogramConfiguration);
+        return meter.CreateHistogram<long>(metricName);
     }
 
     protected override void UpdateAggregator(IHistogram<long> histogram, long value)

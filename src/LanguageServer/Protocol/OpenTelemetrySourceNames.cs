@@ -6,6 +6,7 @@ namespace Roslyn.LanguageServer.Protocol;
 
 internal static class OpenTelemetryConstants
 {
+    public const string ServiceName = "roslyn-language-server";
     public const string RoslynLogger = "Roslyn.Logger";
     public const string LanguageServer = "Roslyn.LanguageServer";
     public const string LogTypeKey = "Roslyn.LogType";

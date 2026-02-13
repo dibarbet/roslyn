@@ -21,7 +21,7 @@ internal sealed class RequestActivityScope : AbstractRequestScope
     /// <summary>
     /// Records an activity for the entire lifetime of the LSP request, including time in queue.
     /// </summary>
-    private readonly Activity? _activity;
+    public override Activity? Activity { get; protected set; }
 
     /// <summary>
     /// Records an activity for just the execution phase of the LSP request as a child of the overall request activity.
@@ -35,18 +35,18 @@ internal sealed class RequestActivityScope : AbstractRequestScope
         : base(name)
     {
         _telemetryLogger = telemetryLogger;
-        _activity = s_activitySource.StartActivity($"lsp/{name}", ActivityKind.Server);
-        _activity?.SetTag("lsp.method", name);
+        Activity = s_activitySource.StartDetachedActivity($"lsp/{name}", ActivityKind.Server);
+        Activity?.SetTag("lsp.method", name);
     }
 
     public override void RecordExecutionStart()
     {
         _queuedDuration = _stopwatch.Elapsed;
-        _activity?.SetTag("lsp.queue_duration_ms", _queuedDuration.TotalMilliseconds);
+        Activity?.SetTag("lsp.queue_duration_ms", _queuedDuration.TotalMilliseconds);
 
         // Start a child activity for the execution phase so traces show
         // both the total request lifetime and the handler execution separately.
-        _executeActivity = s_activitySource.StartActivity($"lsp/{Name}/execute", ActivityKind.Internal, _activity?.Context ?? default);
+        _executeActivity = s_activitySource.StartActivity($"lsp/{Name}/execute", ActivityKind.Internal, Activity?.Context ?? default);
     }
 
     public override void RecordCancellation()
@@ -92,10 +92,10 @@ internal sealed class RequestActivityScope : AbstractRequestScope
         _executeActivity?.SetStatus(status, _result.ToString());
         _executeActivity?.Dispose();
 
-        _activity?.SetStatus(status, _result.ToString());
-        _activity?.SetTag("lsp.language", Language);
-        _activity?.SetTag("lsp.result", _result.ToString());
-        _activity?.Dispose();
+        Activity?.SetStatus(status, _result.ToString());
+        Activity?.SetTag("lsp.language", Language);
+        Activity?.SetTag("lsp.result", _result.ToString());
+        Activity?.Dispose();
 
         _telemetryLogger.UpdateTelemetryData(Name, Language, _queuedDuration, requestDuration, _result);
     }

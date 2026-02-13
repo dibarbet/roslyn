@@ -18,9 +18,7 @@ internal interface ITelemetryLogProvider
     /// Returns an aggregating <see cref="ITelemetryLog"/> for logging histogram based telemetry.
     /// </summary>
     /// <param name="functionId">FunctionId representing the telemetry operation</param>
-    /// <param name="bucketBoundaries">Optional values indicating bucket boundaries in milliseconds. If not specified, 
-    /// all aggregating events created will use a default configuration</param>
-    ITelemetryBlockLog? GetHistogramLog(FunctionId functionId, double[]? bucketBoundaries = null);
+    ITelemetryBlockLog? GetHistogramLog(FunctionId functionId);
 
     /// <summary>
     /// Returns an aggregating <see cref="ITelemetryLog"/> for logging counter telemetry.

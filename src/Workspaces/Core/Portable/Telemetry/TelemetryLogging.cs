@@ -120,9 +120,9 @@ internal static class TelemetryLogging
     /// <summary>
     /// Returns aggregating telemetry log.
     /// </summary>
-    private static ITelemetryBlockLog? GetHistogramLog(FunctionId functionId, double[]? bucketBoundaries = null)
+    private static ITelemetryBlockLog? GetHistogramLog(FunctionId functionId)
     {
-        return s_logProvider?.GetHistogramLog(functionId, bucketBoundaries);
+        return s_logProvider?.GetHistogramLog(functionId);
     }
 
     private static ITelemetryLog? GetCounterLog(FunctionId functionId)

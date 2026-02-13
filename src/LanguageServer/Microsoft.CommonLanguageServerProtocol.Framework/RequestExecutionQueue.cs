@@ -237,6 +237,7 @@ internal class RequestExecutionQueue<TRequestContext> : IRequestExecutionQueue<T
 
                     // Restore our activity id so that logging/tracking works across asynchronous calls.
                     Trace.CorrelationManager.ActivityId = activityId;
+                    Activity.Current = queueItem.work.Activity;
 
                     using var loggerScope = _logger.CreateContext(work.MethodName);
 

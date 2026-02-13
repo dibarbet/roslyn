@@ -6,6 +6,7 @@
 #nullable enable
 
 using System;
+using System.Diagnostics;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework;
 
@@ -14,6 +15,8 @@ internal abstract class AbstractRequestScope(string name) : IDisposable
     public string Name { get; } = name;
 
     public string? Language { get; private set; }
+
+    public abstract Activity? Activity { get; protected set; }
 
     public abstract void RecordCancellation();
     public abstract void RecordException(Exception exception);

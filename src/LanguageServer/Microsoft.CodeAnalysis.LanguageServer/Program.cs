@@ -20,6 +20,10 @@ using Microsoft.CodeAnalysis.LanguageServer.StarredSuggestions;
 using Microsoft.CodeAnalysis.Telemetry;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
+using Roslyn.LanguageServer.Protocol;
 using RoslynLog = Microsoft.CodeAnalysis.Internal.Log;
 
 WindowsErrorReporting.SetErrorModeOnWindows();
@@ -57,9 +61,22 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
         builder.SetMinimumLevel(LogLevel.Trace);
         builder.AddOpenTelemetry(options =>
         {
+            options.SetResourceBuilder(ResourceBuilder.CreateDefault()
+                .AddService(serviceName: OpenTelemetryConstants.ServiceName));
             options.IncludeFormattedMessage = true;
             options.IncludeScopes = true;
             options.AddProcessor(new SimpleLogRecordExportProcessor(lspLogMessageExporter));
+
+            if (Environment.GetEnvironmentVariable("DOTNET_ROSLYN_OTLP_ENDPOINT") is { Length: > 0 } otlpEndpoint)
+            {
+#pragma warning disable RS0030 // OTLP endpoint is a network URI, not a file path
+                options.AddProcessor(new SimpleLogRecordExportProcessor(new OtlpLogExporter(new OtlpExporterOptions
+                {
+                    Endpoint = new Uri(otlpEndpoint),
+                    Protocol = OtlpExportProtocol.Grpc
+                })));
+#pragma warning restore RS0030
+            }
         });
     });
 
@@ -86,6 +103,7 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     }
 
     logger.LogTrace($".NET Runtime Version: {RuntimeInformation.FrameworkDescription}");
+
     var extensionManager = ExtensionAssemblyManager.Create(serverConfiguration, loggerFactory);
     var assemblyLoader = new CustomExportAssemblyLoader(extensionManager, loggerFactory);
     var typeRefResolver = new ExtensionTypeRefResolver(assemblyLoader, loggerFactory);
@@ -111,9 +129,9 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     var telemetryReporter = exportProvider.GetExports<ITelemetryReporter>().SingleOrDefault()?.Value;
     RoslynFaultReporter.Initialize(telemetryReporter, serverConfiguration.TelemetryLevel, serverConfiguration.SessionId);
 
-    // Initialize the open telemetry exporters for traces and meters.
     using var _2 = OpenTelemetryHelpers.InitializeTracerProvider(telemetryReporter);
     using var meterProvider = OpenTelemetryHelpers.InitializeMeterProvider(telemetryReporter);
+
     // Update the Roslyn.Logger to report open telemetry traces.
     var roslynLogger = new OpenTelemetryRoslynLogger(logDelta: false);
     RoslynLog.Logger.SetLogger(roslynLogger);

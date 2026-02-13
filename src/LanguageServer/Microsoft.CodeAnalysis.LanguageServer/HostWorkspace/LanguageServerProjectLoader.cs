@@ -162,6 +162,9 @@ internal abstract class LanguageServerProjectLoader
 
     private async ValueTask ReloadProjectsAsync(ImmutableSegmentedList<ProjectToLoad> projectsToLoadOrReload, CancellationToken cancellationToken)
     {
+        using var activity = ProjectLoadActivityScope.StartActivity("reload-projects");
+        activity?.SetTag("projects.count", projectsToLoadOrReload.Count);
+
         var stopwatch = Stopwatch.StartNew();
 
         // TODO: support configuration switching
@@ -198,6 +201,8 @@ internal abstract class LanguageServerProjectLoader
         }
         finally
         {
+            activity?.SetTag("reload.duration_ms", stopwatch.Elapsed.TotalMilliseconds);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             _logger.LogInformation(string.Format(LanguageServerResources.Completed_reload_of_all_projects_in_0, stopwatch.Elapsed));
         }
     }
@@ -230,6 +235,10 @@ internal abstract class LanguageServerProjectLoader
     /// <returns>True if the project needs a NuGet restore, false otherwise.</returns>
     private async Task<bool> ReloadProjectAsync(ProjectToLoad projectToLoad, ToastErrorReporter toastErrorReporter, BuildHostProcessManager buildHostProcessManager, CancellationToken cancellationToken)
     {
+        // Start a child activity under the current reload-projects span (which is the ambient Activity.Current).
+        using var activity = ProjectLoadActivityScope.StartChildActivity("reload-project", Activity.Current);
+        activity?.SetTag("project.path", projectToLoad.Path);
+
         BuildHostProcessKind? preferredBuildHostKindThatWeDidNotGet = null;
         var projectPath = projectToLoad.Path;
         Contract.ThrowIfFalse(PathUtilities.IsAbsolute(projectPath));
@@ -353,6 +362,7 @@ internal abstract class LanguageServerProjectLoader
                 _logger.LogInformation(string.Format(LanguageServerResources.Successfully_completed_load_of_0, projectPath));
             }
 
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return needsRestore;
         }
         catch (Exception e)
@@ -362,6 +372,7 @@ internal abstract class LanguageServerProjectLoader
             var diagnosticLogItem = new DiagnosticLogItem(DiagnosticLogItemKind.Error, message, projectPath);
             await LogDiagnosticsAsync([diagnosticLogItem]);
 
+            activity?.SetStatus(ActivityStatusCode.Error, e.Message);
             return false;
         }
 

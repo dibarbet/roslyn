@@ -6,6 +6,7 @@
 #nullable enable
 
 using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,6 +46,8 @@ internal sealed class QueueItem<TRequestContext> : IQueueItem<TRequestContext>
     public string MethodName { get; }
 
     public object? SerializedRequest { get; }
+
+    public Activity? Activity => _requestTelemetryScope?.Activity;
 
     internal QueueItem(
         string methodName,
