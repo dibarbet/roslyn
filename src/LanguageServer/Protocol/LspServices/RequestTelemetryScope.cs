@@ -72,9 +72,7 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
     {
         var requestDuration = _stopwatch.Elapsed;
 
-        _executeActivity?.Dispose();
-
-        // Set final status on the parent activity based on the result.
+        // Set final status on both activities based on the result.
         var status = _result switch
         {
             RequestTelemetryLogger.Result.Succeeded => ActivityStatusCode.Ok,
@@ -82,6 +80,10 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
             RequestTelemetryLogger.Result.Failed => ActivityStatusCode.Error,
             _ => ActivityStatusCode.Unset,
         };
+
+        _executeActivity?.SetStatus(status, _result.ToString());
+        _executeActivity?.Dispose();
+
         _activity?.SetStatus(status, _result.ToString());
         _activity?.SetTag("lsp.language", Language);
         _activity?.SetTag("lsp.result", _result.ToString());
