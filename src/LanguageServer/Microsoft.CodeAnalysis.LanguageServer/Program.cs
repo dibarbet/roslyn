@@ -11,13 +11,19 @@ using Microsoft.CodeAnalysis.Contracts.Telemetry;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.LanguageServer;
 using Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
+using Microsoft.CodeAnalysis.LanguageServer.Exporters;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.LanguageServer.Logging;
 using Microsoft.CodeAnalysis.LanguageServer.Services;
 using Microsoft.CodeAnalysis.LanguageServer.StarredSuggestions;
+using Microsoft.CodeAnalysis.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using RoslynLog = Microsoft.CodeAnalysis.Internal.Log;
 
 WindowsErrorReporting.SetErrorModeOnWindows();
@@ -46,22 +52,22 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
         Console.SetOut(new StreamWriter(Console.OpenStandardError()));
     }
 
-    // Create a console logger as a fallback to use before the LSP server starts.
+    // Create the LspLogMessageExporter for routing OTel logs to LSP window/logMessage.
+    var lspLogMessageExporter = new LspLogMessageExporter(serverConfiguration);
+
+    // Create logger factory with OTel as the sole logging provider.
     using var loggerFactory = LoggerFactory.Create(builder =>
     {
-        // The actual logger is responsible for deciding whether to log based on the current log level.
-        // The factory should be configured to log everything.
         builder.SetMinimumLevel(LogLevel.Trace);
-        builder.AddProvider(new LspLogMessageLoggerProvider(fallbackLoggerFactory:
-            // Add a console logger as a fallback for when the LSP server has not finished initializing.
-            LoggerFactory.Create(builder =>
-            {
-                builder.SetMinimumLevel(LogLevel.Trace);
-                builder.AddConsole();
-                // The console logger outputs control characters on unix for colors which don't render correctly in VSCode.
-                builder.AddSimpleConsole(formatterOptions => formatterOptions.ColorBehavior = LoggerColorBehavior.Disabled);
-            }), serverConfiguration
-        ));
+        builder.AddOpenTelemetry(options =>
+        {
+            options.IncludeFormattedMessage = true;
+            options.IncludeScopes = true;
+            options.AddProcessor(new SimpleLogRecordExportProcessor(lspLogMessageExporter));
+        });
+        // Add a console logger as a fallback for early startup before LSP is ready.
+        builder.AddConsole();
+        builder.AddSimpleConsole(formatterOptions => formatterOptions.ColorBehavior = LoggerColorBehavior.Disabled);
     });
 
     var logger = loggerFactory.CreateLogger<Program>();
@@ -111,6 +117,36 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     // Initialize the fault handler if it's available
     var telemetryReporter = exportProvider.GetExports<ITelemetryReporter>().SingleOrDefault()?.Value;
     RoslynLogger.Initialize(telemetryReporter, serverConfiguration.TelemetryLevel, serverConfiguration.SessionId);
+
+    // Wire up OTel TracerProvider — subscribes to both ActivitySources.
+    // VSTelemetry and ETW exporters filter to Roslyn.Logger source only.
+    var tracerProviderBuilder = Sdk.CreateTracerProviderBuilder()
+        .AddSource(OTelRoslynLogger.SourceName)
+        .AddSource("Roslyn.LanguageServer");
+
+    if (telemetryReporter is not null)
+        tracerProviderBuilder.AddProcessor(new SimpleActivityExportProcessor(new VSTelemetryTraceExporter(telemetryReporter)));
+
+    tracerProviderBuilder.AddProcessor(new SimpleActivityExportProcessor(new EtwTraceExporter()));
+
+    using var tracerProvider = tracerProviderBuilder.Build();
+
+    // Wire up OTel MeterProvider for TelemetryLogging histograms/counters.
+    var meterProviderBuilder = Sdk.CreateMeterProviderBuilder()
+        .AddMeter(OTelRoslynLogger.SourceName);
+
+    if (telemetryReporter is not null)
+        meterProviderBuilder.AddReader(new PeriodicExportingMetricReader(new VSTelemetryMetricExporter(telemetryReporter), exportIntervalMilliseconds: 60000));
+
+    meterProviderBuilder.AddReader(new PeriodicExportingMetricReader(new EtwMetricExporter(), exportIntervalMilliseconds: 60000));
+
+    using var meterProvider = meterProviderBuilder.Build();
+
+    // Set OTelRoslynLogger as the sole Roslyn ILogger.
+    RoslynLog.Logger.SetLogger(new OTelRoslynLogger());
+
+    // Set OTelTelemetryLogProvider for TelemetryLogging static API.
+    TelemetryLogging.SetLogProvider(new OTelTelemetryLogProvider(meterProvider));
 
     // Create the workspace first, since right now the language server will assume there's at least one Workspace. This as a side effect creates the actual workspace
     // object which is registered by the LspWorkspaceRegistrationEventListener.

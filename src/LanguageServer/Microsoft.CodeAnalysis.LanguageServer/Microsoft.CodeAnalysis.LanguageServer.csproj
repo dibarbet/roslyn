@@ -101,6 +101,12 @@
     <PackageReference Include="NuGet.ProjectModel" />
     <PackageReference Include="System.CommandLine" />
 
+    <!-- OpenTelemetry -->
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+
     <!--
       Ensure we include the sqlite assemblies and their native dependencies in our package to enable persistent storage.
     -->

@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CommonLanguageServerProtocol.Framework;
@@ -10,22 +11,35 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
-internal sealed class RequestTelemetryScope(string name, RequestTelemetryLogger telemetryLogger)
-    : AbstractRequestScope(name)
+internal sealed class RequestTelemetryScope : AbstractRequestScope
 {
-    private readonly RequestTelemetryLogger _telemetryLogger = telemetryLogger;
+    private static readonly ActivitySource s_activitySource = new("Roslyn.LanguageServer");
+
+    private readonly RequestTelemetryLogger _telemetryLogger;
+    private readonly Activity? _activity;
     private RequestTelemetryLogger.Result _result = RequestTelemetryLogger.Result.Succeeded;
     private readonly SharedStopwatch _stopwatch = SharedStopwatch.StartNew();
     private TimeSpan _queuedDuration;
 
+    public RequestTelemetryScope(string name, RequestTelemetryLogger telemetryLogger)
+        : base(name)
+    {
+        _telemetryLogger = telemetryLogger;
+        _activity = s_activitySource.StartActivity($"lsp/{name}", ActivityKind.Server);
+        _activity?.SetTag("lsp.method", name);
+    }
+
     public override void RecordExecutionStart()
     {
         _queuedDuration = _stopwatch.Elapsed;
+        _activity?.AddEvent(new ActivityEvent("execution_start"));
+        _activity?.SetTag("lsp.queue_duration_ms", _queuedDuration.TotalMilliseconds);
     }
 
     public override void RecordCancellation()
     {
         _result = RequestTelemetryLogger.Result.Cancelled;
+        _activity?.SetStatus(ActivityStatusCode.Ok, "Cancelled");
     }
 
     public override void RecordException(Exception exception)
@@ -34,16 +48,31 @@ internal sealed class RequestTelemetryScope(string name, RequestTelemetryLogger 
         ReportNonFatalError(exception);
 
         _result = RequestTelemetryLogger.Result.Failed;
+        _activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
+        _activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+        {
+            { "exception.type", exception.GetType().FullName },
+            { "exception.message", exception.Message },
+        }));
     }
 
     public override void RecordWarning(string message)
     {
         _result = RequestTelemetryLogger.Result.Failed;
+        _activity?.AddEvent(new ActivityEvent("warning", tags: new ActivityTagsCollection
+        {
+            { "message", message },
+        }));
     }
 
     public override void Dispose()
     {
         var requestDuration = _stopwatch.Elapsed;
+
+        _activity?.SetTag("lsp.language", Language);
+        _activity?.SetTag("lsp.result", _result.ToString());
+        _activity?.SetTag("lsp.duration_ms", requestDuration.TotalMilliseconds);
+        _activity?.Dispose();
 
         _telemetryLogger.UpdateTelemetryData(Name, Language, _queuedDuration, requestDuration, _result);
     }

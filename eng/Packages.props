@@ -235,6 +235,15 @@
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3.v110_xp" Version="$(SqliteVersion)" />
     <PackageVersion Include="SQLitePCLRaw.provider.e_sqlite3.net45" Version="$(SqliteVersion)" />
 
+    <!--
+      OpenTelemetry - used only by the language server executable.
+    -->
+    <PackageVersion Include="OpenTelemetry" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.15.0" />
+
     <PackageVersion Include="Humanizer.Core" Version="$(HumanizerVersion)" />
     <PackageVersion Include="ICSharpCode.Decompiler" Version="9.1.0.7988" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Elfie" Version="1.0.0" />
