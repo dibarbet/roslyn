@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis.Internal.Log;
+using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Logging;
 
@@ -21,7 +22,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Logging;
 /// </summary>
 internal sealed class OTelRoslynLogger : ILogger
 {
-    internal const string SourceName = "Roslyn.Logger";
+    internal const string SourceName = OpenTelemetrySourceNames.RoslynLogger;
     internal static readonly ActivitySource ActivitySource = new(SourceName);
 
     /// <summary>

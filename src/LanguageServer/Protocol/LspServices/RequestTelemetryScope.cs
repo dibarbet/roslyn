@@ -7,16 +7,18 @@ using System.Diagnostics;
 using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CommonLanguageServerProtocol.Framework;
+using Roslyn.LanguageServer.Protocol;
 using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
 internal sealed class RequestTelemetryScope : AbstractRequestScope
 {
-    private static readonly ActivitySource s_activitySource = new("Roslyn.LanguageServer");
+    private static readonly ActivitySource s_activitySource = new(OpenTelemetrySourceNames.LanguageServer);
 
     private readonly RequestTelemetryLogger _telemetryLogger;
     private readonly Activity? _activity;
+    private Activity? _executeActivity;
     private RequestTelemetryLogger.Result _result = RequestTelemetryLogger.Result.Succeeded;
     private readonly SharedStopwatch _stopwatch = SharedStopwatch.StartNew();
     private TimeSpan _queuedDuration;
@@ -32,13 +34,17 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
     public override void RecordExecutionStart()
     {
         _queuedDuration = _stopwatch.Elapsed;
-        _activity?.AddEvent(new ActivityEvent("execution_start"));
         _activity?.SetTag("lsp.queue_duration_ms", _queuedDuration.TotalMilliseconds);
+
+        // Start a child activity for the execution phase so traces show
+        // both the total request lifetime and the handler execution separately.
+        _executeActivity = s_activitySource.StartActivity($"lsp/{Name}/execute", ActivityKind.Internal, _activity?.Context ?? default);
     }
 
     public override void RecordCancellation()
     {
         _result = RequestTelemetryLogger.Result.Cancelled;
+        _executeActivity?.SetStatus(ActivityStatusCode.Ok, "Cancelled");
         _activity?.SetStatus(ActivityStatusCode.Ok, "Cancelled");
     }
 
@@ -48,18 +54,23 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
         ReportNonFatalError(exception);
 
         _result = RequestTelemetryLogger.Result.Failed;
-        _activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
-        _activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+
+        var exceptionTags = new ActivityTagsCollection
         {
             { "exception.type", exception.GetType().FullName },
             { "exception.message", exception.Message },
-        }));
+        };
+
+        _executeActivity?.SetStatus(ActivityStatusCode.Error, exception.Message);
+        _executeActivity?.AddEvent(new ActivityEvent("exception", tags: exceptionTags));
+
+        _activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
     }
 
     public override void RecordWarning(string message)
     {
         _result = RequestTelemetryLogger.Result.Failed;
-        _activity?.AddEvent(new ActivityEvent("warning", tags: new ActivityTagsCollection
+        _executeActivity?.AddEvent(new ActivityEvent("warning", tags: new ActivityTagsCollection
         {
             { "message", message },
         }));
@@ -68,6 +79,8 @@ internal sealed class RequestTelemetryScope : AbstractRequestScope
     public override void Dispose()
     {
         var requestDuration = _stopwatch.Elapsed;
+
+        _executeActivity?.Dispose();
 
         _activity?.SetTag("lsp.language", Language);
         _activity?.SetTag("lsp.result", _result.ToString());

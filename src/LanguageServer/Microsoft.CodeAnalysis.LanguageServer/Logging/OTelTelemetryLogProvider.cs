@@ -22,12 +22,12 @@ internal sealed class OTelTelemetryLogProvider : ITelemetryLogProvider
 {
     internal static readonly Meter Meter = new("Roslyn.Logger");
 
-    private readonly MeterProvider? _meterProvider;
+    private readonly MeterProvider _meterProvider;
     private ImmutableDictionary<FunctionId, OTelHistogramLog> _histogramLogs = ImmutableDictionary<FunctionId, OTelHistogramLog>.Empty;
     private ImmutableDictionary<FunctionId, OTelCounterLog> _counterLogs = ImmutableDictionary<FunctionId, OTelCounterLog>.Empty;
     private ImmutableDictionary<FunctionId, OTelBlockLog> _blockLogs = ImmutableDictionary<FunctionId, OTelBlockLog>.Empty;
 
-    public OTelTelemetryLogProvider(MeterProvider? meterProvider)
+    public OTelTelemetryLogProvider(MeterProvider meterProvider)
     {
         _meterProvider = meterProvider;
     }
@@ -42,7 +42,7 @@ internal sealed class OTelTelemetryLogProvider : ITelemetryLogProvider
         => ImmutableInterlocked.GetOrAdd(ref _counterLogs, functionId, static fid => new OTelCounterLog(fid));
 
     public void Flush()
-        => _meterProvider?.ForceFlush();
+        => _meterProvider.ForceFlush();
 
     /// <summary>
     /// OTel histogram-based log for aggregated duration metrics.

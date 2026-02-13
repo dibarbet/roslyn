@@ -19,11 +19,11 @@ using Microsoft.CodeAnalysis.LanguageServer.Services;
 using Microsoft.CodeAnalysis.LanguageServer.StarredSuggestions;
 using Microsoft.CodeAnalysis.Telemetry;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Roslyn.LanguageServer.Protocol;
 using RoslynLog = Microsoft.CodeAnalysis.Internal.Log;
 
 WindowsErrorReporting.SetErrorModeOnWindows();
@@ -65,9 +65,6 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
             options.IncludeScopes = true;
             options.AddProcessor(new SimpleLogRecordExportProcessor(lspLogMessageExporter));
         });
-        // Add a console logger as a fallback for early startup before LSP is ready.
-        builder.AddConsole();
-        builder.AddSimpleConsole(formatterOptions => formatterOptions.ColorBehavior = LoggerColorBehavior.Disabled);
     });
 
     var logger = loggerFactory.CreateLogger<Program>();
@@ -121,8 +118,8 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     // Wire up OTel TracerProvider — subscribes to both ActivitySources.
     // VSTelemetry and ETW exporters filter to Roslyn.Logger source only.
     var tracerProviderBuilder = Sdk.CreateTracerProviderBuilder()
-        .AddSource(OTelRoslynLogger.SourceName)
-        .AddSource("Roslyn.LanguageServer");
+        .AddSource(OpenTelemetrySourceNames.RoslynLogger)
+        .AddSource(OpenTelemetrySourceNames.LanguageServer);
 
     if (telemetryReporter is not null)
         tracerProviderBuilder.AddProcessor(new SimpleActivityExportProcessor(new VSTelemetryTraceExporter(telemetryReporter)));
@@ -133,7 +130,7 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
 
     // Wire up OTel MeterProvider for TelemetryLogging histograms/counters.
     var meterProviderBuilder = Sdk.CreateMeterProviderBuilder()
-        .AddMeter(OTelRoslynLogger.SourceName);
+        .AddMeter(OpenTelemetrySourceNames.RoslynLogger);
 
     if (telemetryReporter is not null)
         meterProviderBuilder.AddReader(new PeriodicExportingMetricReader(new VSTelemetryMetricExporter(telemetryReporter), exportIntervalMilliseconds: 60000));

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
@@ -55,17 +56,19 @@ internal sealed class LspLogMessageExporter : BaseExporter<LogRecord>
                 var messagePrefix = $"[{categoryName}]";
 
                 var logMethod = Methods.WindowLogMessageName;
+                var formattedMessage = $"{messagePrefix} {message}";
 
                 var server = LanguageServerHost.Instance;
                 if (server == null)
                 {
-                    // Before server initialization, skip — console logger handles early output.
+                    // Before server initialization, write to stderr as a fallback.
+                    Console.Error.WriteLine(formattedMessage);
                     continue;
                 }
 
                 var _ = server.GetRequiredLspService<IClientLanguageServerManager>().SendNotificationAsync(logMethod, new LogMessageParams()
                 {
-                    Message = $"{messagePrefix} {message}",
+                    Message = formattedMessage,
                     MessageType = LogLevelToMessageType(logRecord.LogLevel),
                 }, CancellationToken.None);
             }
@@ -73,7 +76,7 @@ internal sealed class LspLogMessageExporter : BaseExporter<LogRecord>
             {
                 // Shutting down - connection lost. Safe to ignore.
             }
-            catch
+            catch (Exception ex) when (FatalError.ReportAndCatch(ex))
             {
                 // Don't let exporter errors crash the pipeline
             }

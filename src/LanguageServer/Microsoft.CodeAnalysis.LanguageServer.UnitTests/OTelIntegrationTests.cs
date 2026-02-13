@@ -23,7 +23,7 @@ public sealed class OTelIntegrationTests(ITestOutputHelper testOutputHelper)
     {
         _activityListener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name is OTelRoslynLogger.SourceName or "Roslyn.LanguageServer",
+            ShouldListenTo = source => source.Name is OTelRoslynLogger.SourceName or OpenTelemetrySourceNames.LanguageServer,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity => _completedActivities.Add(activity),
         };
@@ -59,13 +59,41 @@ public sealed class OTelIntegrationTests(ITestOutputHelper testOutputHelper)
             }
         }, CancellationToken.None);
 
-        // Verify an activity was created from the Roslyn.LanguageServer source for the request.
-        var lspActivities = _completedActivities.Where(a => a.Source.Name == "Roslyn.LanguageServer").ToList();
+        // Verify activities were created from the Roslyn.LanguageServer source for the request.
+        var lspActivities = _completedActivities.Where(a => a.Source.Name == OpenTelemetrySourceNames.LanguageServer).ToList();
         Assert.NotEmpty(lspActivities);
 
-        var requestActivity = lspActivities.Single(a => a.OperationName.Contains("textDocument/didOpen"));
-        Assert.Equal("Roslyn.LanguageServer", requestActivity.Source.Name);
+        var requestActivity = lspActivities.Single(a => a.OperationName == "lsp/textDocument/didOpen");
+        Assert.Equal(OpenTelemetrySourceNames.LanguageServer, requestActivity.Source.Name);
         Assert.NotNull(requestActivity.GetTagItem("lsp.method"));
+    }
+
+    [Fact]
+    public async Task LspRequest_ProducesParentAndChildExecuteActivities()
+    {
+        SetupActivityListener();
+
+        await using var server = await CreateLanguageServerAsync();
+
+        var document = new VersionedTextDocumentIdentifier { DocumentUri = ProtocolConversions.CreateAbsoluteDocumentUri(@"C:\test.cs") };
+        await server.ExecuteRequestAsync<DidOpenTextDocumentParams, object>(Methods.TextDocumentDidOpenName, new DidOpenTextDocumentParams
+        {
+            TextDocument = new TextDocumentItem
+            {
+                DocumentUri = document.DocumentUri,
+                Text = "class C { }"
+            }
+        }, CancellationToken.None);
+
+        var lspActivities = _completedActivities.Where(a => a.Source.Name == OpenTelemetrySourceNames.LanguageServer).ToList();
+
+        // Should have a parent activity for the full request and a child for execution.
+        var parentActivity = lspActivities.Single(a => a.OperationName == "lsp/textDocument/didOpen");
+        var executeActivity = lspActivities.Single(a => a.OperationName == "lsp/textDocument/didOpen/execute");
+
+        // Child should reference the parent.
+        Assert.Equal(parentActivity.TraceId, executeActivity.TraceId);
+        Assert.Equal(parentActivity.SpanId, executeActivity.ParentSpanId);
     }
 
     [Fact]
@@ -127,7 +155,7 @@ public sealed class OTelIntegrationTests(ITestOutputHelper testOutputHelper)
         }, CancellationToken.None);
 
         var requestActivity = _completedActivities.Single(
-            a => a.Source.Name == "Roslyn.LanguageServer" && a.OperationName.Contains("textDocument/didOpen"));
+            a => a.Source.Name == OpenTelemetrySourceNames.LanguageServer && a.OperationName == "lsp/textDocument/didOpen");
 
         // Verify expected tags from RequestTelemetryScope
         Assert.Equal("textDocument/didOpen", requestActivity.GetTagItem("lsp.method"));
@@ -145,7 +173,7 @@ public sealed class OTelIntegrationTests(ITestOutputHelper testOutputHelper)
 
         var activity = _completedActivities.Single();
         Assert.Equal(OTelRoslynLogger.SourceName, activity.Source.Name);
-        Assert.NotEqual("Roslyn.LanguageServer", activity.Source.Name);
+        Assert.NotEqual(OpenTelemetrySourceNames.LanguageServer, activity.Source.Name);
     }
 
     [Fact]
