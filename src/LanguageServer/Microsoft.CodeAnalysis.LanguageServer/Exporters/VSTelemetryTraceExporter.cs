@@ -10,7 +10,7 @@ using OpenTelemetry;
 namespace Microsoft.CodeAnalysis.LanguageServer.Exporters;
 
 /// <summary>
-/// OTel trace exporter that forwards <c>Roslyn.Logger</c> activities to <see cref="ITelemetryReporter"/>.
+/// OpenTelemetry trace exporter that forwards <c>Roslyn.Logger</c> activities to <see cref="ITelemetryReporter"/>.
 /// <para>
 /// Zero-duration activities (from <c>Logger.Log</c>) are reported as <see cref="ITelemetryReporter.Log"/>.
 /// Activities with duration (from <c>Logger.LogBlock</c>) are reported as

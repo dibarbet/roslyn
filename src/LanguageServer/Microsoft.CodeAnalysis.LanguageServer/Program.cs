@@ -20,10 +20,6 @@ using Microsoft.CodeAnalysis.LanguageServer.StarredSuggestions;
 using Microsoft.CodeAnalysis.Telemetry;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
-using OpenTelemetry.Logs;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Trace;
-using Roslyn.LanguageServer.Protocol;
 using RoslynLog = Microsoft.CodeAnalysis.Internal.Log;
 
 WindowsErrorReporting.SetErrorModeOnWindows();
@@ -52,10 +48,10 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
         Console.SetOut(new StreamWriter(Console.OpenStandardError()));
     }
 
-    // Create the LspLogMessageExporter for routing OTel logs to LSP window/logMessage.
+    // Create the LspLogMessageExporter for routing OpenTelemetry logs to LSP window/logMessage.
     var lspLogMessageExporter = new LspLogMessageExporter(serverConfiguration);
 
-    // Create logger factory with OTel as the sole logging provider.
+    // Create logger factory with OpenTelemetry as the sole logging provider.
     using var loggerFactory = LoggerFactory.Create(builder =>
     {
         builder.SetMinimumLevel(LogLevel.Trace);
@@ -113,37 +109,16 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
 
     // Initialize the fault handler if it's available
     var telemetryReporter = exportProvider.GetExports<ITelemetryReporter>().SingleOrDefault()?.Value;
-    RoslynLogger.Initialize(telemetryReporter, serverConfiguration.TelemetryLevel, serverConfiguration.SessionId);
+    RoslynFaultReporter.Initialize(telemetryReporter, serverConfiguration.TelemetryLevel, serverConfiguration.SessionId);
 
-    // Wire up OTel TracerProvider — subscribes to both ActivitySources.
-    // VSTelemetry and ETW exporters filter to Roslyn.Logger source only.
-    var tracerProviderBuilder = Sdk.CreateTracerProviderBuilder()
-        .AddSource(OpenTelemetrySourceNames.RoslynLogger)
-        .AddSource(OpenTelemetrySourceNames.LanguageServer);
-
-    if (telemetryReporter is not null)
-        tracerProviderBuilder.AddProcessor(new SimpleActivityExportProcessor(new VSTelemetryTraceExporter(telemetryReporter)));
-
-    tracerProviderBuilder.AddProcessor(new SimpleActivityExportProcessor(new EtwTraceExporter()));
-
-    using var tracerProvider = tracerProviderBuilder.Build();
-
-    // Wire up OTel MeterProvider for TelemetryLogging histograms/counters.
-    var meterProviderBuilder = Sdk.CreateMeterProviderBuilder()
-        .AddMeter(OpenTelemetrySourceNames.RoslynLogger);
-
-    if (telemetryReporter is not null)
-        meterProviderBuilder.AddReader(new PeriodicExportingMetricReader(new VSTelemetryMetricExporter(telemetryReporter), exportIntervalMilliseconds: 60000));
-
-    meterProviderBuilder.AddReader(new PeriodicExportingMetricReader(new EtwMetricExporter(), exportIntervalMilliseconds: 60000));
-
-    using var meterProvider = meterProviderBuilder.Build();
-
-    // Set OTelRoslynLogger as the sole Roslyn ILogger.
-    RoslynLog.Logger.SetLogger(new OTelRoslynLogger());
-
-    // Set OTelTelemetryLogProvider for TelemetryLogging static API.
-    TelemetryLogging.SetLogProvider(new OTelTelemetryLogProvider(meterProvider));
+    // Initialize the open telemetry exporters for traces and meters.
+    using var _2 = OpenTelemetryHelpers.InitializeTracerProvider(telemetryReporter);
+    using var meterProvider = OpenTelemetryHelpers.InitializeMeterProvider(telemetryReporter);
+    // Update the Roslyn.Logger to report open telemetry traces.
+    var roslynLogger = new OpenTelemetryRoslynLogger(logDelta: false);
+    RoslynLog.Logger.SetLogger(roslynLogger);
+    // Update Roslyn telemetry logging to report open telemetry metrics.
+    TelemetryLogging.SetLogProvider(new OpenTelemetryTelemetryLogProvider(meterProvider, roslynLogger));
 
     // Create the workspace first, since right now the language server will assume there's at least one Workspace. This as a side effect creates the actual workspace
     // object which is registered by the LspWorkspaceRegistrationEventListener.
@@ -193,7 +168,7 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     finally
     {
         // After the LSP server shutdown, report session wide telemetry
-        RoslynLogger.ShutdownAndReportSessionTelemetry();
+        RoslynFaultReporter.ShutdownAndReportSessionTelemetry();
 
         // Server has exited, cancel our service broker service
         await serviceBrokerFactory.ShutdownAndWaitForCompletionAsync();

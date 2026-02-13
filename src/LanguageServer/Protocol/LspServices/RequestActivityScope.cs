@@ -12,18 +12,26 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
-internal sealed class RequestTelemetryScope : AbstractRequestScope
+internal sealed class RequestActivityScope : AbstractRequestScope
 {
     private static readonly ActivitySource s_activitySource = new(OpenTelemetryConstants.LanguageServer);
 
     private readonly RequestTelemetryLogger _telemetryLogger;
+
+    /// <summary>
+    /// Records an activity for the entire lifetime of the LSP request, including time in queue.
+    /// </summary>
     private readonly Activity? _activity;
+
+    /// <summary>
+    /// Records an activity for just the execution phase of the LSP request as a child of the overall request activity.
+    /// </summary>
     private Activity? _executeActivity;
     private RequestTelemetryLogger.Result _result = RequestTelemetryLogger.Result.Succeeded;
     private readonly SharedStopwatch _stopwatch = SharedStopwatch.StartNew();
     private TimeSpan _queuedDuration;
 
-    public RequestTelemetryScope(string name, RequestTelemetryLogger telemetryLogger)
+    public RequestActivityScope(string name, RequestTelemetryLogger telemetryLogger)
         : base(name)
     {
         _telemetryLogger = telemetryLogger;

@@ -2,12 +2,20 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using Microsoft.CodeAnalysis.Contracts.Telemetry;
+using Microsoft.CodeAnalysis.Internal.Log;
+using Microsoft.CodeAnalysis.LanguageServer.Exporters;
 using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
+using Microsoft.CodeAnalysis.LanguageServer.Logging;
+using Microsoft.CodeAnalysis.Telemetry;
 using Microsoft.CodeAnalysis.Test.Utilities;
 using Microsoft.CodeAnalysis.UnitTests;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Composition;
 using Nerdbank.Streams;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Roslyn.LanguageServer.Protocol;
 using StreamJsonRpc;
 using Xunit.Abstractions;
@@ -22,18 +30,54 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
 
     protected AbstractLanguageServerHostTests(ITestOutputHelper testOutputHelper)
     {
-        LoggerFactory = new LoggerFactory([new TestOutputLoggerProvider(testOutputHelper)]);
+        // Create a ServerConfiguration for the LspLogMessageExporter.
+        var serverConfiguration = new ServerConfiguration(
+            LaunchDebugger: false,
+            LogConfiguration: new LogConfiguration(Microsoft.Extensions.Logging.LogLevel.Trace),
+            StarredCompletionsPath: null,
+            TelemetryLevel: null,
+            SessionId: null,
+            ExtensionAssemblyPaths: [],
+            DevKitDependencyPath: null,
+            RazorDesignTimePath: null,
+            CSharpDesignTimePath: null,
+            ExtensionLogDirectory: string.Empty,
+            ServerPipeName: null,
+            UseStdIo: false,
+            AutoLoadProjects: false,
+            SourceGeneratorExecutionPreference: Host.SourceGeneratorExecutionPreference.Balanced,
+            ClientProcessId: null);
+
+        // Wire up LoggerFactory with both OpenTelemetry (for LspLogMessageExporter) and TestOutput (for test diagnostics).
+        var lspLogMessageExporter = new LspLogMessageExporter(serverConfiguration);
+        LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+            builder.AddProvider(new TestOutputLoggerProvider(testOutputHelper));
+            builder.AddOpenTelemetry(options =>
+            {
+                options.IncludeFormattedMessage = true;
+                options.IncludeScopes = true;
+                options.AddProcessor(new SimpleLogRecordExportProcessor(lspLogMessageExporter));
+            });
+        });
+
         TempRoot = new();
         MefCacheDirectory = TempRoot.CreateDirectory();
     }
 
-    protected Task<TestLspServer> CreateLanguageServerAsync(bool includeDevKitComponents = true)
+    private protected Task<TestLspServer> CreateLanguageServerAsync(
+        ClientCapabilities? clientCapabilities = null,
+        bool includeDevKitComponents = true,
+        string[]? extensionPaths = null,
+        ITelemetryReporter? telemetryReporter = null)
     {
-        return TestLspServer.CreateAsync(new ClientCapabilities(), LoggerFactory, MefCacheDirectory.Path, includeDevKitComponents);
+        return TestLspServer.CreateAsync(clientCapabilities ?? new ClientCapabilities(), LoggerFactory, MefCacheDirectory.Path, includeDevKitComponents, extensionPaths, telemetryReporter);
     }
 
     public void Dispose()
     {
+        LoggerFactory.Dispose();
         TempRoot.Dispose();
     }
 
@@ -43,12 +87,14 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
         private readonly JsonRpc _clientRpc;
         private readonly Stream _serverStream;
         private readonly Stream _clientStream;
+        private readonly TracerProvider _tracerProvider;
+        private readonly MeterProvider _meterProvider;
 
-        internal static async Task<TestLspServer> CreateAsync(ClientCapabilities clientCapabilities, ILoggerFactory loggerFactory, string cacheDirectory, bool includeDevKitComponents = true, string[]? extensionPaths = null)
+        internal static async Task<TestLspServer> CreateAsync(ClientCapabilities clientCapabilities, ILoggerFactory loggerFactory, string cacheDirectory, bool includeDevKitComponents = true, string[]? extensionPaths = null, ITelemetryReporter? telemetryReporter = null)
         {
             var (exportProvider, assemblyLoader) = await LanguageServerTestComposition.CreateExportProviderAsync(
                 loggerFactory, includeDevKitComponents, cacheDirectory, extensionPaths);
-            var testLspServer = new TestLspServer(exportProvider, loggerFactory, assemblyLoader);
+            var testLspServer = new TestLspServer(exportProvider, loggerFactory, assemblyLoader, telemetryReporter);
             var initializeResponse = await testLspServer.ExecuteRequestAsync<InitializeParams, InitializeResult>(Methods.InitializeName, new InitializeParams { Capabilities = clientCapabilities }, CancellationToken.None);
             Assert.NotNull(initializeResponse?.Capabilities);
             testLspServer.ServerCapabilities = initializeResponse.Capabilities;
@@ -63,9 +109,15 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
 
         internal ServerCapabilities ServerCapabilities { get => field ?? throw new InvalidOperationException("Initialize has not been called"); private set; }
 
-        private TestLspServer(ExportProvider exportProvider, ILoggerFactory loggerFactory, IAssemblyLoader assemblyLoader)
+        private TestLspServer(ExportProvider exportProvider, ILoggerFactory loggerFactory, IAssemblyLoader assemblyLoader, ITelemetryReporter? telemetryReporter = null)
         {
             var typeRefResolver = new ExtensionTypeRefResolver(assemblyLoader, loggerFactory);
+
+            _tracerProvider = OpenTelemetryHelpers.InitializeTracerProvider(telemetryReporter);
+            _meterProvider = OpenTelemetryHelpers.InitializeMeterProvider(telemetryReporter);
+
+            Logger.SetLogger(new OpenTelemetryRoslynLogger());
+            TelemetryLogging.SetLogProvider(new OpenTelemetryTelemetryLogProvider(_meterProvider));
 
             var (clientStream, serverStream) = FullDuplexStream.CreatePair();
             _serverStream = serverStream;
@@ -145,6 +197,8 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
 #pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
 
             _clientRpc.Dispose();
+            _tracerProvider?.Dispose();
+            _meterProvider?.Dispose();
         }
     }
 }

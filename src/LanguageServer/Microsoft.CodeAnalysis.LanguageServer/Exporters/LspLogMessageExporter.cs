@@ -13,11 +13,11 @@ using StreamJsonRpc;
 namespace Microsoft.CodeAnalysis.LanguageServer.Exporters;
 
 /// <summary>
-/// OTel log exporter that sends formatted log records to the VS Code output window
+/// OpenTelemetry log exporter that sends formatted log records to the VS Code output window
 /// via LSP <c>window/logMessage</c> notifications.
 /// <para>
 /// Replaces <c>LspLogMessageLoggerProvider</c>. All M.E.Logging logs flow through
-/// OTel's log pipeline and this exporter routes them to the LSP client.
+/// OpenTelemetry's log pipeline and this exporter routes them to the LSP client.
 /// </para>
 /// </summary>
 internal sealed class LspLogMessageExporter : BaseExporter<LogRecord>

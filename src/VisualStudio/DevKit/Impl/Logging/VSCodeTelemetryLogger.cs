@@ -14,6 +14,11 @@ using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Telemetry;
+using Microsoft.VisualStudio.Telemetry.Metrics;
+using OpenTelemetry.Metrics;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
+using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Logging;
 
@@ -65,6 +70,30 @@ internal sealed class VSCodeTelemetryLogger : ITelemetryReporter
         var telemetryEvent = new TelemetryEvent(name);
         SetProperties(telemetryEvent, properties);
         _telemetrySession.PostEvent(telemetryEvent);
+    }
+
+    public void LogHistogram(Metric metric)
+    {
+        
+        var builder = Sdk.CreateMeterProviderBuilder()
+            .AddMeter(OpenTelemetryConstants.RoslynLogger);
+
+        if (telemetryReporter is not null)
+            builder.AddReader(new SignalExporter(new VSTelemetryMetricExporter(telemetryReporter), exportIntervalMilliseconds: VSTelemetryExportIntervalMilliseconds));
+
+        return builder.Build();
+
+        // Todo - share meters.
+        var meterProvider = new VSTelemetryMeterProvider();
+        var meter = meterProvider.CreateMeter(metric.MeterName, version: metric.MeterVersion);
+
+        var histogram = meter.CreateHistogram<long>(metric.MeterName, _histogramConfiguration);
+
+        Debug.Assert(_telemetrySession != null);
+
+        var histogramEvent = new HistogramEvent(name, value);
+        SetProperties(histogramEvent, properties);
+        _telemetrySession.PostEvent(histogramEvent);
     }
 
     public void LogBlockStart(string eventName, int kind, int blockId)

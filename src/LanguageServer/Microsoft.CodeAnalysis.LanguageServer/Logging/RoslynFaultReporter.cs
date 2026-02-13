@@ -10,12 +10,12 @@ using Microsoft.CodeAnalysis.Internal.Log;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Logging;
 
-internal sealed class RoslynLogger
+internal sealed class RoslynFaultReporter
 {
-    private static RoslynLogger? _instance;
+    private static RoslynFaultReporter? _instance;
     private static ITelemetryReporter? _telemetryReporter;
 
-    private RoslynLogger()
+    private RoslynFaultReporter()
     {
     }
 

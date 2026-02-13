@@ -6,14 +6,14 @@ using System;
 using Microsoft.CodeAnalysis.Internal.Log;
 using Microsoft.CodeAnalysis.Telemetry;
 
-namespace Microsoft.VisualStudio.LanguageServices.Telemetry;
+namespace Microsoft.CodeAnalysis.Internal.Log;
 
-internal sealed class VisualStudioTelemetryLog : ITelemetryBlockLog
+internal sealed class TelemetryBlockLog : ITelemetryBlockLog
 {
     private readonly ILogger _telemetryLogger;
     private readonly FunctionId _functionId;
 
-    public VisualStudioTelemetryLog(ILogger telemetryLogger, FunctionId functionId)
+    public TelemetryBlockLog(ILogger telemetryLogger, FunctionId functionId)
     {
         _telemetryLogger = telemetryLogger;
         _functionId = functionId;

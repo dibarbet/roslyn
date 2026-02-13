@@ -18,9 +18,9 @@ internal sealed class TelemetryLogProvider : ITelemetryLogProvider
     private readonly ILogger _telemetryLogger;
 
     /// <summary>
-    /// Manages instances of <see cref="VisualStudioTelemetryLog"/> to provide in <see cref="GetLog(FunctionId)"/>
+    /// Manages instances of <see cref="TelemetryBlockLog"/> to provide in <see cref="GetLog(FunctionId)"/>
     /// </summary>
-    private ImmutableDictionary<FunctionId, VisualStudioTelemetryLog> _logs = ImmutableDictionary<FunctionId, VisualStudioTelemetryLog>.Empty;
+    private ImmutableDictionary<FunctionId, TelemetryBlockLog> _logs = ImmutableDictionary<FunctionId, TelemetryBlockLog>.Empty;
 
     /// <summary>
     /// Manages instances of <see cref="AggregatingHistogramLog"/> to provide in <see cref="GetHistogramLog(FunctionId, double[])"/>
@@ -55,7 +55,7 @@ internal sealed class TelemetryLogProvider : ITelemetryLogProvider
         if (!_session.IsOptedIn)
             return null;
 
-        return ImmutableInterlocked.GetOrAdd(ref _logs, functionId, functionId => new VisualStudioTelemetryLog(_telemetryLogger, functionId));
+        return ImmutableInterlocked.GetOrAdd(ref _logs, functionId, functionId => new TelemetryBlockLog(_telemetryLogger, functionId));
     }
 
     /// <summary>

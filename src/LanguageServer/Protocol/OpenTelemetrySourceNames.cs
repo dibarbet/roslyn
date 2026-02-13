@@ -4,8 +4,10 @@
 
 namespace Roslyn.LanguageServer.Protocol;
 
-internal static class OpenTelemetrySourceNames
+internal static class OpenTelemetryConstants
 {
     public const string RoslynLogger = "Roslyn.Logger";
     public const string LanguageServer = "Roslyn.LanguageServer";
+    public const string LogTypeKey = "Roslyn.LogType";
+    public const string CancelledKey = "Roslyn.Cancelled";
 }
