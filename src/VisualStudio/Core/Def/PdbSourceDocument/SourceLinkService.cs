@@ -6,6 +6,7 @@ using System;
 using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.PdbSourceDocument;
 using Microsoft.VisualStudio.Debugger.Contracts.SourceLink;
@@ -32,12 +33,12 @@ internal sealed class SourceLinkService : AbstractSourceLinkService
         _logger = logger;
     }
 
-    protected override async Task<SymbolLocatorResult?> LocateSymbolFileAsync(SymbolLocatorPdbInfo pdbInfo, SymbolLocatorSearchFlags flags, CancellationToken cancellationToken)
+    protected override async Task<SymbolLocatorResult?> LocateSymbolFileAsync(Workspace sourceWorkspace, SymbolLocatorPdbInfo pdbInfo, SymbolLocatorSearchFlags flags, CancellationToken cancellationToken)
     {
         return await _debuggerSymbolLocatorService.LocateSymbolFileAsync(pdbInfo, flags, progress: null, cancellationToken).ConfigureAwait(false);
     }
 
-    protected override async Task<SourceLinkResult?> GetSourceLinkAsync(string url, string relativePath, CancellationToken cancellationToken)
+    protected override async Task<SourceLinkResult?> GetSourceLinkAsync(Workspace sourceWorkspace, string url, string relativePath, CancellationToken cancellationToken)
     {
         return await _debuggerSourceLinkService.GetSourceLinkAsync(url, relativePath, allowInteractiveLogin: false, cancellationToken).ConfigureAwait(false);
     }

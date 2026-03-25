@@ -22,6 +22,7 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
     private readonly ILogger _logger;
     private readonly ProjectFileExtensionRegistry _projectFileExtensionRegistry;
     private readonly ProjectSystemProjectFactory _hostProjectFactory;
+    private readonly ProjectInitializationNotifier _projectInitializationNotifier;
 
     [ImportingConstructor]
     [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
@@ -32,6 +33,7 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
         ILoggerFactory loggerFactory,
         IAsynchronousOperationListenerProvider listenerProvider,
         ProjectLoadTelemetryReporter projectLoadTelemetry,
+        ProjectInitializationNotifier projectInitializationNotifier,
         ServerConfigurationFactory serverConfigurationFactory,
         IBinLogPathProvider binLogPathProvider,
         DotnetCliHelper dotnetCliHelper)
@@ -48,6 +50,7 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
     {
         _logger = loggerFactory.CreateLogger(nameof(LanguageServerProjectSystem));
         _hostProjectFactory = workspaceFactory.HostProjectFactory;
+        _projectInitializationNotifier = projectInitializationNotifier;
         var workspace = workspaceFactory.HostWorkspace;
         _projectFileExtensionRegistry = new ProjectFileExtensionRegistry(new DiagnosticReporter(workspace));
     }
@@ -63,7 +66,7 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
             await BeginLoadingProjectAsync(path, guid);
         }
         await WaitForProjectsToFinishLoadingAsync();
-        await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync();
+        await _projectInitializationNotifier.SendProjectInitializationCompleteNotificationAsync(CancellationToken.None);
     }
 
     public async Task OpenProjectsAsync(ImmutableArray<string> projectFilePaths)
@@ -76,7 +79,7 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
             await BeginLoadingProjectAsync(path, projectGuid: null);
         }
         await WaitForProjectsToFinishLoadingAsync();
-        await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync();
+        await _projectInitializationNotifier.SendProjectInitializationCompleteNotificationAsync(CancellationToken.None);
     }
 
     protected override async Task<RemoteProjectLoadResult?> TryLoadProjectInMSBuildHostAsync(

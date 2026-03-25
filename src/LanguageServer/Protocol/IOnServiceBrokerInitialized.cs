@@ -2,14 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.ServiceHub.Framework;
 
-namespace Microsoft.CodeAnalysis.BrokeredServices;
+namespace Microsoft.CodeAnalysis.LanguageServer;
 
-/// <summary>
-/// Allow services to export IOnServiceBrokerInitialized and getting called back when service broker is initialized
-/// </summary>
 internal interface IOnServiceBrokerInitialized
 {
-    void OnServiceBrokerInitialized(IServiceBroker serviceBroker);
+    Task OnServiceBrokerInitializedAsync(ILspServiceBrokerFactory serviceBroker, CancellationToken cancellationToken);
 }

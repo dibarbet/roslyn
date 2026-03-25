@@ -82,7 +82,7 @@ public abstract partial class AbstractLanguageServerClientTests(ITestOutputHelpe
 
         // Listen for project initialization
         var projectInitialized = new TaskCompletionSource();
-        lspClient.AddClientLocalRpcTarget(ProjectInitializationHandler.ProjectInitializationCompleteName, () => projectInitialized.SetResult());
+        lspClient.AddClientLocalRpcTarget(ProjectInitializationNotifier.ProjectInitializationCompleteName, () => projectInitialized.SetResult());
 
 #pragma warning disable RS0030 // Do not use banned APIs
         await lspClient.OpenProjectsAsync([new(projectPath)]);

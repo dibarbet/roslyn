@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MetadataAsSource;
 using Microsoft.CodeAnalysis.Shared.Utilities;
 using Microsoft.CodeAnalysis.Text;
@@ -35,13 +36,13 @@ internal sealed class PdbSourceDocumentLoaderService(
     private readonly Lazy<ISourceLinkService>? _sourceLinkService = sourceLinkService;
     private readonly IPdbSourceDocumentLogger? _logger = logger;
 
-    public async Task<SourceFileInfo?> LoadSourceDocumentAsync(string tempFilePath, SourceDocument sourceDocument, Encoding encoding, TelemetryMessage telemetry, bool useExtendedTimeout, CancellationToken cancellationToken)
+    public async Task<SourceFileInfo?> LoadSourceDocumentAsync(Workspace sourceWorkspace, string tempFilePath, SourceDocument sourceDocument, Encoding encoding, TelemetryMessage telemetry, bool useExtendedTimeout, CancellationToken cancellationToken)
     {
         // First we try getting "local" files, either from embedded source or a local file on disk
         // and if they don't work we call the debugger to download a file from SourceLink info
         return TryGetEmbeddedSourceFile(tempFilePath, sourceDocument, encoding, telemetry) ??
             TryGetOriginalFile(sourceDocument, encoding, telemetry) ??
-            await TryGetSourceLinkFileAsync(sourceDocument, encoding, telemetry, useExtendedTimeout, cancellationToken).ConfigureAwait(false);
+            await TryGetSourceLinkFileAsync(sourceWorkspace, sourceDocument, encoding, telemetry, useExtendedTimeout, cancellationToken).ConfigureAwait(false);
     }
 
     private SourceFileInfo? TryGetEmbeddedSourceFile(string tempFilePath, SourceDocument sourceDocument, Encoding encoding, TelemetryMessage telemetry)
@@ -122,7 +123,7 @@ internal sealed class PdbSourceDocumentLoaderService(
         return null;
     }
 
-    private async Task<SourceFileInfo?> TryGetSourceLinkFileAsync(SourceDocument sourceDocument, Encoding encoding, TelemetryMessage telemetry, bool useExtendedTimeout, CancellationToken cancellationToken)
+    private async Task<SourceFileInfo?> TryGetSourceLinkFileAsync(Workspace sourceWorkspace, SourceDocument sourceDocument, Encoding encoding, TelemetryMessage telemetry, bool useExtendedTimeout, CancellationToken cancellationToken)
     {
         if (sourceDocument.SourceLinkUrl is null || _sourceLinkService is null)
             return null;
@@ -133,7 +134,7 @@ internal sealed class PdbSourceDocumentLoaderService(
         var relativePath = Path.GetFileName(sourceDocument.FilePath);
 
         var delay = Task.Delay(timeout, cancellationToken);
-        var sourceFileTask = _sourceLinkService.Value.GetSourceFilePathAsync(sourceDocument.SourceLinkUrl, relativePath, cancellationToken);
+        var sourceFileTask = _sourceLinkService.Value.GetSourceFilePathAsync(sourceWorkspace, sourceDocument.SourceLinkUrl, relativePath, cancellationToken);
 
         var winner = await Task.WhenAny(sourceFileTask, delay).ConfigureAwait(false);
 

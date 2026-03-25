@@ -173,7 +173,7 @@ internal sealed class PdbSourceDocumentMetadataAsSourceFileProvider(
         try
         {
             // We know we have a DLL, call and see if we can find metadata readers for it, and for the PDB (wherever it may be)
-            using var documentDebugInfoReader = await _pdbFileLocatorService.GetDocumentDebugInfoReaderAsync(dllPath, options.AlwaysUseDefaultSymbolServers, telemetryMessage, cancellationToken).ConfigureAwait(false);
+            using var documentDebugInfoReader = await _pdbFileLocatorService.GetDocumentDebugInfoReaderAsync(sourceWorkspace, dllPath, options.AlwaysUseDefaultSymbolServers, telemetryMessage, cancellationToken).ConfigureAwait(false);
             if (documentDebugInfoReader is null)
                 return null;
 
@@ -246,7 +246,7 @@ internal sealed class PdbSourceDocumentMetadataAsSourceFileProvider(
         // we can't provide any results, so there is no point adding a project to the workspace etc.
         var useExtendedTimeout = _sourceLinkEnabledProjects.Contains(projectId);
         var encoding = defaultEncoding ?? Encoding.UTF8;
-        var sourceFileInfoTasks = sourceDocuments.Select(sd => _pdbSourceDocumentLoaderService.LoadSourceDocumentAsync(tempFilePath, sd, encoding, telemetryMessage, useExtendedTimeout, cancellationToken)).ToArray();
+        var sourceFileInfoTasks = sourceDocuments.Select(sd => _pdbSourceDocumentLoaderService.LoadSourceDocumentAsync(sourceWorkspace, tempFilePath, sd, encoding, telemetryMessage, useExtendedTimeout, cancellationToken)).ToArray();
         var sourceFileInfos = await Task.WhenAll(sourceFileInfoTasks).ConfigureAwait(false);
         if (sourceFileInfos is null || sourceFileInfos.Where(t => t is null).Any())
             return null;

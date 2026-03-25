@@ -5,6 +5,7 @@
 using System.Reflection.PortableExecutable;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.PdbSourceDocument;
 
 namespace Microsoft.CodeAnalysis.Editor.CSharp.UnitTests.PdbSourceDocument;
@@ -20,7 +21,7 @@ internal sealed class TestSourceLinkService : ISourceLinkService
         _sourceFilePath = sourceFilePath;
     }
 
-    public async Task<PdbFilePathResult?> GetPdbFilePathAsync(string dllPath, PEReader peReader, bool useDefaultSymbolServers, CancellationToken cancellationToken)
+    public async Task<PdbFilePathResult?> GetPdbFilePathAsync(Workspace sourceWorkspace, string dllPath, PEReader peReader, bool useDefaultSymbolServers, CancellationToken cancellationToken)
     {
         if (_pdbFilePath is null)
         {
@@ -30,7 +31,7 @@ internal sealed class TestSourceLinkService : ISourceLinkService
         return new PdbFilePathResult(_pdbFilePath);
     }
 
-    public async Task<SourceFilePathResult?> GetSourceFilePathAsync(string url, string relativePath, CancellationToken cancellationToken)
+    public async Task<SourceFilePathResult?> GetSourceFilePathAsync(Workspace sourceWorkspace, string url, string relativePath, CancellationToken cancellationToken)
     {
         if (_sourceFilePath is null)
         {

@@ -1,105 +1,129 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Collections.Immutable;
-using System.ComponentModel.Composition;
 using Microsoft.CodeAnalysis.BrokeredServices;
-using Microsoft.CodeAnalysis.Host.Mef;
+using Microsoft.CodeAnalysis.EditAndContinue;
+using Microsoft.CodeAnalysis.LanguageServer.BrokeredServices.Services.BrokeredServiceBridgeManifest;
+using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
+using Microsoft.CodeAnalysis.Remote.ProjectSystem;
+using Microsoft.Extensions.Logging;
 using Microsoft.ServiceHub.Framework;
-using Microsoft.VisualStudio.Composition;
 using Microsoft.VisualStudio.Shell.ServiceBroker;
+using Microsoft.VisualStudio.Utilities.ServiceBroker;
 using ExportProvider = Microsoft.VisualStudio.Composition.ExportProvider;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
 
-/// <summary>
-/// Exports an <see cref="IServiceBroker"/> for convenient and potentially cross-IDE importing by other features.
-/// </summary>
-/// <remarks>
-/// Each import site gets its own <see cref="IServiceBroker"/> instance to match the behavior of calling <see cref="IBrokeredServiceContainer.GetFullAccessServiceBroker"/>
-/// which returns a private instance for everyone.
-/// This is observable to callers in a few ways, including that they only get the <see cref="IServiceBroker.AvailabilityChanged"/> events
-/// based on their own service queries.
-/// MEF will dispose of each instance as its lifetime comes to an end.
-/// </remarks>
-#pragma warning disable RS0030 // This is intentionally using System.ComponentModel.Composition for compatibility with MEF service broker.
-[Export]
-internal sealed class ServiceBrokerFactory
+internal sealed class ServiceBrokerFactory : ILspServiceBrokerFactory, IDisposable
 {
-    private BrokeredServiceContainer? _container;
+    private readonly LspServices _lspServices;
     private readonly ExportProvider _exportProvider;
-    private readonly WrappedServiceBroker _wrappedServiceBroker;
-    private Task _bridgeCompletionTask;
+    private readonly BrokeredServiceBridgeProvider _bridgeProvider;
+    private readonly LanguageServerWorkspaceFactory _workspaceFactory;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly WrappedServiceBroker _wrappedServiceBroker = new();
     private readonly CancellationTokenSource _cancellationTokenSource = new();
-    private readonly ImmutableArray<IOnServiceBrokerInitialized> _onServiceBrokerInitialized;
 
-    [ImportingConstructor]
-    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public ServiceBrokerFactory([ImportMany] IEnumerable<IOnServiceBrokerInitialized> onServiceBrokerInitialized,
+    private BrokeredServiceContainer? _container;
+
+    public ServiceBrokerFactory(
+        LspServices lspServices,
         ExportProvider exportProvider,
-        WrappedServiceBroker wrappedServiceBroker)
+        BrokeredServiceBridgeProvider bridgeProvider,
+        LanguageServerWorkspaceFactory workspaceFactory,
+        ILoggerFactory loggerFactory)
     {
+        _lspServices = lspServices;
         _exportProvider = exportProvider;
-        _bridgeCompletionTask = Task.CompletedTask;
-        _onServiceBrokerInitialized = [.. onServiceBrokerInitialized];
-        _wrappedServiceBroker = wrappedServiceBroker;
+        _bridgeProvider = bridgeProvider;
+        _workspaceFactory = workspaceFactory;
+        _loggerFactory = loggerFactory;
     }
 
-    /// <summary>
-    /// Returns a full-access service broker, but will return null if we haven't yet connected to the Dev Kit broker.
-    /// </summary>
-    public IServiceBroker? TryGetFullAccessServiceBroker() => _container?.GetFullAccessServiceBroker();
+    public IServiceBroker? TryGetFullAccessServiceBroker() => _container is null ? null : _wrappedServiceBroker;
 
-    public BrokeredServiceContainer GetRequiredServiceBrokerContainer()
-    {
-        Contract.ThrowIfNull(_container);
-        return _container;
-    }
+    public IServiceBroker GetRequiredServiceBroker() => _wrappedServiceBroker;
 
-    /// <summary>
-    /// Creates a service broker instance without connecting via a pipe to another process.
-    /// </summary>
     public async Task CreateAsync()
     {
-        Contract.ThrowIfFalse(_container == null, "We should only create one container.");
-
-        _container = await BrokeredServiceContainer.CreateAsync(_exportProvider, _cancellationTokenSource.Token);
-        _wrappedServiceBroker.SetServiceBroker(_container.GetFullAccessServiceBroker());
-
-        foreach (var onInitialized in _onServiceBrokerInitialized)
+        if (_container is not null)
         {
-            try
-            {
-                onInitialized.OnServiceBrokerInitialized(_container.GetFullAccessServiceBroker());
-            }
-            catch (Exception)
-            {
-            }
+            throw new InvalidOperationException("Brokered service container has already been created.");
         }
+
+        var container = await BrokeredServiceContainer.CreateAsync(_exportProvider, _cancellationTokenSource.Token).ConfigureAwait(false);
+        RegisterManualServices(container);
+        ProfferManualServices(container);
+
+        var serviceBroker = container.GetFullAccessServiceBroker();
+        _wrappedServiceBroker.SetServiceBroker(serviceBroker);
+        SetWorkspaceServiceBroker(_workspaceFactory.HostWorkspace, _wrappedServiceBroker);
+
+        _container = container;
     }
 
     public async Task CreateAndConnectAsync(string brokeredServicePipeName)
     {
-        await CreateAsync();
+        await CreateAsync().ConfigureAwait(false);
 
-        var bridgeProvider = _exportProvider.GetExportedValue<BrokeredServiceBridgeProvider>();
-        _bridgeCompletionTask = bridgeProvider.SetupBrokeredServicesBridgeAsync(brokeredServicePipeName, _container!, _cancellationTokenSource.Token);
+        await _bridgeProvider.SetupBrokeredServicesBridgeAsync(
+                brokeredServicePipeName, _container!, _cancellationTokenSource.Token);
+
+        var onInitializeList = _lspServices.GetRequiredServices<IOnServiceBrokerInitialized>();
+
+        foreach (var onInitialize in onInitializeList)
+        {
+            await onInitialize.OnServiceBrokerInitializedAsync(this, _cancellationTokenSource.Token).ConfigureAwait(false);
+        }
     }
 
-    public async Task ShutdownAndWaitForCompletionAsync()
+    public void Dispose()
     {
+        SetWorkspaceServiceBroker(_workspaceFactory.HostWorkspace, serviceBroker: null);
         _cancellationTokenSource.Cancel();
+        _cancellationTokenSource.Dispose();
+    }
 
-        // Await the task we created when we created the bridge; if we never started it in the first place, we'll just return the
-        // completed task set in the constructor, so the waiter no-ops.
-        try
+    private void ProfferManualServices(BrokeredServiceContainer container)
+    {
+        _ = Proffer(
+            container,
+            new WorkspaceProjectFactoryService(
+            _workspaceFactory,
+            _lspServices.GetRequiredService<ProjectInitializationStatusSubscriber>(),
+            _loggerFactory));
+        _ = Proffer(container, new BrokeredServiceBridgeManifest(container.GetRegisteredServices(), _loggerFactory));
+    }
+
+    private static void RegisterManualServices(BrokeredServiceContainer container)
+    {
+        container.RegisterServices(new Dictionary<ServiceMoniker, ServiceRegistration>
         {
-            await _bridgeCompletionTask;
-        }
-        catch (OperationCanceledException)
+            { WorkspaceProjectFactoryServiceDescriptor.ServiceDescriptor.Moniker, new ServiceRegistration(ServiceAudience.Local, null, allowGuestClients: false) },
+            { BrokeredServiceBridgeManifest.ServiceDescriptor.Moniker, new ServiceRegistration(ServiceAudience.Local, null, allowGuestClients: false) },
+        });
+    }
+
+    private static IDisposable Proffer(BrokeredServiceContainer container, IExportedBrokeredService service)
+    {
+        var descriptor = service.Descriptor;
+        Contract.ThrowIfNull(descriptor);
+
+        return container.Proffer(
+            descriptor,
+            async (_, _, _, cancellationToken) =>
+            {
+                await service.InitializeAsync(cancellationToken).ConfigureAwait(false);
+                return service;
+            });
+    }
+
+    private static void SetWorkspaceServiceBroker(Workspace workspace, IServiceBroker? serviceBroker)
+    {
+        if (workspace.Services.GetService<IWorkspaceServiceBrokerProxy>() is WorkspaceServiceBrokerProxy proxyFactory)
         {
-            // Expected during shutdown, swallow.
+            proxyFactory.SetServiceBroker(serviceBroker);
         }
     }
 }

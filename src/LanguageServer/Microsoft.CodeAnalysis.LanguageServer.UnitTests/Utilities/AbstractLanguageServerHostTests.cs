@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
+using Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
 using Microsoft.CodeAnalysis.Test.Utilities;
 using Microsoft.CodeAnalysis.UnitTests;
 using Microsoft.Extensions.Logging;
@@ -98,6 +99,9 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
 
         public Pipe ClientToServerPipe => _clientToServerPipe;
         public Pipe ServerToClientPipe => _serverToClientPipe;
+
+        internal T GetRequiredLspService<T>() where T : ILspService
+            => LanguageServerHost.GetRequiredLspService<T>();
 
         public async Task<TResponseType?> ExecuteRequestAsync<TRequestType, TResponseType>(string methodName, TRequestType request, CancellationToken cancellationToken) where TRequestType : class
         {

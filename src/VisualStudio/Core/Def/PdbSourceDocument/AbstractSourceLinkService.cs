@@ -6,6 +6,7 @@ using System.IO;
 using System.Reflection.PortableExecutable;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.PdbSourceDocument;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.VisualStudio.Debugger.Contracts.SourceLink;
@@ -15,7 +16,7 @@ namespace Microsoft.VisualStudio.LanguageServices.PdbSourceDocument;
 
 internal abstract class AbstractSourceLinkService : ISourceLinkService
 {
-    public async Task<PdbFilePathResult?> GetPdbFilePathAsync(string dllPath, PEReader peReader, bool useDefaultSymbolServers, CancellationToken cancellationToken)
+    public async Task<PdbFilePathResult?> GetPdbFilePathAsync(Workspace sourceWorkspace, string dllPath, PEReader peReader, bool useDefaultSymbolServers, CancellationToken cancellationToken)
     {
         var hasCodeViewEntry = false;
         uint timeStamp = 0;
@@ -51,7 +52,7 @@ internal abstract class AbstractSourceLinkService : ISourceLinkService
         var flags = useDefaultSymbolServers
             ? SymbolLocatorSearchFlags.ForceNuGetSymbolServer | SymbolLocatorSearchFlags.ForceMsftSymbolServer
             : SymbolLocatorSearchFlags.None;
-        var result = await LocateSymbolFileAsync(pdbInfo, flags, cancellationToken).ConfigureAwait(false);
+        var result = await LocateSymbolFileAsync(sourceWorkspace, pdbInfo, flags, cancellationToken).ConfigureAwait(false);
         if (result is null)
         {
             Logger?.Log($"{nameof(LocateSymbolFileAsync)} returned null");
@@ -73,9 +74,9 @@ internal abstract class AbstractSourceLinkService : ISourceLinkService
         return null;
     }
 
-    public async Task<SourceFilePathResult?> GetSourceFilePathAsync(string url, string relativePath, CancellationToken cancellationToken)
+    public async Task<SourceFilePathResult?> GetSourceFilePathAsync(Workspace sourceWorkspace, string url, string relativePath, CancellationToken cancellationToken)
     {
-        var result = await GetSourceLinkAsync(url, relativePath, cancellationToken).ConfigureAwait(false);
+        var result = await GetSourceLinkAsync(sourceWorkspace, url, relativePath, cancellationToken).ConfigureAwait(false);
         if (result is null)
         {
             Logger?.Log($"{nameof(GetSourceLinkAsync)} returned null");
@@ -96,9 +97,9 @@ internal abstract class AbstractSourceLinkService : ISourceLinkService
         return null;
     }
 
-    protected abstract Task<SymbolLocatorResult?> LocateSymbolFileAsync(SymbolLocatorPdbInfo pdbInfo, SymbolLocatorSearchFlags flags, CancellationToken cancellationToken);
+    protected abstract Task<SymbolLocatorResult?> LocateSymbolFileAsync(Workspace sourceWorkspace, SymbolLocatorPdbInfo pdbInfo, SymbolLocatorSearchFlags flags, CancellationToken cancellationToken);
 
-    protected abstract Task<SourceLinkResult?> GetSourceLinkAsync(string url, string relativePath, CancellationToken cancellationToken);
+    protected abstract Task<SourceLinkResult?> GetSourceLinkAsync(Workspace sourceWorkspace, string url, string relativePath, CancellationToken cancellationToken);
 
     protected abstract IPdbSourceDocumentLogger? Logger { get; }
 }

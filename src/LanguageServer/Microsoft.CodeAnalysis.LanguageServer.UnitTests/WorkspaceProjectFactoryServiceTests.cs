@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 using Microsoft.CodeAnalysis.Remote.ProjectSystem;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.Shell.ServiceBroker;
+using Microsoft.ServiceHub.Framework;
 using Xunit.Abstractions;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests;
@@ -17,22 +17,20 @@ public sealed class WorkspaceProjectFactoryServiceTests(ITestOutputHelper testOu
     [Fact]
     public async Task CreateProjectAndBatch()
     {
-        var loggerFactory = new LoggerFactory();
-        var (exportProvider, _) = await LanguageServerTestComposition.CreateExportProviderAsync(
-            loggerFactory, includeDevKitComponents: false, MefCacheDirectory.Path, []);
-        using var _ = exportProvider;
+        await using var testLspServer = await CreateLanguageServerAsync(includeDevKitComponents: false);
+        var serviceBrokerFactory = testLspServer.GetRequiredLspService<ServiceBrokerFactory>();
+        await serviceBrokerFactory.CreateAsync();
 
-        await exportProvider.GetExportedValue<ServiceBrokerFactory>().CreateAsync();
+        var workspaceFactory = testLspServer.ExportProvider.GetExportedValue<LanguageServerWorkspaceFactory>();
+        var serviceBroker = serviceBrokerFactory.TryGetFullAccessServiceBroker();
+        Assert.NotNull(serviceBroker);
 
-        var workspaceFactory = exportProvider.GetExportedValue<LanguageServerWorkspaceFactory>();
-        var workspaceProjectFactoryServiceInstance = (WorkspaceProjectFactoryService)exportProvider
-            .GetExportedValues<IExportedBrokeredService>()
-            .Single(service => service.Descriptor == WorkspaceProjectFactoryServiceDescriptor.ServiceDescriptor);
+        var workspaceProjectFactoryService = await serviceBroker.GetProxyAsync<IWorkspaceProjectFactoryService>(
+            WorkspaceProjectFactoryServiceDescriptor.ServiceDescriptor, CancellationToken.None);
+        Assert.NotNull(workspaceProjectFactoryService);
 
-        await using var brokeredServiceFactory = new BrokeredServiceProxy<IWorkspaceProjectFactoryService>(
-            workspaceProjectFactoryServiceInstance);
-
-        var workspaceProjectFactoryService = await brokeredServiceFactory.GetServiceAsync();
+        using ((IDisposable?)workspaceProjectFactoryService)
+        {
         using var workspaceProject = await workspaceProjectFactoryService.CreateAndAddProjectAsync(
             new WorkspaceProjectCreationInfo(LanguageNames.CSharp, "DisplayName", FilePath: null, new Dictionary<string, string>()),
             CancellationToken.None);
@@ -56,6 +54,18 @@ public sealed class WorkspaceProjectFactoryServiceTests(ITestOutputHelper testOu
         var additionalDocument = Assert.Single(project.AdditionalDocuments);
         Assert.Equal(additionalFilePath, additionalDocument.FilePath);
         Assert.Equal("Folder", Assert.Single(additionalDocument.Folders));
+        }
+    }
+
+    [Fact]
+    public async Task ServiceBrokerFactoryIsPerServer()
+    {
+        await using var serverOne = await CreateLanguageServerAsync(includeDevKitComponents: false);
+        await using var serverTwo = await CreateLanguageServerAsync(includeDevKitComponents: false);
+
+        Assert.NotSame(
+            serverOne.GetRequiredLspService<ServiceBrokerFactory>(),
+            serverTwo.GetRequiredLspService<ServiceBrokerFactory>());
     }
 
     private static string MakeAbsolutePath(string relativePath)

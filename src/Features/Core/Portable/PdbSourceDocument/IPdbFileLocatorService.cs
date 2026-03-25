@@ -4,11 +4,12 @@
 
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MetadataAsSource;
 
 namespace Microsoft.CodeAnalysis.PdbSourceDocument;
 
 internal interface IPdbFileLocatorService
 {
-    Task<DocumentDebugInfoReader?> GetDocumentDebugInfoReaderAsync(string dllPath, bool useDefaultSymbolServers, TelemetryMessage telemetry, CancellationToken cancellationToken);
+    Task<DocumentDebugInfoReader?> GetDocumentDebugInfoReaderAsync(Workspace sourceWorkspace, string dllPath, bool useDefaultSymbolServers, TelemetryMessage telemetry, CancellationToken cancellationToken);
 }

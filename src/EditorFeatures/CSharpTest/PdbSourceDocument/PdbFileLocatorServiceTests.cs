@@ -35,7 +35,7 @@ public sealed class PdbFileLocatorServiceTests : AbstractPdbSourceDocumentTests
             var sourceLinkService = new TestSourceLinkService(pdbFilePath: pdbFilePath);
             var service = new PdbFileLocatorService(sourceLinkService, logger: null);
 
-            using var result = await service.GetDocumentDebugInfoReaderAsync(GetDllPath(path), useDefaultSymbolServers: false, new TelemetryMessage(CancellationToken.None), CancellationToken.None);
+            using var result = await service.GetDocumentDebugInfoReaderAsync(project.Solution.Workspace, GetDllPath(path), useDefaultSymbolServers: false, new TelemetryMessage(CancellationToken.None), CancellationToken.None);
 
             Assert.NotNull(result);
         });
@@ -62,7 +62,7 @@ public sealed class PdbFileLocatorServiceTests : AbstractPdbSourceDocumentTests
             var sourceLinkService = new TestSourceLinkService(pdbFilePath);
             var service = new PdbFileLocatorService(sourceLinkService, logger: null);
 
-            using var result = await service.GetDocumentDebugInfoReaderAsync(GetDllPath(path), useDefaultSymbolServers: false, new TelemetryMessage(CancellationToken.None), CancellationToken.None);
+            using var result = await service.GetDocumentDebugInfoReaderAsync(project.Solution.Workspace, GetDllPath(path), useDefaultSymbolServers: false, new TelemetryMessage(CancellationToken.None), CancellationToken.None);
 
             Assert.Null(result);
         });
@@ -87,7 +87,7 @@ public sealed class PdbFileLocatorServiceTests : AbstractPdbSourceDocumentTests
             var sourceLinkService = new TestSourceLinkService(pdbFilePath: null);
             var service = new PdbFileLocatorService(sourceLinkService, logger: null);
 
-            using var result = await service.GetDocumentDebugInfoReaderAsync(GetDllPath(path), useDefaultSymbolServers: false, new TelemetryMessage(CancellationToken.None), CancellationToken.None);
+            using var result = await service.GetDocumentDebugInfoReaderAsync(project.Solution.Workspace, GetDllPath(path), useDefaultSymbolServers: false, new TelemetryMessage(CancellationToken.None), CancellationToken.None);
 
             Assert.Null(result);
         });

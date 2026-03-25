@@ -42,7 +42,7 @@ public sealed class PdbSourceDocumentLoaderServiceTests : AbstractPdbSourceDocum
             var fileHash = hash.ComputeHash(File.ReadAllBytes(sourceFilePath));
 
             var sourceDocument = new SourceDocument("goo.cs", Text.SourceHashAlgorithms.Default, [.. fileHash], null, "https://sourcelink");
-            var result = await service.LoadSourceDocumentAsync(path, sourceDocument, Encoding.UTF8, new TelemetryMessage(CancellationToken.None), useExtendedTimeout: false, CancellationToken.None);
+            var result = await service.LoadSourceDocumentAsync(project.Solution.Workspace, path, sourceDocument, Encoding.UTF8, new TelemetryMessage(CancellationToken.None), useExtendedTimeout: false, CancellationToken.None);
 
             Assert.NotNull(result);
             Assert.Equal(sourceFilePath, result!.FilePath);
@@ -70,7 +70,7 @@ public sealed class PdbSourceDocumentLoaderServiceTests : AbstractPdbSourceDocum
             var service = new PdbSourceDocumentLoaderService(sourceLinkService, logger: null);
 
             var sourceDocument = new SourceDocument("goo.cs", Text.SourceHashAlgorithm.None, default, null, SourceLinkUrl: null);
-            var result = await service.LoadSourceDocumentAsync(path, sourceDocument, Encoding.UTF8, new TelemetryMessage(CancellationToken.None), useExtendedTimeout: false, CancellationToken.None);
+            var result = await service.LoadSourceDocumentAsync(project.Solution.Workspace, path, sourceDocument, Encoding.UTF8, new TelemetryMessage(CancellationToken.None), useExtendedTimeout: false, CancellationToken.None);
 
             Assert.Null(result);
         });

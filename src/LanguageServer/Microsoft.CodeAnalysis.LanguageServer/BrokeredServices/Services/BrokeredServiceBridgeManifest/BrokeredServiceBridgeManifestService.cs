@@ -2,16 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.ComponentModel.Composition;
-using Microsoft.CodeAnalysis.Host.Mef;
+using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Microsoft.ServiceHub.Framework;
 using Microsoft.VisualStudio.Shell.ServiceBroker;
+using Microsoft.VisualStudio.Utilities.ServiceBroker;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.BrokeredServices.Services.BrokeredServiceBridgeManifest;
 
-#pragma warning disable RS0030 // This is intentionally using System.ComponentModel.Composition for compatibility with MEF service broker.
-[ExportBrokeredService(MonikerName, MonikerVersion, Audience = ServiceAudience.Local)]
 internal sealed class BrokeredServiceBridgeManifest : IBrokeredServiceBridgeManifest, IExportedBrokeredService
 {
     internal const string MonikerName = "Microsoft.VisualStudio.Server.IBrokeredServiceBridgeManifest";
@@ -22,35 +20,30 @@ internal sealed class BrokeredServiceBridgeManifest : IBrokeredServiceBridgeMani
         ServiceJsonRpcDescriptor.Formatters.UTF8,
         ServiceJsonRpcDescriptor.MessageDelimiters.HttpLikeHeaders);
 
-    private readonly ServiceBrokerFactory _serviceBrokerFactory;
+    internal static ServiceRpcDescriptor ServiceDescriptor => s_serviceDescriptor;
+
+    private readonly ImmutableDictionary<ServiceMoniker, ServiceRegistration> _registeredServices;
     private readonly ILogger _logger;
 
-    [ImportingConstructor]
-    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public BrokeredServiceBridgeManifest(ServiceBrokerFactory serviceBrokerFactory, ILoggerFactory loggerFactory)
+    public BrokeredServiceBridgeManifest(ImmutableDictionary<ServiceMoniker, ServiceRegistration> registeredServices, ILoggerFactory loggerFactory)
     {
-        _serviceBrokerFactory = serviceBrokerFactory;
+        _registeredServices = registeredServices;
         _logger = loggerFactory.CreateLogger<BrokeredServiceBridgeManifest>();
     }
 
-    public ServiceRpcDescriptor Descriptor => s_serviceDescriptor;
+    public ServiceRpcDescriptor Descriptor => ServiceDescriptor;
 
-    /// <summary>
-    /// Returns a subset of services registered to Microsoft.VisualStudio.Code.Server container that are proferred by the Language Server process.
-    /// </summary>
-    public async ValueTask<IReadOnlyCollection<ServiceMoniker>> GetAvailableServicesAsync(CancellationToken cancellationToken)
+    public ValueTask<IReadOnlyCollection<ServiceMoniker>> GetAvailableServicesAsync(CancellationToken cancellationToken)
     {
-        var services = (IReadOnlyCollection<ServiceMoniker>)[.. _serviceBrokerFactory.GetRequiredServiceBrokerContainer().GetRegisteredServices()
+        var services = (IReadOnlyCollection<ServiceMoniker>)[.. _registeredServices
             .Select(s => s.Key)
             .Where(s => s.Name.StartsWith("Microsoft.CodeAnalysis.LanguageServer.", StringComparison.Ordinal) ||
                         s.Name.StartsWith("Microsoft.VisualStudio.LanguageServer.", StringComparison.Ordinal) ||
                         s.Name.StartsWith("Microsoft.VisualStudio.LanguageServices.", StringComparison.Ordinal))];
         _logger.LogDebug($"Proffered services: {string.Join(',', services.Select(s => s.ToString()))}");
-        return services;
+        return new(services);
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken)
-    {
-    }
+    public Task InitializeAsync(CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }
-#pragma warning restore RS0030 // Do not used banned APIs

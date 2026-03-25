@@ -12,24 +12,17 @@ namespace Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
 
 [ExportCSharpVisualBasicStatelessLspService(typeof(ServiceBrokerConnectHandler)), Shared]
 [Method("serviceBroker/connect")]
-internal sealed class ServiceBrokerConnectHandler : ILspServiceNotificationHandler<ServiceBrokerConnectHandler.NotificationParams>
+[method: ImportingConstructor]
+[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+internal sealed class ServiceBrokerConnectHandler() : ILspServiceNotificationHandler<ServiceBrokerConnectHandler.NotificationParams>
 {
-    private readonly ServiceBrokerFactory _serviceBrokerFactory;
-
-    [ImportingConstructor]
-    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public ServiceBrokerConnectHandler(ServiceBrokerFactory serviceBrokerFactory)
-    {
-        _serviceBrokerFactory = serviceBrokerFactory;
-    }
-
     public bool MutatesSolutionState => false;
 
     public bool RequiresLSPSolution => false;
 
     Task INotificationHandler<NotificationParams, RequestContext>.HandleNotificationAsync(NotificationParams request, RequestContext requestContext, CancellationToken cancellationToken)
     {
-        return _serviceBrokerFactory.CreateAndConnectAsync(request.PipeName);
+        return requestContext.GetRequiredService<ILspServiceBrokerFactory>().CreateAndConnectAsync(request.PipeName);
     }
 
     private sealed class NotificationParams

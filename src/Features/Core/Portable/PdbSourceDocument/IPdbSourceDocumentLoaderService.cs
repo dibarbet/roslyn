@@ -5,6 +5,7 @@
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MetadataAsSource;
 using Microsoft.CodeAnalysis.Text;
 
@@ -12,7 +13,7 @@ namespace Microsoft.CodeAnalysis.PdbSourceDocument;
 
 internal interface IPdbSourceDocumentLoaderService
 {
-    Task<SourceFileInfo?> LoadSourceDocumentAsync(string tempFilePath, SourceDocument sourceDocument, Encoding encoding, TelemetryMessage telemetry, bool useExtendedTimeout, CancellationToken cancellationToken);
+    Task<SourceFileInfo?> LoadSourceDocumentAsync(Workspace sourceWorkspace, string tempFilePath, SourceDocument sourceDocument, Encoding encoding, TelemetryMessage telemetry, bool useExtendedTimeout, CancellationToken cancellationToken);
 }
 
 /// <param name="FilePath">The path to the source file on disk</param>
