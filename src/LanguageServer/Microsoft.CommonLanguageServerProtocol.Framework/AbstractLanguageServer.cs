@@ -223,7 +223,11 @@ internal abstract class AbstractLanguageServer<TRequestContext>
         }
     }
 
-    public Task WaitForExitAsync()
+    /// <summary>
+    /// Waits for the server to finish exiting and cleaning up after a shutdown request has been made.
+    /// Will throw if the server has not yet been asked to shutdown.
+    /// </summary>
+    public Task EnsureServerExitedAsync()
     {
         lock (_lifeCycleLock)
         {
@@ -232,8 +236,18 @@ internal abstract class AbstractLanguageServer<TRequestContext>
             {
                 throw new ServerNotShutDownException("The language server has not yet been asked to shutdown.");
             }
-        }
 
+            // Return the task that completes when the server has fully exited and cleaned up.
+            return WaitForExitAsync();
+        }
+    }
+
+    /// <summary>
+    /// Returns a task that completes if and when the server exits.
+    /// If shutdown was expected to have happened by the time this is called, use <see cref="EnsureServerExitedAsync"/> instead.
+    /// </summary>
+    public Task WaitForExitAsync()
+    {
         // Note - we return the _serverExitedSource task here instead of the _exitNotification task as we may not have
         // finished processing the exit notification before a client calls into us asking to restart.
         // This is because unlike shutdown, exit is a notification where clients do not need to wait for a response.

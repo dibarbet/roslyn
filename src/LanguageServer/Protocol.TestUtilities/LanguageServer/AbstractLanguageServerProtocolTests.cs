@@ -930,7 +930,7 @@ public abstract partial class AbstractLanguageServerProtocolTests
             }
 
             // Wait for all the exit notifications to run to completion.
-            await _languageServer.Value.WaitForExitAsync();
+            await _languageServer.Value.EnsureServerExitedAsync();
 
             TestWorkspace.Dispose();
             _clientRpc.Dispose();

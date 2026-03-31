@@ -124,7 +124,7 @@ internal abstract partial class AbstractInProcLanguageClient(
         {
             try
             {
-                await _languageServer.WaitForExitAsync().WithCancellation(cancellationToken).ConfigureAwait(false);
+                await _languageServer.EnsureServerExitedAsync().WithCancellation(cancellationToken).ConfigureAwait(false);
             }
             catch (ServerNotShutDownException)
             {
