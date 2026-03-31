@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.ErrorReporting;
 using Microsoft.CodeAnalysis.Features.Workspaces;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.ProjectTelemetry;
+using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.ProjectSystem;
 using Microsoft.CodeAnalysis.Shared.Extensions;
@@ -34,6 +35,7 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
         ILspServices lspServices,
         VirtualProjectXmlProvider projectXmlProvider,
         LanguageServerWorkspaceFactory workspaceFactory,
+        SharedWorkspaceManager sharedWorkspaceManager,
         IFileChangeWatcher fileChangeWatcher,
         IGlobalOptionService globalOptionService,
         ILoggerFactory loggerFactory,
@@ -44,6 +46,7 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
         DotnetCliHelper dotnetCliHelper)
             : base(
                 workspaceFactory,
+                sharedWorkspaceManager,
                 fileChangeWatcher,
                 globalOptionService,
                 loggerFactory,

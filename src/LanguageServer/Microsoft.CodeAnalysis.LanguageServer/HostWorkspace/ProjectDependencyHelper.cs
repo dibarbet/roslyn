@@ -118,18 +118,16 @@ internal static class ProjectDependencyHelper
         }
     }
 
-    internal static async Task RestoreProjectsAsync(ImmutableArray<string> projectPaths, bool enableProgressReporting, DotnetCliHelper dotnetCliHelper, ILogger logger, CancellationToken cancellationToken)
+    internal static async Task RestoreProjectsAsync(ImmutableArray<string> projectPaths, bool enableProgressReporting, SharedWorkspaceManager sharedWorkspaceManager, DotnetCliHelper dotnetCliHelper, ILogger logger, CancellationToken cancellationToken)
     {
         if (projectPaths.IsEmpty)
             return;
 
-        Contract.ThrowIfNull(LanguageServerHost.Instance, "We don't have an LSP channel yet to send this request through.");
-
-        var workDoneProgressManager = LanguageServerHost.Instance.GetRequiredLspService<WorkDoneProgressManager>();
+        Contract.ThrowIfNull(sharedWorkspaceManager.ActiveProgressManager, "No active server registered with the SharedWorkspaceManager.");
 
         try
         {
-            await RestoreHandler.RestoreAsync(projectPaths, workDoneProgressManager, dotnetCliHelper, logger, enableProgressReporting, cancellationToken);
+            await RestoreHandler.RestoreAsync(projectPaths, sharedWorkspaceManager.ActiveProgressManager, dotnetCliHelper, logger, enableProgressReporting, cancellationToken);
         }
         catch (OperationCanceledException)
         {

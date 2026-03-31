@@ -32,21 +32,19 @@ internal sealed class ProjectInitializationHandler : IDisposable
 
     [ImportingConstructor]
     [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public ProjectInitializationHandler(IServiceBrokerProvider serviceBrokerProvider, ILoggerFactory loggerFactory)
+    public ProjectInitializationHandler(IServiceBrokerProvider serviceBrokerProvider, SharedWorkspaceManager sharedWorkspaceManager, ILoggerFactory loggerFactory)
     {
         _serviceBroker = serviceBrokerProvider.ServiceBroker;
         _serviceBroker.AvailabilityChanged += AvailabilityChanged;
         _serviceBrokerClient = new ServiceBrokerClient(_serviceBroker, joinableTaskFactory: null);
 
         _logger = loggerFactory.CreateLogger<ProjectInitializationHandler>();
-        _projectInitializationCompleteObserver = new ProjectInitializationCompleteObserver(_logger);
+        _projectInitializationCompleteObserver = new ProjectInitializationCompleteObserver(sharedWorkspaceManager, _logger);
     }
 
-    public static async ValueTask SendProjectInitializationCompleteNotificationAsync()
+    public static async ValueTask SendProjectInitializationCompleteNotificationAsync(ILspClientSink clientSink)
     {
-        Contract.ThrowIfNull(LanguageServerHost.Instance, "We don't have an LSP channel yet to send this request through.");
-        var languageServerManager = LanguageServerHost.Instance.GetRequiredLspService<IClientLanguageServerManager>();
-        await languageServerManager.SendNotificationAsync(ProjectInitializationCompleteName, CancellationToken.None);
+        await clientSink.SendNotificationAsync(ProjectInitializationCompleteName, CancellationToken.None);
     }
 
     public async Task SubscribeToInitializationCompleteAsync(CancellationToken cancellationToken)
@@ -89,10 +87,12 @@ internal sealed class ProjectInitializationHandler : IDisposable
 
     internal sealed class ProjectInitializationCompleteObserver : IObserver<ProjectInitializationCompletionState>
     {
+        private readonly SharedWorkspaceManager _sharedWorkspaceManager;
         private readonly ILogger _logger;
 
-        public ProjectInitializationCompleteObserver(ILogger logger)
+        public ProjectInitializationCompleteObserver(SharedWorkspaceManager sharedWorkspaceManager, ILogger logger)
         {
+            _sharedWorkspaceManager = sharedWorkspaceManager;
             _logger = logger;
         }
 
@@ -113,7 +113,10 @@ internal sealed class ProjectInitializationHandler : IDisposable
         {
             _logger.LogDebug("Devkit project initialization completed");
             VSCodeRequestTelemetryLogger.ReportProjectInitializationComplete();
-            _ = SendProjectInitializationCompleteNotificationAsync().AsTask().ReportNonFatalErrorAsync();
+            if (_sharedWorkspaceManager.ActiveClientSink is { } clientSink)
+            {
+                _ = SendProjectInitializationCompleteNotificationAsync(clientSink).AsTask().ReportNonFatalErrorAsync();
+            }
         }
     }
 }

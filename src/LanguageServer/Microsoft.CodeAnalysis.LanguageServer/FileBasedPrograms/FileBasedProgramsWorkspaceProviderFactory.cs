@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.ProjectTelemetry;
+using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.ProjectSystem;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
@@ -27,6 +28,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms;
 internal sealed class FileBasedProgramsWorkspaceProviderFactory(
     VirtualProjectXmlProvider projectXmlProvider,
     LanguageServerWorkspaceFactory workspaceFactory,
+    SharedWorkspaceManager sharedWorkspaceManager,
     IFileChangeWatcher fileChangeWatcher,
     IGlobalOptionService globalOptionService,
     ILoggerFactory loggerFactory,
@@ -42,6 +44,7 @@ internal sealed class FileBasedProgramsWorkspaceProviderFactory(
             lspServices,
             projectXmlProvider,
             workspaceFactory,
+            sharedWorkspaceManager,
             fileChangeWatcher,
             globalOptionService,
             loggerFactory,

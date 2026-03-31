@@ -6,6 +6,7 @@ using System.Collections.Immutable;
 using System.Composition;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.ProjectTelemetry;
+using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.ProjectSystem;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
@@ -27,6 +28,7 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
     [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     public LanguageServerProjectSystem(
         LanguageServerWorkspaceFactory workspaceFactory,
+        SharedWorkspaceManager sharedWorkspaceManager,
         IFileChangeWatcher fileChangeWatcher,
         IGlobalOptionService globalOptionService,
         ILoggerFactory loggerFactory,
@@ -37,6 +39,7 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
         DotnetCliHelper dotnetCliHelper)
             : base(
                 workspaceFactory,
+                sharedWorkspaceManager,
                 fileChangeWatcher,
                 globalOptionService,
                 loggerFactory,
@@ -63,7 +66,8 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
             await BeginLoadingProjectAsync(path, guid);
         }
         await WaitForProjectsToFinishLoadingAsync();
-        await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync();
+        Contract.ThrowIfNull(_sharedWorkspaceManager.ActiveClientSink, "No active server registered with the SharedWorkspaceManager.");
+        await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync(_sharedWorkspaceManager.ActiveClientSink);
     }
 
     public async Task OpenProjectsAsync(ImmutableArray<string> projectFilePaths)
@@ -76,7 +80,8 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader
             await BeginLoadingProjectAsync(path, projectGuid: null);
         }
         await WaitForProjectsToFinishLoadingAsync();
-        await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync();
+        Contract.ThrowIfNull(_sharedWorkspaceManager.ActiveClientSink, "No active server registered with the SharedWorkspaceManager.");
+        await ProjectInitializationHandler.SendProjectInitializationCompleteNotificationAsync(_sharedWorkspaceManager.ActiveClientSink);
     }
 
     protected override async Task<RemoteProjectLoadResult?> TryLoadProjectInMSBuildHostAsync(

@@ -58,7 +58,7 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
             return testLspServer;
         }
 
-        internal LanguageServerHost LanguageServerHost { get; }
+        internal ConnectionManager ConnectionManager { get; }
         public ExportProvider ExportProvider { get; }
 
         internal ServerCapabilities ServerCapabilities { get => field ?? throw new InvalidOperationException("Initialize has not been called"); private set; }
@@ -75,7 +75,8 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
             var clientOutputStream = _clientToServerPipe.Writer.AsStream();
             var clientInputStream = _serverToClientPipe.Reader.AsStream();
 
-            LanguageServerHost = new LanguageServerHost(serverInputStream, serverOutputStream, exportProvider, loggerFactory, typeRefResolver);
+            var sharedWorkspaceManager = exportProvider.GetExportedValue<SharedWorkspaceManager>();
+            ConnectionManager = new ConnectionManager(serverInputStream, serverOutputStream, exportProvider, loggerFactory, typeRefResolver, sharedWorkspaceManager);
 
             var messageFormatter = RoslynLanguageServer.CreateJsonMessageFormatter();
             _clientRpc = new JsonRpc(new HeaderDelimitedMessageHandler(clientOutputStream, clientInputStream, messageFormatter))
@@ -88,9 +89,9 @@ public abstract class AbstractLanguageServerHostTests : IDisposable
 
             // This task completes when the server shuts down.  We store it so that we can wait for completion
             // when we dispose of the test server.
-            LanguageServerHost.Start();
+            ConnectionManager.Start();
 
-            _languageServerHostCompletionTask = LanguageServerHost.WaitForExitAsync();
+            _languageServerHostCompletionTask = ConnectionManager.WaitForExitAsync();
             ExportProvider = exportProvider;
         }
 

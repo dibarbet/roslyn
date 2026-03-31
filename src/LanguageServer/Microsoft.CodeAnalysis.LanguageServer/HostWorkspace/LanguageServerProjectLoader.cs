@@ -7,6 +7,7 @@ using System.Diagnostics;
 using Microsoft.CodeAnalysis.Collections;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.ProjectTelemetry;
+using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.ProjectSystem;
@@ -25,6 +26,7 @@ internal abstract class LanguageServerProjectLoader
     private readonly AsyncBatchingWorkQueue<ProjectToLoad> _projectsToReload;
 
     protected readonly LanguageServerWorkspaceFactory _workspaceFactory;
+    protected readonly SharedWorkspaceManager _sharedWorkspaceManager;
     private readonly IFileChangeWatcher _fileChangeWatcher;
     protected readonly IGlobalOptionService GlobalOptionService;
     protected readonly ILoggerFactory LoggerFactory;
@@ -88,6 +90,7 @@ internal abstract class LanguageServerProjectLoader
 
     protected LanguageServerProjectLoader(
         LanguageServerWorkspaceFactory workspaceFactory,
+        SharedWorkspaceManager sharedWorkspaceManager,
         IFileChangeWatcher fileChangeWatcher,
         IGlobalOptionService globalOptionService,
         ILoggerFactory loggerFactory,
@@ -98,6 +101,7 @@ internal abstract class LanguageServerProjectLoader
         DotnetCliHelper dotnetCliHelper)
     {
         _workspaceFactory = workspaceFactory;
+        _sharedWorkspaceManager = sharedWorkspaceManager;
         _fileChangeWatcher = fileChangeWatcher;
         GlobalOptionService = globalOptionService;
         LoggerFactory = loggerFactory;
@@ -139,7 +143,7 @@ internal abstract class LanguageServerProjectLoader
         return properties;
     }
 
-    private sealed class ToastErrorReporter
+    private sealed class ToastErrorReporter(ILspClientSink clientSink)
     {
         private int _displayedToast = 0;
 
@@ -149,7 +153,7 @@ internal abstract class LanguageServerProjectLoader
             var shouldShowToast = Interlocked.CompareExchange(ref _displayedToast, value: 1, comparand: 0) == 0;
             if (shouldShowToast)
             {
-                await ShowToastNotification.ShowToastNotificationAsync(errorKind, message, cancellationToken, ShowToastNotification.ShowCSharpLogsCommand);
+                await ShowToastNotification.ShowToastNotificationAsync(clientSink, errorKind, message, cancellationToken, ShowToastNotification.ShowCSharpLogsCommand);
             }
         }
     }
@@ -166,7 +170,10 @@ internal abstract class LanguageServerProjectLoader
             binaryLogPathProvider: _binLogPathProvider,
             loggerFactory: LoggerFactory);
 
-        var toastErrorReporter = new ToastErrorReporter();
+        Contract.ThrowIfNull(_sharedWorkspaceManager.ActiveClientSink, "No active server registered with the SharedWorkspaceManager.");
+        var clientSink = _sharedWorkspaceManager.ActiveClientSink;
+
+        var toastErrorReporter = new ToastErrorReporter(clientSink);
 
         try
         {
@@ -187,7 +194,7 @@ internal abstract class LanguageServerProjectLoader
             if (GlobalOptionService.GetOption(LanguageServerProjectSystemOptionsStorage.EnableAutomaticRestore) && projectsThatNeedRestore.Any())
             {
                 // This request blocks to ensure we aren't trying to run a design time build at the same time as a restore.
-                await ProjectDependencyHelper.RestoreProjectsAsync(projectsThatNeedRestore, EnableProgressReporting, _dotnetCliHelper, _logger, cancellationToken);
+                await ProjectDependencyHelper.RestoreProjectsAsync(projectsThatNeedRestore, EnableProgressReporting, _sharedWorkspaceManager, _dotnetCliHelper, _logger, cancellationToken);
             }
         }
         finally
@@ -311,7 +318,7 @@ internal abstract class LanguageServerProjectLoader
 
                 if (projectToLoad.ReportTelemetry)
                 {
-                    await _projectLoadTelemetryReporter.ReportProjectLoadTelemetryAsync(telemetryInfos, projectToLoad, cancellationToken);
+                    await _projectLoadTelemetryReporter.ReportProjectLoadTelemetryAsync(_sharedWorkspaceManager.ActiveClientSink!, telemetryInfos, projectToLoad, cancellationToken);
                 }
 
                 if (currentLoadState is ProjectLoadState.Primordial primordial)

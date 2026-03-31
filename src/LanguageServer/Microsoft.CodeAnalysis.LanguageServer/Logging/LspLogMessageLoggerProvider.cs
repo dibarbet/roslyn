@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Concurrent;
+using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Logging;
@@ -12,9 +13,14 @@ internal sealed class LspLogMessageLoggerProvider(ILoggerFactory fallbackLoggerF
     private readonly ConcurrentDictionary<string, LspLogMessageLogger> _loggers = new(StringComparer.OrdinalIgnoreCase);
     private IExternalScopeProvider? _externalScopeProvider;
 
+    /// <summary>
+    /// Set after the MEF export provider is created. Until set, loggers use the fallback logger.
+    /// </summary>
+    internal SharedWorkspaceManager? SharedWorkspaceManager { get; set; }
+
     public ILogger CreateLogger(string categoryName)
     {
-        return _loggers.GetOrAdd(categoryName, new LspLogMessageLogger(categoryName, fallbackLoggerFactory, serverConfiguration, _externalScopeProvider));
+        return _loggers.GetOrAdd(categoryName, new LspLogMessageLogger(categoryName, this, fallbackLoggerFactory, serverConfiguration, _externalScopeProvider));
     }
 
     public void Dispose()

@@ -1,8 +1,9 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
+using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.FileWatching;
 using Microsoft.CodeAnalysis.LanguageServer.Logging;
 using Microsoft.CommonLanguageServerProtocol.Framework;
 using Microsoft.Extensions.Logging;
@@ -12,25 +13,33 @@ using StreamJsonRpc;
 namespace Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 
 /// <summary>
-/// This class has been superseded by <see cref="ConnectionManager"/> and <see cref="SharedWorkspaceManager"/>.
-/// It is retained temporarily for any remaining references but should be removed once all consumers
-/// are migrated to use <see cref="ConnectionManager"/>.
+/// Manages the lifecycle of a single LSP server connection.
+/// Creates the transport, server instance, and registers with the <see cref="SharedWorkspaceManager"/>.
+/// In daemon mode, multiple <see cref="ConnectionManager"/> instances would exist (one per client),
+/// but for now this handles the single-server case.
 /// </summary>
 #pragma warning disable CA1001 // The JsonRpc instance is disposed of by the AbstractLanguageServer during shutdown
-internal sealed class LanguageServerHost
-#pragma warning restore CA1001 // The JsonRpc instance is disposed of by the AbstractLanguageServer during shutdown
+internal sealed class ConnectionManager
+#pragma warning restore CA1001
 {
     private readonly ILogger _logger;
     private readonly AbstractLanguageServer<RequestContext> _roslynLanguageServer;
     private readonly JsonRpc _jsonRpc;
+    private readonly SharedWorkspaceManager _sharedWorkspaceManager;
 
-    public LanguageServerHost(Stream inputStream, Stream outputStream, ExportProvider exportProvider, ILoggerFactory loggerFactory, AbstractTypeRefResolver typeRefResolver)
+    public ConnectionManager(
+        Stream inputStream,
+        Stream outputStream,
+        ExportProvider exportProvider,
+        ILoggerFactory loggerFactory,
+        AbstractTypeRefResolver typeRefResolver,
+        SharedWorkspaceManager sharedWorkspaceManager)
     {
-        var messageFormatter = RoslynLanguageServer.CreateJsonMessageFormatter();
+        _sharedWorkspaceManager = sharedWorkspaceManager;
 
+        var messageFormatter = RoslynLanguageServer.CreateJsonMessageFormatter();
         var handler = new HeaderDelimitedMessageHandler(outputStream, inputStream, messageFormatter);
 
-        // If there is a jsonrpc disconnect or server shutdown, that is handled by the AbstractLanguageServer.  No need to do anything here.
         _jsonRpc = new JsonRpc(handler)
         {
             ExceptionStrategy = ExceptionProcessing.CommonErrorData,
@@ -54,6 +63,17 @@ internal sealed class LanguageServerHost
     public void Start()
     {
         _jsonRpc.StartListening();
+
+        // Register the server's client sink with the SharedWorkspaceManager.
+        // This creates the workspace (if not yet created) and makes the sink
+        // available to workspace-scoped components.
+        var lspServices = _roslynLanguageServer.GetLspServices();
+        var clientManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
+        var progressManager = lspServices.GetRequiredService<WorkDoneProgressManager>();
+        var fileChangeHandler = lspServices.GetRequiredService<LspDidChangeWatchedFilesHandler>();
+        var initializeManager = lspServices.GetRequiredService<IInitializeManager>();
+        var sink = new LspClientSink(clientManager);
+        _sharedWorkspaceManager.RegisterServer(sink, progressManager, fileChangeHandler, initializeManager);
     }
 
     public async Task WaitForExitAsync()
@@ -64,13 +84,13 @@ internal sealed class LanguageServerHost
         }
         catch (Exception)
         {
-            // The JsonRpc connection threw an exception.  This usually means the client disconnected unexpectedly while
-            // the server was reading from it.  We don't need this to cause the process to crash and trigger watsons,
-            // so we handle it and let the process exit.  The server handles the JSON RPC disconnect event and will
-            // propagate unexpected errors through WaitForExitAsync.
+            // The JsonRpc connection threw an exception. This usually means the client
+            // disconnected unexpectedly. We handle it and let the process exit.
         }
 
         await _roslynLanguageServer.WaitForExitAsync();
+
+        _sharedWorkspaceManager.DeregisterServer();
     }
 
     public T GetRequiredLspService<T>() where T : ILspService

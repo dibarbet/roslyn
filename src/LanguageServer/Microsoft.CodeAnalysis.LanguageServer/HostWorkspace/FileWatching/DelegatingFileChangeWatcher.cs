@@ -25,17 +25,22 @@ namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.FileWatching;
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
 internal sealed class DelegatingFileChangeWatcher(
+    SharedWorkspaceManager sharedWorkspaceManager,
     ILoggerFactory loggerFactory,
     IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
     : IFileChangeWatcher
 {
     private readonly Lazy<IFileChangeWatcher> _underlyingFileWatcher = new(() =>
         {
-            // Do we already have an LSP client that we can confirm works for us?
-            var instance = LanguageServerHost.Instance;
+            var sink = sharedWorkspaceManager.ActiveClientSink;
+            var initializeManager = sharedWorkspaceManager.InitializeManager;
+            var fileChangeHandler = sharedWorkspaceManager.ActiveFileChangeHandler;
 
-            if (instance != null && LspFileChangeWatcher.SupportsLanguageServerHost(instance))
-                return new LspFileChangeWatcher(instance, asynchronousOperationListenerProvider);
+            if (sink != null && initializeManager != null && fileChangeHandler != null
+                && LspFileChangeWatcher.SupportsLspFileWatching(initializeManager))
+            {
+                return new LspFileChangeWatcher(sink, fileChangeHandler, asynchronousOperationListenerProvider);
+            }
 
             loggerFactory.CreateLogger<DelegatingFileChangeWatcher>().LogWarning("We are unable to use LSP file watching; falling back to our in-process watcher.");
             return new DefaultFileChangeWatcher();

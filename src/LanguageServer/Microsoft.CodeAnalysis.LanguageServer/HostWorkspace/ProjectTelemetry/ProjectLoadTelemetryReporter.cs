@@ -35,7 +35,7 @@ internal sealed class ProjectLoadTelemetryReporter(ILoggerFactory loggerFactory,
     /// so that we are able to compare data accurately.
     /// See https://github.com/OmniSharp/omnisharp-roslyn/blob/b2e64c6006beed49460f063117793f42ab2a8a5c/src/OmniSharp.MSBuild/ProjectLoadListener.cs#L36
     /// </summary>
-    public async Task ReportProjectLoadTelemetryAsync(Dictionary<ProjectFileInfo, TelemetryInfo> projectFileInfos, ProjectToLoad projectToLoad, CancellationToken cancellationToken)
+    public async Task ReportProjectLoadTelemetryAsync(ILspClientSink clientSink, Dictionary<ProjectFileInfo, TelemetryInfo> projectFileInfos, ProjectToLoad projectToLoad, CancellationToken cancellationToken)
     {
         try
         {
@@ -84,21 +84,13 @@ internal sealed class ProjectLoadTelemetryReporter(ILoggerFactory loggerFactory,
                 IsFileBasedProgram: telemetryInfo.IsFileBasedProgram,
                 IsMiscellaneousFile: telemetryInfo.IsMiscellaneousFile);
 
-            await ReportEventAsync(projectEvent, cancellationToken);
+            await clientSink.SendNotificationAsync("workspace/projectConfigurationTelemetry", projectEvent, cancellationToken);
         }
         catch (Exception ex)
         {
             // Don't fail project loading because we failed to report telemetry.  Just log a warning and move on.
             _logger.LogWarning($"Failed to get project telemetry data: {ex.ToString()}");
         }
-    }
-
-    private static async Task ReportEventAsync(ProjectLoadTelemetryEvent telemetryEvent, CancellationToken cancellationToken)
-    {
-        var instance = LanguageServerHost.Instance;
-        Contract.ThrowIfNull(instance, nameof(instance));
-        var clientLanguageServerManager = instance.GetRequiredLspService<IClientLanguageServerManager>();
-        await clientLanguageServerManager.SendNotificationAsync("workspace/projectConfigurationTelemetry", telemetryEvent, cancellationToken);
     }
 
     private static ImmutableDictionary<string, int> GetUniqueHashedFileExtensionsAndCounts(ProjectFileInfo projectFileInfo)

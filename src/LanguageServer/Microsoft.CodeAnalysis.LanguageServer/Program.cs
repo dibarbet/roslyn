@@ -51,21 +51,22 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     }
 
     // Create a console logger as a fallback to use before the LSP server starts.
+    var lspLoggerProvider = new LspLogMessageLoggerProvider(fallbackLoggerFactory:
+        // Add a console logger as a fallback for when the LSP server has not finished initializing.
+        LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Trace);
+            builder.AddConsole();
+            // The console logger outputs control characters on unix for colors which don't render correctly in VSCode.
+            builder.AddSimpleConsole(formatterOptions => formatterOptions.ColorBehavior = LoggerColorBehavior.Disabled);
+        }), serverConfiguration
+    );
     using var loggerFactory = LoggerFactory.Create(builder =>
     {
         // The actual logger is responsible for deciding whether to log based on the current log level.
         // The factory should be configured to log everything.
         builder.SetMinimumLevel(LogLevel.Trace);
-        builder.AddProvider(new LspLogMessageLoggerProvider(fallbackLoggerFactory:
-            // Add a console logger as a fallback for when the LSP server has not finished initializing.
-            LoggerFactory.Create(builder =>
-            {
-                builder.SetMinimumLevel(LogLevel.Trace);
-                builder.AddConsole();
-                // The console logger outputs control characters on unix for colors which don't render correctly in VSCode.
-                builder.AddSimpleConsole(formatterOptions => formatterOptions.ColorBehavior = LoggerColorBehavior.Disabled);
-            }), serverConfiguration
-        ));
+        builder.AddProvider(lspLoggerProvider);
     });
 
     var logger = loggerFactory.CreateLogger<Program>();
@@ -116,16 +117,17 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     var telemetryReporter = exportProvider.GetExports<ITelemetryReporter>().SingleOrDefault()?.Value;
     RoslynLogger.Initialize(telemetryReporter, serverConfiguration.TelemetryLevel, serverConfiguration.SessionId);
 
-    // Create the workspace first, since right now the language server will assume there's at least one Workspace. This as a side effect creates the actual workspace
-    // object which is registered by the LspWorkspaceRegistrationEventListener.
-    var workspaceFactory = exportProvider.GetExportedValue<LanguageServerWorkspaceFactory>();
+    // Get the SharedWorkspaceManager from MEF and wire it into the logger provider.
+    // Workspace creation is deferred until the server registers with the SharedWorkspaceManager.
+    var sharedWorkspaceManager = exportProvider.GetExportedValue<SharedWorkspaceManager>();
+    lspLoggerProvider.SharedWorkspaceManager = sharedWorkspaceManager;
 
     var serviceBrokerFactory = exportProvider.GetExportedValue<ServiceBrokerFactory>();
 
-    LanguageServerHost server;
+    ConnectionManager server;
     if (serverConfiguration.UseStdIo)
     {
-        server = new LanguageServerHost(Console.OpenStandardInput(), Console.OpenStandardOutput(), exportProvider, loggerFactory, typeRefResolver);
+        server = new ConnectionManager(Console.OpenStandardInput(), Console.OpenStandardOutput(), exportProvider, loggerFactory, typeRefResolver, sharedWorkspaceManager);
     }
     else
     {
@@ -137,7 +139,7 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
             : serverConfiguration.ServerPipeName!;
         var pipeClient = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.CurrentUserOnly | PipeOptions.Asynchronous);
         await pipeClient.ConnectAsync(cancellationToken);
-        server = new LanguageServerHost(pipeClient, pipeClient, exportProvider, loggerFactory, typeRefResolver);
+        server = new ConnectionManager(pipeClient, pipeClient, exportProvider, loggerFactory, typeRefResolver, sharedWorkspaceManager);
     }
 
     server.Start();

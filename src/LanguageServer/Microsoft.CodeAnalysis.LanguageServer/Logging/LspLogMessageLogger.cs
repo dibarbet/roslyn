@@ -13,7 +13,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Logging;
 /// Implements an ILogger that seamlessly switches from a fallback logger
 /// to LSP log messages as soon as the server initializes.
 /// </summary>
-internal sealed class LspLogMessageLogger(string categoryName, ILoggerFactory fallbackLoggerFactory, ServerConfiguration serverConfiguration, IExternalScopeProvider? externalScopeProvider) : ILogger
+internal sealed class LspLogMessageLogger(string categoryName, LspLogMessageLoggerProvider provider, ILoggerFactory fallbackLoggerFactory, ServerConfiguration serverConfiguration, IExternalScopeProvider? externalScopeProvider) : ILogger
 {
     private readonly Lazy<ILogger> _fallbackLogger = new(() => fallbackLoggerFactory.CreateLogger(categoryName));
     private readonly IExternalScopeProvider? _externalScopeProvider = externalScopeProvider;
@@ -28,8 +28,8 @@ internal sealed class LspLogMessageLogger(string categoryName, ILoggerFactory fa
             return;
         }
 
-        var server = LanguageServerHost.Instance;
-        if (server == null)
+        var clientSink = provider.SharedWorkspaceManager?.ActiveClientSink;
+        if (clientSink == null)
         {
             // If the language server has not been initialized yet, log using the fallback logger.
             _fallbackLogger.Value.Log(logLevel, eventId, state, exception, formatter);
@@ -77,7 +77,7 @@ internal sealed class LspLogMessageLogger(string categoryName, ILoggerFactory fa
 
         try
         {
-            var _ = server.GetRequiredLspService<IClientLanguageServerManager>().SendNotificationAsync(logMethod, new LogMessageParams()
+            var _ = clientSink.SendNotificationAsync(logMethod, new LogMessageParams()
             {
                 Message = $"{messagePrefix} {message}",
                 MessageType = LogLevelToMessageType(logLevel),

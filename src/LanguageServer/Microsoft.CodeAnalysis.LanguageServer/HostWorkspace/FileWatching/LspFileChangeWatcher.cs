@@ -22,23 +22,20 @@ namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.FileWatching;
 internal sealed class LspFileChangeWatcher : IFileChangeWatcher
 {
     private readonly LspDidChangeWatchedFilesHandler _didChangeWatchedFilesHandler;
-    private readonly IClientLanguageServerManager _clientLanguageServerManager;
+    private readonly ILspClientSink _clientSink;
     private readonly IAsynchronousOperationListener _asynchronousOperationListener;
 
-    public LspFileChangeWatcher(LanguageServerHost languageServerHost, IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
+    public LspFileChangeWatcher(ILspClientSink clientSink, LspDidChangeWatchedFilesHandler didChangeWatchedFilesHandler, IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
     {
-        _didChangeWatchedFilesHandler = languageServerHost.GetRequiredLspService<LspDidChangeWatchedFilesHandler>();
-        _clientLanguageServerManager = languageServerHost.GetRequiredLspService<IClientLanguageServerManager>();
+        _didChangeWatchedFilesHandler = didChangeWatchedFilesHandler;
+        _clientSink = clientSink;
         _asynchronousOperationListener = asynchronousOperationListenerProvider.GetListener(FeatureAttribute.Workspace);
-
-        Contract.ThrowIfFalse(SupportsLanguageServerHost(languageServerHost));
     }
 
-    public static bool SupportsLanguageServerHost(LanguageServerHost languageServerHost)
+    public static bool SupportsLspFileWatching(IInitializeManager initializeManager)
     {
         // We can only use the LSP client for doing file watching if we support dynamic registration for it
-        var clientCapabilitiesProvider = languageServerHost.GetRequiredLspService<IInitializeManager>();
-        return clientCapabilitiesProvider.GetClientCapabilities().Workspace?.DidChangeWatchedFiles?.DynamicRegistration ?? false;
+        return initializeManager.GetClientCapabilities().Workspace?.DidChangeWatchedFiles?.DynamicRegistration ?? false;
     }
 
     public IFileChangeContext CreateContext(ImmutableArray<WatchedDirectory> watchedDirectories)
@@ -229,7 +226,7 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
             };
 
             var asyncToken = _changeWatcher._asynchronousOperationListener.BeginAsyncOperation(nameof(LspFileWatchRegistration));
-            _registrationTask = changeWatcher._clientLanguageServerManager.SendRequestAsync("client/registerCapability", registrationParams, _cancellationTokenSource.Token).AsTask();
+            _registrationTask = changeWatcher._clientSink.SendRequestAsync("client/registerCapability", registrationParams, _cancellationTokenSource.Token).AsTask();
             _registrationTask.ReportNonFatalErrorUnlessCancelledAsync(_cancellationTokenSource.Token).CompletesAsyncOperation(asyncToken);
         }
 
@@ -257,7 +254,7 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
 
                 try
                 {
-                    await _changeWatcher._clientLanguageServerManager.SendRequestAsync("client/unregisterCapability", unregistrationParams, CancellationToken.None);
+                    await _changeWatcher._clientSink.SendRequestAsync("client/unregisterCapability", unregistrationParams, CancellationToken.None);
                 }
                 catch (ConnectionLostException)
                 {
