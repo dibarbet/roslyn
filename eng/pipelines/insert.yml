@@ -22,10 +22,9 @@ parameters:
     type: string
   - name: buildPassword
     type: string
-  - name: componentUserName
+  - name: dncEngAzureSubscription
     type: string
-  - name: componentPassword
-    type: string
+    default: 'DncEng Insertion: Roslyn and Razor'
   
   - name: publishDataURI
     type: string
@@ -112,9 +111,9 @@ steps:
       Write-Host "##vso[task.setvariable variable=Template.BuildUserName]$Env:BuildUserName"
       Write-Host "##vso[task.setvariable variable=Template.BuildPassword]$Env:BuildPassword"
 
-      Write-Host "Setting ComponentUserName to $Env:ComponentUserName"
-      Write-Host "##vso[task.setvariable variable=Template.ComponentUserName]$Env:ComponentUserName"
-      Write-Host "##vso[task.setvariable variable=Template.ComponentPassword]$Env:ComponentPassword"
+      Write-Host "Setting ComponentUserName to empty (WIF token auth)"
+      Write-Host "##vso[task.setvariable variable=Template.ComponentUserName]"
+      Write-Host "##vso[task.setvariable variable=Template.ComponentPassword]"
 
       # Overwrite template variables with values passed into this template as parameters
       if ("" -ne $Env:CreateDraftPR)
@@ -165,8 +164,8 @@ steps:
     env:
       BuildUserName: ${{ parameters.buildUserName }}
       BuildPassword: ${{ parameters.buildPassword }}
-      ComponentUserName: ${{ parameters.componentUserName }}
-      ComponentPassword: ${{ parameters.componentPassword }}
+      ComponentUserName: ''
+      ComponentPassword: ''
       CreateDraftPR: ${{ parameters.createDraftPR }}
       AutoComplete: ${{ parameters.autoComplete }}
       TitlePrefix: ${{ parameters.titlePrefix }}
@@ -175,42 +174,59 @@ steps:
       ComponentBuildProjectName: ${{ parameters.componentBuildProjectName }}
       DropPath: ${{ parameters.dropPath }}
 
-  # Now that everything is set, actually perform the insertion.
-  - powershell: |
-      mv RoslynTools.VisualStudioInsertionTool.* RIT
-      .\RIT\tools\net472\OneOffInsertion.ps1 `
-        -autoComplete "$(Template.AutoComplete)" `
-        -buildQueueName "$(Build.DefinitionName)" `
-        -cherryPick "${{ parameters.cherryPick }}" `
-        -userName "$(Template.BuildUserName)" `
-        -password "$(Template.BuildPassword)" `
-        -componentUserName "$(Template.ComponentUserName)" `
-        -componentPassword "$(Template.ComponentPassword)" `
-        -componentAzdoUri "$(Template.ComponentAzdoUri)" `
-        -componentProjectName "$(Template.ComponentProjectName)" `
-        -componentName "Roslyn" `
-        -componentGitHubRepoName "dotnet/roslyn" `
-        -componentBranchName "$(Template.ComponentBranchName)" `
-        -createDraftPR "$(Template.CreateDraftPR)" `
-        -defaultValueSentinel "(default)" `
-        -dropPath "$(Template.DropPath)" `
-        -insertCore "(default)" `
-        -insertDevDiv "(default)" `
-        -insertionCount "1" `
-        -insertToolset "$(Template.InsertToolset)" `
-        -titlePrefix "$(Template.TitlePrefix)" `
-        -titleSuffix "$(Template.TitleSuffix)" `
-        -queueValidation "true" `
-        -requiredValueSentinel "REQUIRED" `
-        -reviewerGUID "6c25b447-1d90-4840-8fde-d8b22cb8733e" `
-        -specificBuild "$(Build.BuildNumber)" `
-        -updateAssemblyVersions "(default)" `
-        -updateCoreXTLibraries "(default)" `
-        -visualStudioBranchName "$(Template.VSBranchName)" `
-        -writePullRequest "prid.txt" `
-        -queueSpeedometerValidation "${{ parameters.queueSpeedometerValidation }}" `
-        -retaininsertedbuild "${{ parameters.retainInsertedBuild }}" 
+  # Uses AzureCLI@2 so that OneOffInsertion.ps1 can use a dnceng AzDO token
+  # acquired via az account get-access-token (the WIF SP is logged in by AzureCLI@2).
+  # NOTE: Do NOT use DefaultAzureCredential here — on 1ES hosted agents,
+  # ManagedIdentityCredential fires before AzureCliCredential and picks up
+  # the agent's MI instead of the WIF SP, causing VS30063 for dnceng.
+  - task: AzureCLI@2
     displayName: 'Run OneOffInsertion.ps1'
+    inputs:
+      azureSubscription: ${{ parameters.dncEngAzureSubscription }}
+      scriptType: ps
+      scriptLocation: inlineScript
+      inlineScript: |
+        # Acquire AzDO token explicitly from the WIF SP login context.
+        # DefaultAzureCredential is unreliable on hosted agents (picks up agent MI).
+        $dncEngAzdoToken = az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($dncEngAzdoToken)) {
+          Write-Error 'Failed to acquire dnceng AzDO access token via WIF service connection.'
+          exit 1
+        }
+
+        mv RoslynTools.VisualStudioInsertionTool.* RIT
+        .\RIT\tools\net472\OneOffInsertion.ps1 `
+          -autoComplete "$(Template.AutoComplete)" `
+          -buildQueueName "$(Build.DefinitionName)" `
+          -cherryPick "${{ parameters.cherryPick }}" `
+          -userName "$(Template.BuildUserName)" `
+          -password "$(Template.BuildPassword)" `
+          -componentUserName "" `
+          -componentPassword $dncEngAzdoToken `
+          -componentAzdoUri "$(Template.ComponentAzdoUri)" `
+          -componentProjectName "$(Template.ComponentProjectName)" `
+          -componentName "Roslyn" `
+          -componentGitHubRepoName "dotnet/roslyn" `
+          -componentBranchName "$(Template.ComponentBranchName)" `
+          -createDraftPR "$(Template.CreateDraftPR)" `
+          -defaultValueSentinel "(default)" `
+          -dropPath "$(Template.DropPath)" `
+          -insertCore "(default)" `
+          -insertDevDiv "(default)" `
+          -insertionCount "1" `
+          -insertToolset "$(Template.InsertToolset)" `
+          -titlePrefix "$(Template.TitlePrefix)" `
+          -titleSuffix "$(Template.TitleSuffix)" `
+          -queueValidation "true" `
+          -requiredValueSentinel "REQUIRED" `
+          -reviewerGUID "6c25b447-1d90-4840-8fde-d8b22cb8733e" `
+          -specificBuild "$(Build.BuildNumber)" `
+          -updateAssemblyVersions "(default)" `
+          -updateCoreXTLibraries "(default)" `
+          -visualStudioBranchName "$(Template.VSBranchName)" `
+          -writePullRequest "prid.txt" `
+          -queueSpeedometerValidation "${{ parameters.queueSpeedometerValidation }}" `
+          -retaininsertedbuild "${{ parameters.retainInsertedBuild }}"
 
   - script: 'echo. && echo. && type "prid.txt" && echo. && echo.'
     displayName: 'Report PR URL'
