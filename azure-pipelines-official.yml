@@ -177,6 +177,17 @@ extends:
             targetPath: '$(Build.SourcesDirectory)\artifacts\OptProf\$(BuildConfiguration)\Data'
             artifactName: 'OptProf Data Files'
 
+          # Publish the IBC/MIBC files downloaded from the OptProf optimization data drop as a pipeline
+          # artifact. These are inputs to the build (consumed by ServiceHub crossgen and IBC merge) and
+          # are otherwise hard to obtain after the build completes - they originate from the OptProf drop
+          # rather than from a linked pipeline resource. Staged into a dedicated 'Inputs' folder so the
+          # OptProf 'ProfilingInputs' Azure Artifacts drop (published from 'Data') is unaffected.
+          - output: pipelineArtifact
+            displayName: 'Publish OptProf Optimization Inputs'
+            condition: and(succeeded(), ${{ not(parameters.SkipApplyOptimizationData) }})
+            targetPath: '$(Build.SourcesDirectory)\artifacts\OptProf\$(BuildConfiguration)\Inputs'
+            artifactName: 'OptProf Optimization Inputs'
+
           - output: pipelineArtifact
             displayName: 'Publish Logs'
             condition: succeededOrFailed()
@@ -364,6 +375,44 @@ extends:
             retentionDays: 90
           displayName: 'OptProf - Publish to Artifact Services - ProfilingInputs'
           condition: succeeded()
+
+        # Stage the IBC/MIBC files downloaded from the OptProf optimization data drop into a dedicated
+        # folder so they can be uploaded as a pipeline artifact for debugging. Arcade's
+        # _AcquireVisualStudioOptimizationData target unpacks the drop directly under
+        # IbcOptimizationDataDir (== Build.SourcesDirectory; see eng/build.ps1). We collect those files
+        # here, preserving their relative paths, and exclude well-known repo locations
+        # (artifacts, .packages, .git, eng) so we only pick up files from the drop.
+        - task: PowerShell@2
+          displayName: 'Stage OptProf Optimization Inputs'
+          condition: and(succeeded(), ${{ not(parameters.SkipApplyOptimizationData) }})
+          inputs:
+            targetType: inline
+            script: |
+              $sourceRoot = "$(Build.SourcesDirectory)"
+              $stagingDir = Join-Path $sourceRoot "artifacts\OptProf\$(BuildConfiguration)\Inputs"
+              New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+              $excludePrefixes = @(
+                (Join-Path $sourceRoot 'artifacts'),
+                (Join-Path $sourceRoot '.packages'),
+                (Join-Path $sourceRoot '.git'),
+                (Join-Path $sourceRoot 'eng')
+              )
+
+              $files = Get-ChildItem -Path $sourceRoot -Recurse -Include *.ibc,*.mibc -File -ErrorAction SilentlyContinue |
+                Where-Object {
+                  $full = $_.FullName
+                  -not ($excludePrefixes | Where-Object { $full.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) })
+                }
+
+              foreach ($f in $files) {
+                $rel = [System.IO.Path]::GetRelativePath($sourceRoot, $f.FullName)
+                $dest = Join-Path $stagingDir $rel
+                New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
+                Copy-Item -LiteralPath $f.FullName -Destination $dest -Force
+              }
+
+              Write-Host "Staged $($files.Count) optimization input file(s) to $stagingDir."
 
         - task: PublishTestResults@2
           displayName: Publish xUnit Test Results
