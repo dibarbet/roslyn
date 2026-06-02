@@ -54,7 +54,7 @@ public abstract class AbstractLspMiscellaneousFilesWorkspaceTests : AbstractLang
 
     private protected Workspace GetHostWorkspace(TestLspServer testLspServer)
     {
-        var provider = testLspServer.GetRequiredLspService<IHostWorkspaceProvider>();
+        var provider = testLspServer.GetRequiredLspServiceFromInterface<IHostWorkspaceProvider>();
         return provider.Workspace;
     }
 

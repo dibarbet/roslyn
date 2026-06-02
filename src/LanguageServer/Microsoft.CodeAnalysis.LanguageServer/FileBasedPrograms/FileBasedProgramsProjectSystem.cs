@@ -52,7 +52,7 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
         _lspServices = lspServices;
         _logger = loggerFactory.CreateLogger<FileBasedProgramsProjectSystem>();
         _projectXmlProvider = projectXmlProvider;
-        _canonicalProjectProvider = new CanonicalMiscellaneousFilesProjectProvider(lspServices.GetRequiredService<IHostWorkspaceProvider>(), loggerFactory);
+        _canonicalProjectProvider = new CanonicalMiscellaneousFilesProjectProvider(lspServices.GetRequiredLspServiceFromInterface<IHostWorkspaceProvider>(), loggerFactory);
 
         globalOptionService.AddOptionChangedHandler(this, OnGlobalOptionChanged);
     }
@@ -117,7 +117,7 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
 
     private async ValueTask<LooseDocumentKind> ClassifyDocumentAsync(string filePath, string languageId, CancellationToken cancellationToken)
     {
-        var languageInfoProvider = _lspServices.GetRequiredService<ILanguageInfoProvider>();
+        var languageInfoProvider = _lspServices.GetRequiredLspServiceFromInterface<ILanguageInfoProvider>();
         if (!languageInfoProvider.TryGetLanguageInformation(ProtocolConversions.CreateAbsoluteDocumentUri(filePath), languageId, out var languageInformation))
         {
             Contract.Fail($"Could not find language information for '{filePath}'");
@@ -203,7 +203,7 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
         // 10. Is the file included in a `.csproj` cone?
         // - Yes → Classify as Miscellaneous File With Standard References (wait for project to load)
         // - No → Classify as Miscellaneous File With Standard References and Semantic Errors
-        var csprojInConeChecker = _lspServices.GetRequiredService<CsprojInConeChecker>();
+        var csprojInConeChecker = _lspServices.GetRequiredLspService<CsprojInConeChecker>();
         if (csprojInConeChecker.IsContainedInCsprojCone(filePath))
         {
             return LooseDocumentKind.MiscellaneousFileWithStandardReferences;
@@ -220,7 +220,7 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
 
     public async ValueTask<TextDocument?> AddDocumentAsync(DocumentUri documentUri, TrackedDocumentInfo documentInfo)
     {
-        var languageInfoProvider = _lspServices.GetRequiredService<ILanguageInfoProvider>();
+        var languageInfoProvider = _lspServices.GetRequiredLspServiceFromInterface<ILanguageInfoProvider>();
         if (!languageInfoProvider.TryGetLanguageInformation(documentUri, documentInfo.LanguageId, out var languageInformation))
         {
             Contract.Fail($"Could not find language information for '{documentUri}'");
@@ -241,7 +241,7 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
     {
         Contract.ThrowIfFalse(PathUtilities.IsAbsolute(documentFilePath));
         var sourceTextLoader = new WorkspaceFileTextLoader(_workspaceFactory.HostWorkspace.CurrentSolution.Services, documentFilePath, defaultEncoding: null);
-        var languageInfoProvider = _lspServices.GetRequiredService<ILanguageInfoProvider>();
+        var languageInfoProvider = _lspServices.GetRequiredLspServiceFromInterface<ILanguageInfoProvider>();
         if (!languageInfoProvider.TryGetLanguageInformation(ProtocolConversions.CreateAbsoluteDocumentUri(documentFilePath), lspLanguageId: "csharp", out var languageInformation))
         {
             Contract.Fail($"Could not find language information for '{documentFilePath}'");

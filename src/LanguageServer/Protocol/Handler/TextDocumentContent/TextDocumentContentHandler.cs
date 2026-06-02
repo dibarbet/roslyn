@@ -31,7 +31,7 @@ internal sealed class TextDocumentContentHandler() : ILspServiceDocumentRequestH
         var scheme = request.Uri.ParsedUri?.Scheme;
         if (scheme is not null)
         {
-            var provider = context.GetRequiredServices<ITextDocumentContentProvider>().Single(p => p.Scheme == scheme);
+            var provider = context.GetLspServicesFromInterface<ITextDocumentContentProvider>().Single(p => p.Scheme == scheme);
 
             var contentText = await provider.GetTextAsync(context.TextDocument, cancellationToken).ConfigureAwait(false);
             return new TextDocumentContentResult { Text = contentText };

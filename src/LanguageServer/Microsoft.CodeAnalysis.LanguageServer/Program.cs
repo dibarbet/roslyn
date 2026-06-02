@@ -137,7 +137,7 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     // Eagerly resolve the workspace factory from the per-server LSP services, since right now the language server
     // assumes there's at least one Workspace. This as a side effect creates the actual workspace object which is
     // registered by the LspWorkspaceRegistrationEventListener.
-    var workspaceFactory = server.GetLspServices().GetRequiredService<LanguageServerWorkspaceFactory>();
+    var workspaceFactory = server.GetLspServices().GetRequiredLspService<LanguageServerWorkspaceFactory>();
 
     server.Start();
 

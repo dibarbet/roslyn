@@ -29,7 +29,7 @@ internal sealed class VisualDiagnosticsServiceFactory() : ILspServiceFactory
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var lspWorkspaceRegistrationService = lspServices.GetRequiredService<LspWorkspaceRegistrationService>();
+        var lspWorkspaceRegistrationService = lspServices.GetRequiredLspService<LspWorkspaceRegistrationService>();
         return new OnInitializedService(lspWorkspaceRegistrationService);
     }
 

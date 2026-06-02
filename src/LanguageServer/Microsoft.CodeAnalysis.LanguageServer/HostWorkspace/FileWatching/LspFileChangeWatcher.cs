@@ -28,15 +28,15 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
 
     private LspFileChangeWatcher(ILspServices lspServices, IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
     {
-        _didChangeWatchedFilesHandler = lspServices.GetRequiredService<LspDidChangeWatchedFilesHandler>();
-        _clientLanguageServerManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
+        _didChangeWatchedFilesHandler = lspServices.GetRequiredLspService<LspDidChangeWatchedFilesHandler>();
+        _clientLanguageServerManager = lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
         _asynchronousOperationListener = asynchronousOperationListenerProvider.GetListener(FeatureAttribute.Workspace);
     }
 
     public static bool TryCreate(ILspServices lspServices, IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider, [NotNullWhen(true)] out LspFileChangeWatcher? fileChangeWatcher)
     {
         // We can only use the LSP client for doing file watching if we support dynamic registration for it
-        var clientCapabilitiesProvider = lspServices.GetRequiredService<IInitializeManager>();
+        var clientCapabilitiesProvider = lspServices.GetRequiredLspServiceFromInterface<IInitializeManager>();
         var supportsLspFileWatching = clientCapabilitiesProvider.GetClientCapabilities().Workspace?.DidChangeWatchedFiles?.DynamicRegistration ?? false;
 
         if (supportsLspFileWatching)

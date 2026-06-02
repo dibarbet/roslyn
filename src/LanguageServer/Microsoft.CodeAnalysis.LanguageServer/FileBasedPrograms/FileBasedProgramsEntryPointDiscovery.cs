@@ -58,7 +58,7 @@ internal sealed partial class FileBasedProgramsEntryPointDiscovery(
 
     public Task OnInitializedAsync(ClientCapabilities clientCapabilities, RequestContext context, CancellationToken cancellationToken)
     {
-        var initializeManager = context.GetRequiredService<IInitializeManager>();
+        var initializeManager = context.GetRequiredLspServiceFromInterface<IInitializeManager>();
         _workspaceFolders = initializeManager.GetRequiredWorkspaceFolderPaths();
         Task.Run(async () =>
         {
@@ -98,7 +98,7 @@ internal sealed partial class FileBasedProgramsEntryPointDiscovery(
             return;
         }
 
-        var fileBasedProgramsProjectSystem = (FileBasedProgramsProjectSystem?)lspServices.GetService<ILspMiscellaneousFilesWorkspaceProvider>();
+        var fileBasedProgramsProjectSystem = (FileBasedProgramsProjectSystem?)lspServices.GetLspServiceFromInterface<ILspMiscellaneousFilesWorkspaceProvider>();
         Contract.ThrowIfNull(fileBasedProgramsProjectSystem);
 
         // Note: the overwhelmingly common case is when there is just one workspace folder.

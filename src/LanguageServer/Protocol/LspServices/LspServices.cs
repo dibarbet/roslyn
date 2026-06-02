@@ -84,34 +84,34 @@ internal sealed class LspServices : ILspServices, IMethodHandlerProvider
         }
     }
 
-    public T GetRequiredService<T>() where T : notnull
+    public T GetRequiredLspService<T>() where T : class
     {
-        var service = GetService<T>();
+        var service = GetLspService<T>();
         Contract.ThrowIfNull(service, $"Missing required LSP service {typeof(T).FullName}");
         return service;
     }
 
-    public T? GetService<T>() where T : notnull
+    public T? GetLspService<T>() where T : class
     {
         var type = typeof(T);
         var typeName = type.FullName;
         Contract.ThrowIfNull(typeName);
 
-        // Query for a service with an exact type match.
-        var service = GetService(typeName);
-        if (service is not null)
-        {
-            return (T)service;
-        }
-
-        // If given an interface, query for a service that implements that interface (this is how GetRequiredServices works)
-        // Only allow this if there is exactly one service that implements the interface.
-        return type.IsInterface
-            ? GetRequiredServices<T>().SingleOrDefault()
-            : default;
+        return (T?)GetService(typeName);
     }
 
-    public IEnumerable<T> GetRequiredServices<T>()
+    public T GetRequiredLspServiceFromInterface<T>() where T : class
+    {
+        var service = GetLspServicesFromInterface<T>().Single();
+        return service;
+    }
+
+    public T? GetLspServiceFromInterface<T>() where T : class
+    {
+        return GetLspServicesFromInterface<T>().SingleOrDefault();
+    }
+
+    public IEnumerable<T> GetLspServicesFromInterface<T>() where T : class
     {
         // We provide this ILspServices instance as a service.
         if (typeof(T) == typeof(ILspServices))

@@ -29,8 +29,8 @@ internal sealed class ExecuteWorkspaceCommandHandler : ILspServiceRequestHandler
 
     public async Task<object?> HandleRequestAsync(ExecuteCommandParams request, RequestContext context, CancellationToken cancellationToken)
     {
-        var handlerProvider = context.GetRequiredService<AbstractHandlerProvider>();
-        var lspServices = context.GetRequiredService<ILspServices>();
+        var handlerProvider = context.GetRequiredLspServiceFromInterface<AbstractHandlerProvider>();
+        var lspServices = context.GetRequiredLspServiceFromInterface<ILspServices>();
 
         var requestMethod = AbstractExecuteWorkspaceCommandHandler.GetRequestNameForCommandName(request.Command);
 

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -68,8 +68,8 @@ internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader,
                 dotnetCliHelper)
     {
         _logger = loggerFactory.CreateLogger(nameof(LanguageServerProjectSystem));
-        _hostProjectFactory = lspServices.GetRequiredService<LanguageServerWorkspaceFactory>().HostProjectFactory;
-        _clientLanguageServerManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
+        _hostProjectFactory = lspServices.GetRequiredLspService<LanguageServerWorkspaceFactory>().HostProjectFactory;
+        _clientLanguageServerManager = lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
         var workspace = _hostProjectFactory.Workspace;
         _projectFileExtensionRegistry = new ProjectFileExtensionRegistry(new DiagnosticReporter(workspace));
     }

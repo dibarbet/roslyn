@@ -8,9 +8,9 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk;
 
 internal readonly struct CompilerDeveloperSdkLspServices(LspServices lspServices)
 {
-    public T GetRequiredService<T>() where T : notnull
-        => lspServices.GetRequiredService<T>();
+    public T GetRequiredLspServiceFromInterface<T>() where T : class
+        => lspServices.GetRequiredLspServiceFromInterface<T>();
 
-    public T? GetService<T>() where T : notnull
-        => lspServices.GetService<T>();
+    public T? GetLspServiceFromInterface<T>() where T : class
+        => lspServices.GetLspServiceFromInterface<T>();
 }

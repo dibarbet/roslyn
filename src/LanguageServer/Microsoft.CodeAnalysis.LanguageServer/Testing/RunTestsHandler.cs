@@ -69,7 +69,7 @@ internal sealed class RunTestsHandler(DotnetCliHelper dotnetCliHelper, TestDisco
         var testCases = await testDiscoverer.DiscoverTestsAsync(request.Range, context.Document, projectOutputPath, runSettings, progress, vsTestConsoleWrapper, cancellationToken);
         if (!testCases.IsEmpty)
         {
-            var clientLanguageServerManager = context.GetRequiredLspService<IClientLanguageServerManager>();
+            var clientLanguageServerManager = context.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
             await testRunner.RunTestsAsync(testCases, progress, vsTestConsoleWrapper, request.AttachDebugger, runSettings, clientLanguageServerManager, cancellationToken);
         }
 

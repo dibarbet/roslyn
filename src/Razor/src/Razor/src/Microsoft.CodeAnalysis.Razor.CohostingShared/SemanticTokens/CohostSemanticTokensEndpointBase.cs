@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -41,7 +41,7 @@ internal abstract class CohostSemanticTokensEndpointBase<TRequest>(
             // Every time they get a request they queue up a refresh, which will check the project checksums, and if there
             // hasn't been any changes, will no-op. We call into that same logic here to ensure everything is up to date.
             // See: https://github.com/dotnet/roslyn/blob/bb57f4643bb3d52eb7626f9863da177d9e219f1e/src/LanguageServer/Protocol/Handler/SemanticTokens/SemanticTokensHelpers.cs#L48-L52
-            var semanticTokensWrapperService = context.GetRequiredService<IRazorSemanticTokensRefreshQueue>();
+            var semanticTokensWrapperService = context.GetRequiredLspServiceFromInterface<IRazorSemanticTokensRefreshQueue>();
             await semanticTokensWrapperService.TryEnqueueRefreshComputationAsync(razorDocument.Project, cancellationToken).ConfigureAwait(false);
         }
 

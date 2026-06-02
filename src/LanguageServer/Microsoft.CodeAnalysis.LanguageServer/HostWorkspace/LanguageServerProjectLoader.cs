@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -102,16 +102,16 @@ internal abstract class LanguageServerProjectLoader
         IBinLogPathProvider binLogPathProvider,
         DotnetCliHelper dotnetCliHelper)
     {
-        _workspaceFactory = lspServices.GetRequiredService<LanguageServerWorkspaceFactory>();
-        _projectTargetFrameworkManager = lspServices.GetRequiredService<ProjectTargetFrameworkManager>();
-        _fileChangeWatcher = lspServices.GetRequiredService<IFileChangeWatcher>();
-        _clientLanguageServerManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
-        _workDoneProgressManager = lspServices.GetRequiredService<WorkDoneProgressManager>();
+        _workspaceFactory = lspServices.GetRequiredLspService<LanguageServerWorkspaceFactory>();
+        _projectTargetFrameworkManager = lspServices.GetRequiredLspService<ProjectTargetFrameworkManager>();
+        _fileChangeWatcher = lspServices.GetRequiredLspServiceFromInterface<IFileChangeWatcher>();
+        _clientLanguageServerManager = lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
+        _workDoneProgressManager = lspServices.GetRequiredLspService<WorkDoneProgressManager>();
         GlobalOptionService = globalOptionService;
         LoggerFactory = loggerFactory;
         Listener = listenerProvider.GetListener(FeatureAttribute.Workspace);
         _logger = loggerFactory.CreateLogger(nameof(LanguageServerProjectLoader));
-        _projectLoadTelemetryReporter = lspServices.GetRequiredService<ProjectLoadTelemetryReporter>();
+        _projectLoadTelemetryReporter = lspServices.GetRequiredLspService<ProjectLoadTelemetryReporter>();
         _binLogPathProvider = binLogPathProvider;
         _dotnetCliHelper = dotnetCliHelper;
 

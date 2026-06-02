@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -19,7 +19,7 @@ internal sealed class ProjectLoadTelemetryReporterFactory(ServerConfiguration se
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        return new ProjectLoadTelemetryReporter(lspServices.GetRequiredService<IClientLanguageServerManager>(), loggerFactory, serverConfiguration);
+        return new ProjectLoadTelemetryReporter(lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>(), loggerFactory, serverConfiguration);
     }
 }
 

@@ -18,7 +18,7 @@ internal sealed class SemanticTokensFullHandlerFactory(IGlobalOptionService glob
 
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var semanticTokensRefreshQueue = lspServices.GetRequiredService<SemanticTokensRefreshQueue>();
+        var semanticTokensRefreshQueue = lspServices.GetRequiredLspService<SemanticTokensRefreshQueue>();
         return new SemanticTokensFullHandler(_globalOptions, semanticTokensRefreshQueue);
     }
 }

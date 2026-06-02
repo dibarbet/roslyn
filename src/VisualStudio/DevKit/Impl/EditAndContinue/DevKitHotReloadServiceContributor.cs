@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -35,7 +35,7 @@ internal sealed class DevKitHotReloadServiceContributorFactory(
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var workspaceProvider = lspServices.GetRequiredService<IHostWorkspaceProvider>();
+        var workspaceProvider = lspServices.GetRequiredLspServiceFromInterface<IHostWorkspaceProvider>();
         return new DevKitHotReloadServiceContributor(factory, workspaceProvider, solutionSnapshotRegistry);
     }
 }

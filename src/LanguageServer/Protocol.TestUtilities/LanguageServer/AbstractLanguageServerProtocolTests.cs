@@ -912,6 +912,8 @@ public abstract partial class AbstractLanguageServerProtocolTests
 
         internal T GetRequiredLspService<T>() where T : class => _languageServer.Value.GetTestAccessor().GetRequiredLspService<T>();
 
+        internal T GetRequiredLspServiceFromInterface<T>() where T : class => _languageServer.Value.GetTestAccessor().GetRequiredLspServiceFromInterface<T>();
+
         internal ImmutableArray<SourceText> GetTrackedTexts() => [.. GetManager().GetTrackedLspText().Values.Select(v => v.SourceText)];
 
         internal async ValueTask RunCodeAnalysisAsync(ProjectId? projectId)

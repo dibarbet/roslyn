@@ -159,7 +159,7 @@ public sealed class WorkDoneProgressTests : AbstractLanguageServerProtocolTests
     internal sealed class TestWorkDoneProgressServiceFactory() : ILspServiceFactory
     {
         public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-            => new TestWorkDoneProgressService(lspServices.GetRequiredService<WorkDoneProgressManager>());
+            => new TestWorkDoneProgressService(lspServices.GetRequiredLspService<WorkDoneProgressManager>());
     }
 
     internal sealed class TestWorkDoneProgressService(WorkDoneProgressManager workDoneProgressManager) : ILspService

@@ -30,7 +30,7 @@ internal sealed class CsprojInConeChecker : ILspService, IOnInitialized
 
     public Task OnInitializedAsync(ClientCapabilities clientCapabilities, RequestContext context, CancellationToken cancellationToken)
     {
-        var initializeManager = context.GetRequiredService<IInitializeManager>();
+        var initializeManager = context.GetRequiredLspServiceFromInterface<IInitializeManager>();
         _workspaceFolders = initializeManager.GetRequiredWorkspaceFolderPaths();
         return Task.CompletedTask;
     }

@@ -232,7 +232,7 @@ internal readonly struct RequestContext
         string method,
         CancellationToken cancellationToken)
     {
-        var lspWorkspaceManager = lspServices.GetRequiredService<LspWorkspaceManager>();
+        var lspWorkspaceManager = lspServices.GetRequiredLspService<LspWorkspaceManager>();
         var documentChangeTracker = mutatesSolutionState ? (IDocumentChangeTracker)lspWorkspaceManager : new NonMutatingDocumentChangeTracker();
 
         // Retrieve the current LSP tracked text as of this request.
@@ -353,21 +353,21 @@ internal readonly struct RequestContext
 
     public T GetRequiredLspService<T>() where T : class, ILspService
     {
-        return _lspServices.GetRequiredService<T>();
+        return _lspServices.GetRequiredLspService<T>();
     }
 
-    public T GetRequiredService<T>() where T : class
+    public T GetRequiredLspServiceFromInterface<T>() where T : class
     {
-        return _lspServices.GetRequiredService<T>();
+        return _lspServices.GetRequiredLspServiceFromInterface<T>();
     }
 
-    public IEnumerable<T> GetRequiredServices<T>() where T : class
+    public IEnumerable<T> GetLspServicesFromInterface<T>() where T : class
     {
-        return _lspServices.GetRequiredServices<T>();
+        return _lspServices.GetLspServicesFromInterface<T>();
     }
 
-    public T? GetService<T>() where T : class, ILspService
+    public T? GetLspService<T>() where T : class, ILspService
     {
-        return _lspServices.GetService<T>();
+        return _lspServices.GetLspService<T>();
     }
 }

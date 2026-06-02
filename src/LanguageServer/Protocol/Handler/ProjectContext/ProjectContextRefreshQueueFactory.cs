@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -18,9 +18,9 @@ internal sealed class ProjectContextRefreshQueueFactory(
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var notificationManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
-        var lspWorkspaceManager = lspServices.GetRequiredService<LspWorkspaceManager>();
-        var lspWorkspaceRegistrationService = lspServices.GetRequiredService<LspWorkspaceRegistrationService>();
+        var notificationManager = lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
+        var lspWorkspaceManager = lspServices.GetRequiredLspService<LspWorkspaceManager>();
+        var lspWorkspaceRegistrationService = lspServices.GetRequiredLspService<LspWorkspaceRegistrationService>();
 
         return new ProjectContextRefreshQueue(asynchronousOperationListenerProvider, lspWorkspaceRegistrationService, lspWorkspaceManager, notificationManager, providerRefresher);
     }

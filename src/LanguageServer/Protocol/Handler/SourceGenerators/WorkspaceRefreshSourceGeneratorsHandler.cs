@@ -23,7 +23,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 internal sealed class WorkspaceRefreshSourceGeneratorsHandlerFactory() : ILspServiceFactory
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new WorkspaceRefreshSourceGeneratorsHandler(lspServices.GetRequiredService<LspWorkspaceRegistrationService>());
+        => new WorkspaceRefreshSourceGeneratorsHandler(lspServices.GetRequiredLspService<LspWorkspaceRegistrationService>());
 }
 
 [Method(MethodName)]

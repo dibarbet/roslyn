@@ -28,7 +28,7 @@ internal sealed class RestorableProjectsHandler() : ILspServiceRequestHandler<st
     {
         Contract.ThrowIfNull(context.Solution);
 
-        var projectTargetFrameworkManager = context.GetRequiredService<ProjectTargetFrameworkManager>();
+        var projectTargetFrameworkManager = context.GetRequiredLspService<ProjectTargetFrameworkManager>();
 
         // We use a sorted set here for the following reasons
         //   1.  Ensures the client gets a consistent ordering in the picker (especially useful for integration tests).

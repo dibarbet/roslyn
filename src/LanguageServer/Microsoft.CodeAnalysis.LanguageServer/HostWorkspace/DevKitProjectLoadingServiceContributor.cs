@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -46,9 +46,9 @@ internal sealed class DevKitProjectLoadingServiceContributor(
             WorkspaceProjectFactoryServiceDescriptor.ServiceDescriptor,
             async (moniker, options, innerServiceBroker, cancellationToken) =>
             {
-                var workspaceFactory = lspServices.GetRequiredService<LanguageServerWorkspaceFactory>();
-                var targetFrameworkManager = lspServices.GetRequiredService<ProjectTargetFrameworkManager>();
-                var clientLanguageServerManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
+                var workspaceFactory = lspServices.GetRequiredLspService<LanguageServerWorkspaceFactory>();
+                var targetFrameworkManager = lspServices.GetRequiredLspService<ProjectTargetFrameworkManager>();
+                var clientLanguageServerManager = lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
                 var projectInitializationHandler = new ProjectInitializationHandler(clientLanguageServerManager, innerServiceBroker, loggerFactory);
                 var service = new WorkspaceProjectFactoryService(workspaceFactory, targetFrameworkManager, projectInitializationHandler, loggerFactory);
                 await service.InitializeAsync(cancellationToken);

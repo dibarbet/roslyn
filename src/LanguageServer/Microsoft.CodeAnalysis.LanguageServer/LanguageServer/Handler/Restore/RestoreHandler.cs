@@ -41,7 +41,7 @@ internal sealed class RestoreHandler(DotnetCliHelper dotnetCliHelper, ILoggerFac
             return new RestoreResult(true);
         }
 
-        var workDoneProgressManager = context.GetRequiredService<WorkDoneProgressManager>();
+        var workDoneProgressManager = context.GetRequiredLspService<WorkDoneProgressManager>();
         _logger.LogDebug($"Running restore on {restorePaths.Length} paths, starting with '{restorePaths.First()}'.");
 
         // We let cancellation here bubble up to the client as this is a client initiated operation.

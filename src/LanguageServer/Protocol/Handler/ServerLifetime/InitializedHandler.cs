@@ -22,7 +22,7 @@ internal sealed class InitializedHandler : ILspServiceNotificationHandler<Initia
     public async Task HandleNotificationAsync(InitializedParams request, RequestContext requestContext, CancellationToken cancellationToken)
     {
         var clientCapabilities = requestContext.GetRequiredClientCapabilities();
-        var onInitializeList = requestContext.GetRequiredServices<IOnInitialized>();
+        var onInitializeList = requestContext.GetLspServicesFromInterface<IOnInitialized>();
 
         foreach (var onInitialize in onInitializeList)
         {

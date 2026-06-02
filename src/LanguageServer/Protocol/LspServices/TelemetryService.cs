@@ -13,7 +13,7 @@ internal sealed class TelemetryService : AbstractTelemetryService, ILspService
 
     public TelemetryService(ILspServices lspServices)
     {
-        var requestTelemetryLogger = lspServices.GetRequiredService<RequestTelemetryLogger>();
+        var requestTelemetryLogger = lspServices.GetRequiredLspService<RequestTelemetryLogger>();
 
         _requestTelemetryLogger = requestTelemetryLogger;
     }

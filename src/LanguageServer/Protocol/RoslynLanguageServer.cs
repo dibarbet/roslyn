@@ -104,7 +104,7 @@ internal sealed class RoslynLanguageServer : SystemTextJsonLanguageServer<Reques
 
     protected override IRequestExecutionQueue<RequestContext> ConstructRequestExecutionQueue()
     {
-        var provider = GetLspServices().GetRequiredService<IRequestExecutionQueueProvider<RequestContext>>();
+        var provider = GetLspServices().GetRequiredLspServiceFromInterface<IRequestExecutionQueueProvider<RequestContext>>();
         return provider.CreateRequestExecutionQueue(this, Logger, HandlerProvider);
     }
 
@@ -216,7 +216,7 @@ internal sealed class RoslynLanguageServer : SystemTextJsonLanguageServer<Reques
             return true;
         }
 
-        var lspWorkspaceManager = GetLspServices().GetRequiredService<LspWorkspaceManager>();
+        var lspWorkspaceManager = GetLspServices().GetRequiredLspService<LspWorkspaceManager>();
 
         // All general LSP spec document params have the following json structure
         // { "textDocument": { "uri": "<uri>" ... } ... }

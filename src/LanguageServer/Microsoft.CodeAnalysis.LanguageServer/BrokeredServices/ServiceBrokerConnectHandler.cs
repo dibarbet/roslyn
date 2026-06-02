@@ -25,7 +25,7 @@ internal sealed class ServiceBrokerConnectHandler() : ILspServiceNotificationHan
         var workspace = requestContext.Workspace;
         Contract.ThrowIfNull(workspace, "We should always have a workspace since this is a solution-level handler.");
 
-        var serviceBrokerFactory = requestContext.GetRequiredService<ServiceBrokerFactory>();
+        var serviceBrokerFactory = requestContext.GetRequiredLspService<ServiceBrokerFactory>();
         return serviceBrokerFactory.CreateAndConnectAsync(request.PipeName, workspace);
     }
 

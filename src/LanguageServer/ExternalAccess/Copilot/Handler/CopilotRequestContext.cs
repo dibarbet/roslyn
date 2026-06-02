@@ -20,5 +20,5 @@ internal readonly struct CopilotRequestContext(RequestContext context)
     /// <inheritdoc cref="RequestContext.Document"/>
     public Document? Document => context.Document;
 
-    public T GetRequiredService<T>() where T : class => context.GetRequiredService<T>();
+    public T GetRequiredLspServiceFromInterface<T>() where T : class => context.GetRequiredLspServiceFromInterface<T>();
 }

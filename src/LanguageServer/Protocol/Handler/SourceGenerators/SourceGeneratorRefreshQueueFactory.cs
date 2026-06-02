@@ -17,9 +17,9 @@ internal sealed class SourceGeneratorRefreshQueueFactory(
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var notificationManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
-        var lspWorkspaceManager = lspServices.GetRequiredService<LspWorkspaceManager>();
-        var lspWorkspaceRegistrationService = lspServices.GetRequiredService<LspWorkspaceRegistrationService>();
+        var notificationManager = lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
+        var lspWorkspaceManager = lspServices.GetRequiredLspService<LspWorkspaceManager>();
+        var lspWorkspaceRegistrationService = lspServices.GetRequiredLspService<LspWorkspaceRegistrationService>();
         return new SourceGeneratorRefreshQueue(asynchronousOperationListenerProvider, lspWorkspaceRegistrationService, lspWorkspaceManager, notificationManager);
     }
 }

@@ -18,7 +18,7 @@ internal sealed class ExampleRequestContextFactory : AbstractRequestContextFacto
 
     public override async Task<ExampleRequestContext> CreateRequestContextAsync<TRequestParam>(QueueItem<ExampleRequestContext> queueItem, IMethodHandler methodHandler, TRequestParam requestParam, CancellationToken cancellationToken)
     {
-        var logger = _lspServices.GetRequiredService<ILspLogger>();
+        var logger = _lspServices.GetRequiredLspServiceFromInterface<ILspLogger>();
 
         var requestContext = new ExampleRequestContext(_lspServices, logger);
 

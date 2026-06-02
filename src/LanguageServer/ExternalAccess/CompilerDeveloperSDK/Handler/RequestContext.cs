@@ -15,5 +15,5 @@ internal readonly struct RequestContext(LspRequestContext context)
     /// <inheritdoc cref="LspRequestContext.GetRequiredDocument()"/>
     internal Document GetRequiredDocument() => context.GetRequiredDocument();
 
-    internal T GetRequiredService<T>() where T : class => context.GetRequiredService<T>();
+    internal T GetRequiredLspServiceFromInterface<T>() where T : class => context.GetRequiredLspServiceFromInterface<T>();
 }

@@ -23,7 +23,7 @@ internal sealed class TestLspMiscellaneousFilesWorkspaceProviderFactory() : ILsp
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var hostServices = lspServices.GetRequiredService<HostServices>();
+        var hostServices = lspServices.GetRequiredLspService<HostServices>();
         return new TestLspMiscellaneousFilesWorkspaceProvider(hostServices);
     }
 

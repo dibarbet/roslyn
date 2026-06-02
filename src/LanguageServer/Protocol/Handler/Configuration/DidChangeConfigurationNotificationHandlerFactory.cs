@@ -25,8 +25,8 @@ internal sealed class DidChangeConfigurationNotificationHandlerFactory : ILspSer
 
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var clientManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
-        var lspLogger = lspServices.GetRequiredService<AbstractLspLogger>();
+        var clientManager = lspServices.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
+        var lspLogger = lspServices.GetRequiredLspService<AbstractLspLogger>();
         return new DidChangeConfigurationNotificationHandler(lspLogger, _globalOptionService, clientManager);
     }
 }

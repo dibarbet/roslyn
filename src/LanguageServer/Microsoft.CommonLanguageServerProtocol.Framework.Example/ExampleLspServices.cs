@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.CommonLanguageServerProtocol.Framework.Example;
@@ -21,18 +22,28 @@ internal sealed class ExampleLspServices : ILspServices
         _serviceProvider = serviceProvider;
     }
 
-    public T? GetService<T>() where T : notnull
+    public T? GetLspService<T>() where T : class
     {
         return TryGetService(typeof(T), out var service)
             ? (T)service
-            : default;
+            : null;
     }
 
-    public T GetRequiredService<T>() where T : notnull
+    public T GetRequiredLspService<T>() where T : class
     {
         var service = _serviceProvider.GetRequiredService<T>();
 
         return service;
+    }
+
+    public T? GetLspServiceFromInterface<T>() where T : class
+    {
+        return GetLspServicesFromInterface<T>().SingleOrDefault();
+    }
+
+    public T GetRequiredLspServiceFromInterface<T>() where T : class
+    {
+        return GetLspServicesFromInterface<T>().Single();
     }
 
     public bool TryGetService(Type type, [NotNullWhen(true)] out object? service)
@@ -51,7 +62,7 @@ internal sealed class ExampleLspServices : ILspServices
     {
     }
 
-    public IEnumerable<T> GetRequiredServices<T>()
+    public IEnumerable<T> GetLspServicesFromInterface<T>() where T : class
     {
         var services = _serviceProvider.GetServices<T>();
 

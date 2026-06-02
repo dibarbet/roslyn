@@ -74,6 +74,19 @@ internal abstract class AbstractExportLspServiceAttribute : ExportAttribute
 
         InterfaceNames = Array.ConvertAll(serviceType.GetInterfaces(), t => t.AssemblyQualifiedName!);
 
+        // If the service is exported via an interface type, include the interface itself in InterfaceNames
+        // so that interface-based lookups (GetLspServicesFromInterface / GetRequiredLspServiceFromInterface)
+        // can find services that were exported by an interface contract rather than a concrete class.
+        if (serviceType.IsInterface)
+        {
+            var assemblyQualifiedName = serviceType.AssemblyQualifiedName;
+            Contract.ThrowIfNull(assemblyQualifiedName);
+            var withSelf = new string[InterfaceNames.Length + 1];
+            InterfaceNames.CopyTo(withSelf, 0);
+            withSelf[^1] = assemblyQualifiedName;
+            InterfaceNames = withSelf;
+        }
+
         _lazyMethodHandlerData = typeof(IMethodHandler).IsAssignableFrom(serviceType)
             ? new(() => CreateMethodHandlerData(serviceType))
             : null;

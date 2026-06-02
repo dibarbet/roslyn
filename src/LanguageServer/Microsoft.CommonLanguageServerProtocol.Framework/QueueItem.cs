@@ -62,7 +62,7 @@ internal sealed class QueueItem<TRequestContext>
 
         MethodName = methodName;
 
-        var telemetryService = lspServices.GetService<AbstractTelemetryService>();
+        var telemetryService = lspServices.GetLspService<AbstractTelemetryService>();
 
         _requestTelemetryScope = telemetryService?.CreateRequestScope(methodName);
     }
@@ -99,7 +99,7 @@ internal sealed class QueueItem<TRequestContext>
             return null;
         }
 
-        var requestContextFactory = LspServices.GetRequiredService<AbstractRequestContextFactory<TRequestContext>>();
+        var requestContextFactory = LspServices.GetRequiredLspService<AbstractRequestContextFactory<TRequestContext>>();
         var context = await requestContextFactory.CreateRequestContextAsync(this, handler, deserializedRequest, cancellationToken).ConfigureAwait(false);
         return (context, deserializedRequest);
     }

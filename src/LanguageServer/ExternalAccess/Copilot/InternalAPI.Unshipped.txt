@@ -6,14 +6,14 @@ Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.AbstractCopilotLspS
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotLspServices
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotLspServices.CopilotLspServices() -> void
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotLspServices.CopilotLspServices(Microsoft.CodeAnalysis.LanguageServer.LspServices! lspServices) -> void
-Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotLspServices.GetService<T>() -> T?
+Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotLspServices.GetLspServiceFromInterface<T>() -> T?
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotMethodAttribute
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotMethodAttribute.CopilotMethodAttribute(string! method) -> void
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotRequestContext
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotRequestContext.CopilotRequestContext() -> void
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotRequestContext.CopilotRequestContext(Microsoft.CodeAnalysis.LanguageServer.Handler.RequestContext context) -> void
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotRequestContext.Document.get -> Microsoft.CodeAnalysis.Document?
-Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotRequestContext.GetRequiredService<T>() -> T!
+Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotRequestContext.GetRequiredLspServiceFromInterface<T>() -> T!
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.CopilotRequestContext.Solution.get -> Microsoft.CodeAnalysis.Solution!
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.ExportCopilotStatelessLspServiceAttribute
 Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot.ExportCopilotStatelessLspServiceAttribute.ExportCopilotStatelessLspServiceAttribute(System.Type! type) -> void

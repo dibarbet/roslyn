@@ -67,7 +67,7 @@ internal sealed partial class DidChangeConfigurationNotificationHandler : ILspSe
     {
         await RefreshOptionsAsync(cancellationToken).ConfigureAwait(false);
 
-        var onChangedList = requestContext.GetRequiredServices<IOnConfigurationChanged>();
+        var onChangedList = requestContext.GetLspServicesFromInterface<IOnConfigurationChanged>();
         foreach (var onConfigurationChanged in onChangedList)
         {
             await onConfigurationChanged.OnConfigurationChangedAsync(requestContext, cancellationToken).ConfigureAwait(false);

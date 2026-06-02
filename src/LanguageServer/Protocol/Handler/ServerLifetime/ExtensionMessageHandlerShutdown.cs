@@ -19,7 +19,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.ServerLifetime;
 internal sealed class ExtensionMessageHandlerShutdownFactory() : ILspServiceFactory
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new ExtensionMessageHandlerShutdown(lspServices.GetRequiredService<LspWorkspaceRegistrationService>());
+        => new ExtensionMessageHandlerShutdown(lspServices.GetRequiredLspService<LspWorkspaceRegistrationService>());
 }
 
 internal class ExtensionMessageHandlerShutdown(LspWorkspaceRegistrationService lspWorkspaceRegistrationService) : IOnServerShutdown, ILspService

@@ -19,15 +19,15 @@ internal sealed class InitializeHandler() : ILspServiceRequestHandler<Initialize
 
     public async Task<InitializeResult> HandleRequestAsync(InitializeParams request, RequestContext context, CancellationToken cancellationToken)
     {
-        var clientCapabilitiesManager = context.GetRequiredLspService<IInitializeManager>();
+        var clientCapabilitiesManager = context.GetRequiredLspServiceFromInterface<IInitializeManager>();
         var clientCapabilities = request.Capabilities;
         clientCapabilitiesManager.SetInitializeParams(request);
 
         if (request.ProcessId is int clientProcessId && RoslynLanguageServer.TryRegisterClientProcessId(clientProcessId))
             context.Logger.LogInformation("Monitoring client process {clientProcessId} for exit", clientProcessId);
 
-        var lspServices = context.GetRequiredService<ILspServices>();
-        var capabilitiesProvider = context.GetRequiredLspService<ICapabilitiesProvider>();
+        var lspServices = context.GetRequiredLspServiceFromInterface<ILspServices>();
+        var capabilitiesProvider = context.GetRequiredLspServiceFromInterface<ICapabilitiesProvider>();
         var serverCapabilities = capabilitiesProvider.GetCapabilities(clientCapabilities, lspServices);
 
         // Record a telemetry event indicating what capabilities are being provided by the server.

@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -21,8 +21,8 @@ internal class WorkspacePullDiagnosticHandlerFactory(
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var workspaceManager = lspServices.GetRequiredService<LspWorkspaceManager>();
-        var registrationService = lspServices.GetRequiredService<LspWorkspaceRegistrationService>();
+        var workspaceManager = lspServices.GetRequiredLspService<LspWorkspaceManager>();
+        var registrationService = lspServices.GetRequiredLspService<LspWorkspaceRegistrationService>();
         return new WorkspacePullDiagnosticHandler(workspaceManager, registrationService, diagnosticSourceManager, diagnosticsRefresher, globalOptions);
     }
 }

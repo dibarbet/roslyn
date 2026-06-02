@@ -103,7 +103,7 @@ public sealed class LspFileChangeWatcherTests(ITestOutputHelper testOutputHelper
 
     private static T AssertFileWatcherKind<T>(TestLspServer server) where T : IFileChangeWatcher
     {
-        var lspFileWatcher = server.GetRequiredLspService<IFileChangeWatcher>();
+        var lspFileWatcher = server.GetRequiredLspServiceFromInterface<IFileChangeWatcher>();
         var delegatingWatcher = Assert.IsType<DelegatingFileChangeWatcher>(lspFileWatcher);
         return Assert.IsType<T>(delegatingWatcher.GetTestAccessor().UnderlyingFileWatcher);
     }

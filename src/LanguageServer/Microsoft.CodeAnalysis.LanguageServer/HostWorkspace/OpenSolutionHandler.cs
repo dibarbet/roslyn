@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -16,7 +16,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 internal sealed class OpenSolutionHandlerFactory() : ILspServiceFactory
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new OpenSolutionHandler(lspServices.GetRequiredService<LanguageServerProjectSystem>());
+        => new OpenSolutionHandler(lspServices.GetRequiredLspService<LanguageServerProjectSystem>());
 }
 
 [Method(OpenSolutionName)]

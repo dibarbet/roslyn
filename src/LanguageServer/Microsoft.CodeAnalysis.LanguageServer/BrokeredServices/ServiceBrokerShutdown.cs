@@ -18,7 +18,7 @@ internal class ServiceBrokerShutdown(ServiceBrokerFactory serviceBrokerFactory) 
     {
         public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
         {
-            var serviceBrokerFactory = lspServices.GetRequiredService<ServiceBrokerFactory>();
+            var serviceBrokerFactory = lspServices.GetRequiredLspService<ServiceBrokerFactory>();
             return new ServiceBrokerShutdown(serviceBrokerFactory);
         }
     }

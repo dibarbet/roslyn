@@ -61,7 +61,7 @@ public sealed class LspServicesTests(ITestOutputHelper testOutputHelper) : Abstr
         var composition = base.Composition.AddParts(typeof(InterfaceLspService));
         await using var server = await CreateTestLspServerAsync("", mutatingLspWorkspace, initializationOptions: new() { ServerKind = WellKnownLspServerKinds.CSharpVisualBasicLspServer }, composition);
 
-        var lspService = server.GetRequiredLspService<ITestLspServiceInterface>();
+        var lspService = server.GetRequiredLspServiceFromInterface<ITestLspServiceInterface>();
         Assert.IsType<InterfaceLspService>(lspService);
     }
 
@@ -71,6 +71,7 @@ public sealed class LspServicesTests(ITestOutputHelper testOutputHelper) : Abstr
         var composition = base.Composition.AddParts(typeof(DirectInterfaceLspService), typeof(InterfaceLspService));
         await using var server = await CreateTestLspServerAsync("", mutatingLspWorkspace, initializationOptions: new() { ServerKind = WellKnownLspServerKinds.CSharpVisualBasicLspServer }, composition);
 
+        // The concrete (type-name keyed) lookup returns the service that was directly exported as ITestLspServiceInterface.
         var lspService = server.GetRequiredLspService<ITestLspServiceInterface>();
         Assert.IsType<DirectInterfaceLspService>(lspService);
     }
@@ -81,7 +82,7 @@ public sealed class LspServicesTests(ITestOutputHelper testOutputHelper) : Abstr
         var composition = base.Composition.AddParts(typeof(InterfaceLspService), typeof(SecondInterfaceLspService));
         await using var server = await CreateTestLspServerAsync("", mutatingLspWorkspace, initializationOptions: new() { ServerKind = WellKnownLspServerKinds.CSharpVisualBasicLspServer }, composition);
 
-        Assert.Throws<InvalidOperationException>(() => server.GetRequiredLspService<ITestLspServiceInterface>());
+        Assert.Throws<InvalidOperationException>(() => server.GetRequiredLspServiceFromInterface<ITestLspServiceInterface>());
     }
 
     [Theory, CombinatorialData]

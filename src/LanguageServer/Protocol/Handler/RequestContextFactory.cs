@@ -21,10 +21,10 @@ internal sealed class RequestContextFactory : AbstractRequestContextFactory<Requ
 
     public override Task<RequestContext> CreateRequestContextAsync<TRequestParam>(QueueItem<RequestContext> queueItem, IMethodHandler methodHandler, TRequestParam requestParam, CancellationToken cancellationToken)
     {
-        var clientCapabilitiesManager = _lspServices.GetRequiredService<IInitializeManager>();
+        var clientCapabilitiesManager = _lspServices.GetRequiredLspServiceFromInterface<IInitializeManager>();
         var clientCapabilities = clientCapabilitiesManager.TryGetClientCapabilities();
-        var logger = _lspServices.GetRequiredService<AbstractLspLogger>();
-        var serverInfoProvider = _lspServices.GetRequiredService<ServerInfoProvider>();
+        var logger = _lspServices.GetRequiredLspService<AbstractLspLogger>();
+        var serverInfoProvider = _lspServices.GetRequiredLspService<ServerInfoProvider>();
 
         if (clientCapabilities is null && queueItem.MethodName != Methods.InitializeName)
         {

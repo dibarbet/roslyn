@@ -22,7 +22,7 @@ public sealed class WorkspaceProjectFactoryServiceTests(ITestOutputHelper testOu
         var workspaceFactory = testLspServer.GetRequiredLspService<LanguageServerWorkspaceFactory>();
         var serviceBrokerFactory = testLspServer.GetRequiredLspService<ServiceBrokerFactory>();
         var projectTargetFrameworkManager = testLspServer.GetRequiredLspService<ProjectTargetFrameworkManager>();
-        var clientLanguageServerManager = testLspServer.GetRequiredLspService<IClientLanguageServerManager>();
+        var clientLanguageServerManager = testLspServer.GetRequiredLspServiceFromInterface<IClientLanguageServerManager>();
         var container = await serviceBrokerFactory.CreateAsync(workspaceFactory.HostWorkspace);
 
         var workspaceProjectFactoryService = new WorkspaceProjectFactoryService(

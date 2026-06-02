@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -23,7 +23,7 @@ internal sealed class WorkspaceDebugConfigurationHandler() : ILspServiceRequestH
     public async Task<ProjectDebugConfiguration[]> HandleRequestAsync(WorkspaceDebugConfigurationParams request, RequestContext context, CancellationToken cancellationToken)
     {
         Contract.ThrowIfNull(context.Solution, nameof(context.Solution));
-        var projectTargetFrameworkManager = context.GetRequiredService<ProjectTargetFrameworkManager>();
+        var projectTargetFrameworkManager = context.GetRequiredLspService<ProjectTargetFrameworkManager>();
 
         var projects = context.Solution.Projects
             .Where(p => p is { FilePath: not null, OutputFilePath: not null })

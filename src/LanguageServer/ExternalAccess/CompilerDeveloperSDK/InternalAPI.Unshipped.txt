@@ -18,8 +18,8 @@ Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.AbstractCompilerDevel
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkLspServices
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkLspServices.CompilerDeveloperSdkLspServices() -> void
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkLspServices.CompilerDeveloperSdkLspServices(Microsoft.CodeAnalysis.LanguageServer.LspServices! lspServices) -> void
-Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkLspServices.GetRequiredService<T>() -> T
-Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkLspServices.GetService<T>() -> T?
+Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkLspServices.GetRequiredLspServiceFromInterface<T>() -> T
+Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkLspServices.GetLspServiceFromInterface<T>() -> T?
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkMethodAttribute
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.CompilerDeveloperSdkMethodAttribute.CompilerDeveloperSdkMethodAttribute(string! method) -> void
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.ExportCompilerDeveloperSdkLspServiceFactoryAttribute
@@ -30,7 +30,7 @@ Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.ProtocolConversions
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext.Document.get -> Microsoft.CodeAnalysis.Document?
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext.GetRequiredDocument() -> Microsoft.CodeAnalysis.Document!
-Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext.GetRequiredService<T>() -> T!
+Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext.GetRequiredLspServiceFromInterface<T>() -> T!
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext.RequestContext() -> void
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext.RequestContext(Microsoft.CodeAnalysis.LanguageServer.Handler.RequestContext context) -> void
 Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk.RequestContext.Solution.get -> Microsoft.CodeAnalysis.Solution?

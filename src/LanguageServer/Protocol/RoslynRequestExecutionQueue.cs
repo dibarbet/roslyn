@@ -22,7 +22,7 @@ internal sealed class RoslynRequestExecutionQueue : RequestExecutionQueue<Reques
     public RoslynRequestExecutionQueue(AbstractLanguageServer<RequestContext> languageServer, ILspLogger logger, AbstractHandlerProvider handlerProvider)
         : base(languageServer, logger, handlerProvider)
     {
-        _initializeManager = languageServer.GetLspServices().GetRequiredService<IInitializeManager>();
+        _initializeManager = languageServer.GetLspServices().GetRequiredLspServiceFromInterface<IInitializeManager>();
     }
 
     public override async Task WrapStartRequestTaskAsync(Task requestTask, bool rethrowExceptions)

@@ -6,6 +6,6 @@ namespace Microsoft.CodeAnalysis.LanguageServer.ExternalAccess.Copilot;
 
 internal readonly struct CopilotLspServices(LspServices lspServices)
 {
-    public T? GetService<T>() where T : notnull
-        => lspServices.GetService<T>();
+    public T? GetLspServiceFromInterface<T>() where T : class
+        => lspServices.GetLspServiceFromInterface<T>();
 }

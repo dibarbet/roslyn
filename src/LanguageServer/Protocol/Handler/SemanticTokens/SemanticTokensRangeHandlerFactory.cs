@@ -24,7 +24,7 @@ internal sealed class SemanticTokensRangeHandlerFactory : ILspServiceFactory
 
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
-        var semanticTokensRefreshQueue = lspServices.GetRequiredService<SemanticTokensRefreshQueue>();
+        var semanticTokensRefreshQueue = lspServices.GetRequiredLspService<SemanticTokensRefreshQueue>();
         return new SemanticTokensRangeHandler(_globalOptions, semanticTokensRefreshQueue);
     }
 }

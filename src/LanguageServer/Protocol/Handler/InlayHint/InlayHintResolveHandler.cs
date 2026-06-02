@@ -34,7 +34,7 @@ internal sealed class InlayHintResolveHandler(IGlobalOptionService globalOptions
     {
         var document = context.GetRequiredDocument();
         var options = globalOptions.GetInlineHintsOptions(document.Project.Language);
-        var inlayHintCache = context.GetRequiredService<InlayHintCache>();
+        var inlayHintCache = context.GetRequiredLspService<InlayHintCache>();
         var resolveData = GetInlayHintResolveData(request);
         return ResolveInlayHintAsync(document, request, inlayHintCache, resolveData, options, cancellationToken);
     }

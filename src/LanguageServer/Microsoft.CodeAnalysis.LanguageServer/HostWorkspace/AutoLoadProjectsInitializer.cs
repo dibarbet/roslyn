@@ -25,7 +25,7 @@ internal sealed class AutoLoadProjectsInitializerFactory(
 {
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
         => new AutoLoadProjectsInitializer(
-            lspServices.GetRequiredService<LanguageServerProjectSystem>(),
+            lspServices.GetRequiredLspService<LanguageServerProjectSystem>(),
             loggerFactory,
             serverConfiguration,
             globalOptionService);
@@ -50,7 +50,7 @@ internal sealed class AutoLoadProjectsInitializer(
         var isUsingDevKit = globalOptionService.GetOption(LspOptionsStorage.LspUsingDevkitFeatures);
         Contract.ThrowIfTrue(isUsingDevKit, "Auto load projects is not supported when using DevKit.");
 
-        var initializeParams = context.GetRequiredService<IInitializeManager>().TryGetInitializeParams();
+        var initializeParams = context.GetRequiredLspServiceFromInterface<IInitializeManager>().TryGetInitializeParams();
         Contract.ThrowIfNull(initializeParams, "Initialize params should be set during initialization.");
 
         var workspaceFolders = initializeParams.WorkspaceFolders;
