@@ -121,6 +121,28 @@ internal static class LanguageServerCommandLine
             Required = false,
         };
 
+        var daemonOption = new Option<bool>("--daemon")
+        {
+            Description = "Run as a multi-client daemon that listens for connections on --daemonPipeName. " +
+                          "This is an internal option used by the roslyn-language-server thin client; end users and editors should not pass it directly.",
+            Required = false,
+            DefaultValueFactory = _ => false,
+        };
+
+        var daemonPipeNameOption = new Option<string?>("--daemonPipeName")
+        {
+            Description = "The name of the named pipe the daemon should listen on (used with --daemon).",
+            Required = false,
+        };
+
+        var daemonKeepAliveOption = new Option<int?>("--daemonKeepAlive")
+        {
+            Description = "Seconds the daemon stays alive after its last client disconnects before exiting. " +
+                          "A value of zero or less keeps the daemon alive indefinitely. Defaults to the env var " +
+                          $"'{DaemonKeepAliveEnvironmentVariable}' if set, otherwise {DefaultDaemonKeepAliveSeconds} seconds.",
+            Required = false,
+        };
+
         var rootCommand = new RootCommand()
         {
             debugOption,
@@ -137,6 +159,9 @@ internal static class LanguageServerCommandLine
             autoLoadProjectsOption,
             sourceGeneratorExecutionOption,
             clientProcessIdOption,
+            daemonOption,
+            daemonPipeNameOption,
+            daemonKeepAliveOption,
         };
 
         rootCommand.SetAction((parseResult, cancellationToken) =>
@@ -154,6 +179,9 @@ internal static class LanguageServerCommandLine
             var autoLoadProjects = parseResult.GetValue(autoLoadProjectsOption);
             var sourceGeneratorExecutionPreference = parseResult.GetValue(sourceGeneratorExecutionOption);
             var clientProcessId = parseResult.GetValue(clientProcessIdOption);
+            var isDaemon = parseResult.GetValue(daemonOption);
+            var daemonPipeName = parseResult.GetValue(daemonPipeNameOption);
+            var daemonKeepAlive = ResolveDaemonKeepAlive(parseResult.GetValue(daemonKeepAliveOption));
 
             var serverConfiguration = new ServerConfiguration(
                 LaunchDebugger: launchDebugger,
@@ -168,11 +196,40 @@ internal static class LanguageServerCommandLine
                 ExtensionLogDirectory: extensionLogDirectory,
                 AutoLoadProjects: autoLoadProjects,
                 SourceGeneratorExecutionPreference: sourceGeneratorExecutionPreference,
-                ClientProcessId: clientProcessId);
+                ClientProcessId: clientProcessId,
+                IsDaemon: isDaemon,
+                DaemonPipeName: daemonPipeName,
+                DaemonKeepAlive: daemonKeepAlive);
 
             return onParsedAsync(serverConfiguration, cancellationToken);
         });
 
         return rootCommand;
+    }
+
+    /// <summary>
+    /// The default amount of time a daemon stays alive after its last client disconnects.
+    /// </summary>
+    internal const int DefaultDaemonKeepAliveSeconds = 15 * 60;
+
+    /// <summary>
+    /// Environment variable that can override the daemon keepalive (in seconds) when the
+    /// <c>--daemonKeepAlive</c> option is not specified.
+    /// </summary>
+    internal const string DaemonKeepAliveEnvironmentVariable = "ROSLYN_LANGUAGE_SERVER_DAEMON_KEEPALIVE";
+
+    private static TimeSpan ResolveDaemonKeepAlive(int? optionSeconds)
+    {
+        var seconds = optionSeconds;
+        if (seconds is null &&
+            int.TryParse(Environment.GetEnvironmentVariable(DaemonKeepAliveEnvironmentVariable), out var envSeconds))
+        {
+            seconds = envSeconds;
+        }
+
+        seconds ??= DefaultDaemonKeepAliveSeconds;
+
+        // Zero or negative means stay alive indefinitely.
+        return seconds <= 0 ? Timeout.InfiniteTimeSpan : TimeSpan.FromSeconds(seconds.Value);
     }
 }

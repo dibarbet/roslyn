@@ -29,14 +29,29 @@ return await command.Parse(args).InvokeAsync(invocationConfiguration, Cancellati
 
 static async Task RunAsync(ServerConfiguration serverConfiguration, CancellationToken cancellationToken)
 {
-    if (serverConfiguration.UseStdIo && serverConfiguration.ServerPipeName is not null)
+    if (serverConfiguration.IsDaemon)
     {
-        throw new InvalidOperationException("Server cannot be started with both --stdio and --pipe options.");
-    }
+        if (serverConfiguration.DaemonPipeName is null)
+        {
+            throw new InvalidOperationException("Server started with --daemon must also specify --daemonPipeName.");
+        }
 
-    if (!serverConfiguration.UseStdIo && serverConfiguration.ServerPipeName is null)
+        if (serverConfiguration.UseStdIo || serverConfiguration.ServerPipeName is not null)
+        {
+            throw new InvalidOperationException("Server cannot be started with --daemon together with --stdio or --pipe.");
+        }
+    }
+    else
     {
-        throw new InvalidOperationException("Server must be started with either --stdio or --pipe option.");
+        if (serverConfiguration.UseStdIo && serverConfiguration.ServerPipeName is not null)
+        {
+            throw new InvalidOperationException("Server cannot be started with both --stdio and --pipe options.");
+        }
+
+        if (!serverConfiguration.UseStdIo && serverConfiguration.ServerPipeName is null)
+        {
+            throw new InvalidOperationException("Server must be started with either --stdio or --pipe option.");
+        }
     }
 
     if (serverConfiguration.UseStdIo)
@@ -111,7 +126,12 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
     var telemetryReporter = exportProvider.GetExports<ITelemetryReporter>().SingleOrDefault()?.Value;
     RoslynLogger.Initialize(telemetryReporter, serverConfiguration.TelemetryLevel, serverConfiguration.SessionId);
 
-    if (serverConfiguration.UseStdIo)
+    if (serverConfiguration.IsDaemon)
+    {
+        // In daemon mode we don't create a single connection here; RunDaemonAsync below accepts client
+        // connections and creates a language server instance per connection.
+    }
+    else if (serverConfiguration.UseStdIo)
     {
         connectionManager.CreateLanguageServerHost(Console.OpenStandardInput(), Console.OpenStandardOutput(), exportProvider, typeRefResolver);
     }
@@ -133,10 +153,23 @@ static async Task RunAsync(ServerConfiguration serverConfiguration, Cancellation
 
     try
     {
-        if (serverConfiguration.ClientProcessId is int clientProcessId && RoslynLanguageServer.TryRegisterClientProcessId(clientProcessId))
-            logger.LogInformation("Monitoring client process {clientProcessId} for exit", clientProcessId);
+        if (serverConfiguration.IsDaemon)
+        {
+            await connectionManager.RunDaemonAsync(
+                serverConfiguration.DaemonPipeName!,
+                serverConfiguration.DaemonKeepAlive,
+                exportProvider,
+                typeRefResolver,
+                logger,
+                cancellationToken);
+        }
+        else
+        {
+            if (serverConfiguration.ClientProcessId is int clientProcessId && RoslynLanguageServer.TryRegisterClientProcessId(clientProcessId))
+                logger.LogInformation("Monitoring client process {clientProcessId} for exit", clientProcessId);
 
-        await connectionManager.WaitForExitAsync();
+            await connectionManager.WaitForExitAsync();
+        }
     }
     finally
     {

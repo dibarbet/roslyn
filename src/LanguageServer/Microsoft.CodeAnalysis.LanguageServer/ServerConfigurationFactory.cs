@@ -54,4 +54,7 @@ internal sealed record class ServerConfiguration(
     string? ExtensionLogDirectory,
     int? AutoLoadProjects,
     SourceGeneratorExecutionPreference SourceGeneratorExecutionPreference,
-    int? ClientProcessId);
+    int? ClientProcessId,
+    bool IsDaemon = false,
+    string? DaemonPipeName = null,
+    TimeSpan DaemonKeepAlive = default);
