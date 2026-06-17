@@ -2,9 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Linq;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
@@ -17,16 +20,36 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Public;
 using DocumentDiagnosticPartialReport = SumType<RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, DocumentDiagnosticReportPartialResult>;
 using DocumentDiagnosticReport = SumType<RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport>;
 
+[ExportCSharpVisualBasicLspService(typeof(PublicDocumentPullDiagnosticsHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(Methods.TextDocumentDiagnosticName)]
-internal sealed partial class PublicDocumentPullDiagnosticsHandler(
-    IClientLanguageServerManager clientLanguageServerManager,
-    IDiagnosticSourceManager diagnosticSourceManager,
-    IDiagnosticsRefresher diagnosticsRefresher,
-    IGlobalOptionService globalOptions)
-    : AbstractDocumentPullDiagnosticHandler<DocumentDiagnosticParams, DocumentDiagnosticPartialReport, DocumentDiagnosticReport>(
-        diagnosticsRefresher, diagnosticSourceManager, globalOptions)
+internal sealed partial class PublicDocumentPullDiagnosticsHandler : AbstractDocumentPullDiagnosticHandler<DocumentDiagnosticParams, DocumentDiagnosticPartialReport, DocumentDiagnosticReport>
 {
-    private readonly IClientLanguageServerManager _clientLanguageServerManager = clientLanguageServerManager;
+    private readonly IClientLanguageServerManager _clientLanguageServerManager;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public PublicDocumentPullDiagnosticsHandler(
+        IDiagnosticSourceManager diagnosticSourceManager,
+        IDiagnosticsRefresher diagnosticsRefresher,
+        IGlobalOptionService globalOptions,
+        LspServices lspServices)
+        : this(
+            lspServices.GetRequiredService<IClientLanguageServerManager>(),
+            diagnosticSourceManager,
+            diagnosticsRefresher,
+            globalOptions)
+    {
+    }
+
+    public PublicDocumentPullDiagnosticsHandler(
+        IClientLanguageServerManager clientLanguageServerManager,
+        IDiagnosticSourceManager diagnosticSourceManager,
+        IDiagnosticsRefresher diagnosticsRefresher,
+        IGlobalOptionService globalOptions)
+        : base(diagnosticsRefresher, diagnosticSourceManager, globalOptions)
+    {
+        _clientLanguageServerManager = clientLanguageServerManager;
+    }
 
     protected override string? GetRequestDiagnosticCategory(DocumentDiagnosticParams diagnosticsParams)
         => diagnosticsParams.Identifier;

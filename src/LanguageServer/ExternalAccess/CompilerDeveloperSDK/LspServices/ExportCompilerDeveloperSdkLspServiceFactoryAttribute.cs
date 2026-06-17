@@ -8,5 +8,6 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.CompilerDeveloperSdk;
 
+[Obsolete("Use " + nameof(ExportCompilerDeveloperSdkLspServiceAttribute) + " instead, which exports the service directly rather than via an ILspServiceFactory.")]
 internal class ExportCompilerDeveloperSdkLspServiceFactoryAttribute(Type type) :
     ExportCSharpVisualBasicLspServiceFactoryAttribute(type, WellKnownLspServerKinds.Any);

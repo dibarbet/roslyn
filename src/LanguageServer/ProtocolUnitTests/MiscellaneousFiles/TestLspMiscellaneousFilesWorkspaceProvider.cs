@@ -15,6 +15,8 @@ using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests.MiscellaneousFiles;
 
+#pragma warning disable CS0618 // These tests intentionally exercise the obsolete ILspServiceFactory mechanism that external-access consumers still use.
+
 [ExportCSharpVisualBasicLspServiceFactory(typeof(ILspMiscellaneousFilesWorkspaceProvider), WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared]
 [PartNotDiscoverable]
 [method: ImportingConstructor]

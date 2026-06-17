@@ -2,8 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
+using System.Composition;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
@@ -11,7 +14,7 @@ using Roslyn.LanguageServer.Protocol;
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics;
 
 [Method(VSInternalMethods.DocumentPullDiagnosticName)]
-internal sealed partial class DocumentPullDiagnosticHandler(
+internal partial class DocumentPullDiagnosticHandler(
     IDiagnosticSourceManager diagnosticSourceManager,
     IDiagnosticsRefresher diagnosticRefresher,
     IGlobalOptionService globalOptions)
@@ -64,3 +67,15 @@ internal sealed partial class DocumentPullDiagnosticHandler(
         return progress.GetFlattenedValues();
     }
 }
+
+/// <summary>
+/// The Roslyn-contract per-server export of <see cref="DocumentPullDiagnosticHandler"/>.
+/// </summary>
+[ExportCSharpVisualBasicLspService(typeof(DocumentPullDiagnosticHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+[method: ImportingConstructor]
+[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+internal sealed class RoslynDocumentPullDiagnosticHandler(
+    IDiagnosticSourceManager diagnosticSourceManager,
+    IDiagnosticsRefresher diagnosticRefresher,
+    IGlobalOptionService globalOptions)
+    : DocumentPullDiagnosticHandler(diagnosticSourceManager, diagnosticRefresher, globalOptions);

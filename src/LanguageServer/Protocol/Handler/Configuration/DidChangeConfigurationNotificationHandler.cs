@@ -5,10 +5,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.ImplementType;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.PooledObjects;
@@ -19,6 +21,7 @@ using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Configuration;
 
+[ExportCSharpVisualBasicLspService(typeof(DidChangeConfigurationNotificationHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(Methods.WorkspaceDidChangeConfigurationName)]
 internal sealed partial class DidChangeConfigurationNotificationHandler : ILspServiceNotificationHandler<LSP.DidChangeConfigurationParams>, IOnInitialized
 {
@@ -29,7 +32,7 @@ internal sealed partial class DidChangeConfigurationNotificationHandler : ILspSe
     private readonly Guid _registrationId;
 
     /// <summary>
-    /// All the <see cref="ConfigurationItem.Section"/> needs to be refreshed from the client. 
+    /// All the <see cref="ConfigurationItem.Section"/> needs to be refreshed from the client.
     /// </summary>
     private readonly ImmutableArray<ConfigurationItem> _configurationItems;
 
@@ -44,6 +47,18 @@ internal sealed partial class DidChangeConfigurationNotificationHandler : ILspSe
         .Add(LanguageNames.VisualBasic, "visual_basic");
 
     public static readonly ImmutableArray<string> SupportedLanguages = [LanguageNames.CSharp, LanguageNames.VisualBasic];
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public DidChangeConfigurationNotificationHandler(
+        IGlobalOptionService globalOptionService,
+        LspServices lspServices)
+        : this(
+            lspServices.GetRequiredService<ILspLogger>(),
+            globalOptionService,
+            lspServices.GetRequiredService<IClientLanguageServerManager>())
+    {
+    }
 
     public DidChangeConfigurationNotificationHandler(
         ILspLogger logger,

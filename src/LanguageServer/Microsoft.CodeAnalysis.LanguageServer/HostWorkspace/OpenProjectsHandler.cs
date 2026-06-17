@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Composition;
 using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis.Host.Mef;
@@ -12,21 +13,20 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(OpenProjectHandler)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class OpenProjectHandlerFactory() : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new OpenProjectHandler(lspServices.GetRequiredService<LanguageServerProjectSystem>());
-}
-
+[ExportCSharpVisualBasicLspService(typeof(OpenProjectHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(OpenProjectName)]
 internal sealed class OpenProjectHandler : ILspService, ILspServiceNotificationHandler<OpenProjectHandler.NotificationParams>
 {
     internal const string OpenProjectName = "project/open";
 
     private readonly LanguageServerProjectSystem _projectSystem;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public OpenProjectHandler(LspServices lspServices)
+        : this(lspServices.GetRequiredService<LanguageServerProjectSystem>())
+    {
+    }
 
     public OpenProjectHandler(LanguageServerProjectSystem projectSystem)
     {

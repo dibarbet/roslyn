@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -11,6 +11,8 @@ using Microsoft.CommonLanguageServerProtocol.Framework;
 using Roslyn.LanguageServer.Protocol;
 
 namespace Roslyn.Test.Utilities;
+
+#pragma warning disable CS0618 // These tests intentionally exercise the obsolete ILspServiceFactory mechanism that external-access consumers still use.
 
 [ExportLspServiceFactory(typeof(TestLspLogger), ProtocolConstants.RoslynLspLanguagesContract, WellKnownLspServerKinds.Any), Shared]
 [method: ImportingConstructor]

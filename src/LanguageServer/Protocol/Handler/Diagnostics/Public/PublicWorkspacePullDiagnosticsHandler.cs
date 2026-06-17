@@ -4,9 +4,11 @@
 
 using System;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
@@ -19,16 +21,36 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Public;
 // See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspace_diagnostic
 using WorkspaceDiagnosticPartialReport = SumType<WorkspaceDiagnosticReport, WorkspaceDiagnosticReportPartialResult>;
 
+[ExportCSharpVisualBasicLspService(typeof(PublicWorkspacePullDiagnosticsHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(Methods.WorkspaceDiagnosticName)]
-internal sealed partial class PublicWorkspacePullDiagnosticsHandler(
-    LspWorkspaceManager workspaceManager,
-    LspWorkspaceRegistrationService registrationService,
-    IDiagnosticSourceManager diagnosticSourceManager,
-    IDiagnosticsRefresher diagnosticRefresher,
-    IGlobalOptionService globalOptions)
-    : AbstractWorkspacePullDiagnosticsHandler<WorkspaceDiagnosticParams, WorkspaceDiagnosticPartialReport, WorkspaceDiagnosticReport?>(
-        workspaceManager, registrationService, diagnosticSourceManager, diagnosticRefresher, globalOptions), IDisposable
+internal sealed partial class PublicWorkspacePullDiagnosticsHandler : AbstractWorkspacePullDiagnosticsHandler<WorkspaceDiagnosticParams, WorkspaceDiagnosticPartialReport, WorkspaceDiagnosticReport?>, IDisposable
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public PublicWorkspacePullDiagnosticsHandler(
+        IDiagnosticSourceManager diagnosticSourceManager,
+        IDiagnosticsRefresher diagnosticRefresher,
+        IGlobalOptionService globalOptions,
+        LspServices lspServices)
+        : this(
+            lspServices.GetRequiredService<LspWorkspaceManager>(),
+            lspServices.GetRequiredService<LspWorkspaceRegistrationService>(),
+            diagnosticSourceManager,
+            diagnosticRefresher,
+            globalOptions)
+    {
+    }
+
+    public PublicWorkspacePullDiagnosticsHandler(
+        LspWorkspaceManager workspaceManager,
+        LspWorkspaceRegistrationService registrationService,
+        IDiagnosticSourceManager diagnosticSourceManager,
+        IDiagnosticsRefresher diagnosticRefresher,
+        IGlobalOptionService globalOptions)
+        : base(workspaceManager, registrationService, diagnosticSourceManager, diagnosticRefresher, globalOptions)
+    {
+    }
+
     protected override string? GetRequestDiagnosticCategory(WorkspaceDiagnosticParams diagnosticsParams)
         => diagnosticsParams.Identifier;
 

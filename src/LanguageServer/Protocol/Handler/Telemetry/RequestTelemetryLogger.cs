@@ -3,6 +3,8 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Composition;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Internal.Log;
 using Microsoft.CodeAnalysis.Telemetry;
 
@@ -112,5 +114,21 @@ internal class RequestTelemetryLogger : IDisposable, ILspService
         Succeeded,
         Failed,
         Cancelled
+    }
+}
+
+/// <summary>
+/// The Roslyn-contract per-server export of <see cref="RequestTelemetryLogger"/>. Applies to any Roslyn
+/// server kind except <see cref="WellKnownLspServerKinds.CSharpVisualBasicLspServer"/>, which uses the
+/// more specific <c>VSCodeRequestTelemetryLogger</c>.
+/// </summary>
+[ExportCSharpVisualBasicLspService(typeof(RequestTelemetryLogger)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+internal sealed class RoslynRequestTelemetryLogger : RequestTelemetryLogger
+{
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public RoslynRequestTelemetryLogger(LspServices lspServices)
+        : base(lspServices.ServerKind.ToTelemetryString())
+    {
     }
 }

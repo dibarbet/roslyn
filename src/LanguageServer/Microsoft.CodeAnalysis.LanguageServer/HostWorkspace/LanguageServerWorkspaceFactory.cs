@@ -2,7 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
+using System.Composition;
+using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.Host.Mef;
@@ -19,13 +22,29 @@ namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 /// <summary>
 /// Owns the host and miscellaneous-files <see cref="LanguageServerWorkspace"/> instances and their
 /// <see cref="ProjectSystemProjectFactory"/> objects for a single LSP server. Created once per
-/// <see cref="LspServices"/> instance by <see cref="LanguageServerWorkspaceFactoryServiceFactory"/> and
-/// disposed when the LSP server shuts down.
+/// <see cref="LspServices"/> instance and disposed when the LSP server shuts down.
 /// </summary>
+[ExportCSharpVisualBasicLspService(typeof(LanguageServerWorkspaceFactory)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class LanguageServerWorkspaceFactory : ILspService, IHostWorkspaceProvider, IDisposable
 {
     private readonly ILogger _logger;
     private readonly ImmutableArray<string> _solutionLevelAnalyzerPaths;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public LanguageServerWorkspaceFactory(
+        HostServicesProvider hostServicesProvider,
+        ExtensionAssemblyManager extensionManager,
+        [ImportMany] IEnumerable<IAnalyzerAssemblyRedirector> assemblyRedirectors,
+        LspServices lspServices)
+        : this(
+            hostServicesProvider,
+            lspServices,
+            extensionManager,
+            assemblyRedirectors,
+            lspServices.GetRequiredService<ILoggerFactory>())
+    {
+    }
 
     public LanguageServerWorkspaceFactory(
         HostServicesProvider hostServicesProvider,
@@ -56,7 +75,7 @@ internal sealed class LanguageServerWorkspaceFactory : ILspService, IHostWorkspa
             CancellationToken.None); // TODO: do we need to introduce a shutdown cancellation token for this?
         workspace.ProjectSystemProjectFactory = HostProjectFactory;
 
-        // https://github.com/dotnet/roslyn/issues/78560: Move this workspace creation to 'FileBasedProgramsWorkspaceProviderFactory'.
+        // https://github.com/dotnet/roslyn/issues/78560: Move this workspace creation to 'FileBasedProgramsProjectSystem'.
         // 'CreateSolutionLevelAnalyzerReferences' needs to be broken out into its own service for us to be able to move this.
         var miscellaneousFilesWorkspace = new LanguageServerWorkspace(hostServicesProvider.HostServices, WorkspaceKind.MiscellaneousFiles);
         Contract.ThrowIfFalse(

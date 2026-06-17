@@ -2,9 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Host;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.TextDocumentContent;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 
@@ -15,13 +18,31 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SourceGenerators;
 /// (via execution version or dependent version checks) and sends per-URI refresh notifications to the client
 /// using the LSP 3.18 <c>workspace/textDocumentContent/refresh</c> mechanism.
 /// </summary>
-internal sealed class SourceGeneratorRefreshQueue(
-    IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
-    LspWorkspaceRegistrationService lspWorkspaceRegistrationService,
-    LspWorkspaceManager lspWorkspaceManager,
-    IClientLanguageServerManager notificationManager)
-    : AbstractTextDocumentContentRefreshQueue(asynchronousOperationListenerProvider, lspWorkspaceRegistrationService, lspWorkspaceManager, notificationManager)
+[ExportCSharpVisualBasicLspService(typeof(SourceGeneratorRefreshQueue)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+internal sealed class SourceGeneratorRefreshQueue : AbstractTextDocumentContentRefreshQueue
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public SourceGeneratorRefreshQueue(
+        IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
+        LspServices lspServices)
+        : this(
+            asynchronousOperationListenerProvider,
+            lspServices.GetRequiredService<LspWorkspaceRegistrationService>(),
+            lspServices.GetRequiredService<LspWorkspaceManager>(),
+            lspServices.GetRequiredService<IClientLanguageServerManager>())
+    {
+    }
+
+    public SourceGeneratorRefreshQueue(
+        IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
+        LspWorkspaceRegistrationService lspWorkspaceRegistrationService,
+        LspWorkspaceManager lspWorkspaceManager,
+        IClientLanguageServerManager notificationManager)
+        : base(asynchronousOperationListenerProvider, lspWorkspaceRegistrationService, lspWorkspaceManager, notificationManager)
+    {
+    }
+
     protected override string Scheme => SourceGeneratedDocumentUri.Scheme;
 
     protected override async Task<bool> ShouldEnqueueRefreshNotificationAsync(WorkspaceChangeEventArgs e, CancellationToken cancellationToken)

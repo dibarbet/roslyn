@@ -23,7 +23,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.LanguageClient;
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, true)]
 internal sealed class LiveShareInProcLanguageClient(
-    CSharpVisualBasicLspServiceProvider lspServiceProvider,
+    LspServiceProvider lspServiceProvider,
     IGlobalOptionService globalOptions,
     ILspServiceLoggerFactory lspLoggerFactory,
     ExportProvider exportProvider) : AbstractInProcLanguageClient(lspServiceProvider, globalOptions, lspLoggerFactory, exportProvider)

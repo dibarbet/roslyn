@@ -2,10 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Generic;
+using System.Composition;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Shared.Extensions;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Roslyn.LanguageServer.Protocol;
@@ -15,6 +18,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens;
 /// <summary>
 /// Batches requests to refresh the semantic tokens to optimize user experience.
 /// </summary>
+[ExportCSharpVisualBasicLspService(typeof(SemanticTokensRefreshQueue)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class SemanticTokensRefreshQueue : AbstractRefreshQueue
 {
     /// <summary>
@@ -29,6 +33,21 @@ internal sealed class SemanticTokensRefreshQueue : AbstractRefreshQueue
     private readonly Dictionary<ProjectId, Checksum> _projectIdToLastComputedChecksum = [];
 
     public bool AllowRazorRefresh { get; set; }
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public SemanticTokensRefreshQueue(
+        IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
+        FeatureProviderRefresher providerRefresher,
+        LspServices lspServices)
+        : this(
+            asynchronousOperationListenerProvider,
+            lspServices.GetRequiredService<LspWorkspaceRegistrationService>(),
+            lspServices.GetRequiredService<LspWorkspaceManager>(),
+            lspServices.GetRequiredService<IClientLanguageServerManager>(),
+            providerRefresher)
+    {
+    }
 
     public SemanticTokensRefreshQueue(
         IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,

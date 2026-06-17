@@ -5,11 +5,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.ErrorReporting;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.DocumentChanges;
 using Microsoft.CodeAnalysis.PooledObjects;
@@ -43,7 +45,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer;
 ///   <item>The code is relatively straightforward</item>
 /// </list>
 /// </remarks>
-internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
+internal class LspWorkspaceManager : IDocumentChangeTracker, ILspService
 {
     /// <summary>
     /// A cache from workspace to the last solution we returned for LSP.
@@ -588,5 +590,24 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
         {
             return _manager._lspWorkspaceRegistrationService.GetAllRegistrations().Contains(workspace);
         }
+    }
+}
+
+/// <summary>
+/// The Roslyn-contract per-server export of <see cref="LspWorkspaceManager"/>.
+/// </summary>
+[ExportCSharpVisualBasicLspService(typeof(LspWorkspaceManager)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+internal sealed class RoslynLspWorkspaceManager : LspWorkspaceManager
+{
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public RoslynLspWorkspaceManager(LspServices lspServices)
+        : base(
+            lspServices.GetRequiredService<ILspLogger>(),
+            lspServices.GetService<ILspMiscellaneousFilesWorkspaceProvider>(),
+            lspServices.GetRequiredService<LspWorkspaceRegistrationService>(),
+            lspServices.GetRequiredService<ILanguageInfoProvider>(),
+            lspServices.GetRequiredService<RequestTelemetryLogger>())
+    {
     }
 }

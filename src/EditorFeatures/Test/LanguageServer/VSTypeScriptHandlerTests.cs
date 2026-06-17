@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -23,6 +23,8 @@ using Xunit;
 using Xunit.Abstractions;
 
 namespace Microsoft.CodeAnalysis.Editor.UnitTests.LanguageServer;
+
+#pragma warning disable CS0618 // These tests intentionally exercise the obsolete ILspServiceFactory mechanism that external-access consumers still use.
 
 public sealed class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTests
 {
@@ -90,7 +92,7 @@ public sealed class VSTypeScriptHandlerTests : AbstractLanguageServerProtocolTes
 
         protected override RoslynLanguageServer CreateLanguageServer(Stream inputStream, Stream outputStream, WellKnownLspServerKinds serverKind)
         {
-            var servicesProvider = TestWorkspace.ExportProvider.GetExportedValue<VSTypeScriptLspServiceProvider>();
+            var servicesProvider = TestWorkspace.ExportProvider.GetExportedValue<LspServiceProvider>();
 
             var messageFormatter = RoslynLanguageServer.CreateJsonMessageFormatter();
             var jsonRpc = new JsonRpc(new HeaderDelimitedMessageHandler(outputStream, inputStream, messageFormatter))

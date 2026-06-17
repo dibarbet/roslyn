@@ -2,22 +2,40 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
 using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens;
 
+[ExportCSharpVisualBasicLspService(typeof(SemanticTokensFullHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(Methods.TextDocumentSemanticTokensFullName)]
-internal sealed class SemanticTokensFullHandler(
-    IGlobalOptionService globalOptions,
-    SemanticTokensRefreshQueue semanticTokensRefreshQueue)
-    : ILspServiceDocumentRequestHandler<SemanticTokensFullParams, LSP.SemanticTokens>
+internal sealed class SemanticTokensFullHandler : ILspServiceDocumentRequestHandler<SemanticTokensFullParams, LSP.SemanticTokens>
 {
-    private readonly IGlobalOptionService _globalOptions = globalOptions;
-    private readonly SemanticTokensRefreshQueue _semanticTokenRefreshQueue = semanticTokensRefreshQueue;
+    private readonly IGlobalOptionService _globalOptions;
+    private readonly SemanticTokensRefreshQueue _semanticTokenRefreshQueue;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public SemanticTokensFullHandler(
+        IGlobalOptionService globalOptions,
+        LspServices lspServices)
+        : this(globalOptions, lspServices.GetRequiredService<SemanticTokensRefreshQueue>())
+    {
+    }
+
+    public SemanticTokensFullHandler(
+        IGlobalOptionService globalOptions,
+        SemanticTokensRefreshQueue semanticTokensRefreshQueue)
+    {
+        _globalOptions = globalOptions;
+        _semanticTokenRefreshQueue = semanticTokensRefreshQueue;
+    }
 
     public bool MutatesSolutionState => false;
     public bool RequiresLSPSolution => true;

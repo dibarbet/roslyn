@@ -25,12 +25,12 @@ internal sealed class RoslynLanguageServer : SystemTextJsonLanguageServer<Reques
     private static readonly Lazy<int> s_currentProcessId = new(static () => { using var process = Process.GetCurrentProcess(); return process.Id; });
     public static int ServerProcessId => s_currentProcessId.Value;
 
-    private readonly AbstractLspServiceProvider _lspServiceProvider;
+    private readonly LspServiceProvider _lspServiceProvider;
     private readonly FrozenDictionary<string, ImmutableArray<BaseService>> _baseServices;
     private readonly WellKnownLspServerKinds _serverKind;
 
     public RoslynLanguageServer(
-        AbstractLspServiceProvider lspServiceProvider,
+        LspServiceProvider lspServiceProvider,
         JsonRpc jsonRpc,
         JsonSerializerOptions serializerOptions,
         HostServices hostServices,

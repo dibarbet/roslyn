@@ -23,6 +23,8 @@ using Xunit.Abstractions;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.UnitTests;
 
+#pragma warning disable CS0618 // These tests intentionally exercise the obsolete ILspServiceFactory mechanism that external-access consumers still use.
+
 [UseExportProvider]
 public sealed class WorkDoneProgressTests : AbstractLanguageServerProtocolTests
 {

@@ -22,34 +22,35 @@ using Microsoft.VisualStudio.Utilities.ServiceBroker;
 namespace Microsoft.VisualStudio.LanguageServices.DevKit.EditAndContinue;
 
 /// <summary>
-/// LSP service factory that constructs the per-LSP-server <see cref="DevKitHotReloadServiceContributor"/>,
-/// which proffers the <see cref="ManagedHotReloadLanguageService"/> brokered service into the Dev Kit
-/// <see cref="GlobalBrokeredServiceContainer"/> when the service broker is initialized.
+/// Per-LSP-server service that proffers the <see cref="ManagedHotReloadLanguageService"/> brokered
+/// service into the Dev Kit <see cref="GlobalBrokeredServiceContainer"/> when the service broker is
+/// initialized.
 /// </summary>
-[ExportCSharpVisualBasicLspServiceFactory(typeof(DevKitHotReloadServiceContributor)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class DevKitHotReloadServiceContributorFactory(
-    ManagedHotReloadLanguageServiceFactory factory,
-    SolutionSnapshotRegistry solutionSnapshotRegistry) : ILspServiceFactory
+[ExportCSharpVisualBasicLspService(typeof(DevKitHotReloadServiceContributor)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+internal sealed class DevKitHotReloadServiceContributor : IServiceBrokerInitializer, ILspService, IDisposable
 {
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-    {
-        var workspaceProvider = lspServices.GetRequiredService<IHostWorkspaceProvider>();
-        return new DevKitHotReloadServiceContributor(factory, workspaceProvider, solutionSnapshotRegistry);
-    }
-}
+    private readonly ManagedHotReloadLanguageServiceFactory _factory;
+    private readonly IHostWorkspaceProvider _workspaceProvider;
+    private readonly SolutionSnapshotRegistry _solutionSnapshotRegistry;
 
-internal sealed class DevKitHotReloadServiceContributor(
-    ManagedHotReloadLanguageServiceFactory factory,
-    IHostWorkspaceProvider workspaceProvider,
-    SolutionSnapshotRegistry solutionSnapshotRegistry) : IServiceBrokerInitializer, ILspService, IDisposable
-{
     /// <summary>
     /// Per-server source text provider, observing this server's host workspace. Owned (and disposed) here so that each
     /// in-process LSP server gets its own provider bound to its own host workspace.
     /// </summary>
-    private readonly PdbMatchingSourceTextProvider _sourceTextProvider = new(workspaceProvider.Workspace);
+    private readonly PdbMatchingSourceTextProvider _sourceTextProvider;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public DevKitHotReloadServiceContributor(
+        ManagedHotReloadLanguageServiceFactory factory,
+        SolutionSnapshotRegistry solutionSnapshotRegistry,
+        LspServices lspServices)
+    {
+        _factory = factory;
+        _solutionSnapshotRegistry = solutionSnapshotRegistry;
+        _workspaceProvider = lspServices.GetRequiredService<IHostWorkspaceProvider>();
+        _sourceTextProvider = new(_workspaceProvider.Workspace);
+    }
 
     public ImmutableDictionary<ServiceMoniker, ServiceRegistration> ServicesToRegister => new Dictionary<ServiceMoniker, ServiceRegistration>
     {
@@ -59,13 +60,13 @@ internal sealed class DevKitHotReloadServiceContributor(
     public void Proffer(GlobalBrokeredServiceContainer container)
     {
         var serviceBroker = container.GetFullAccessServiceBroker();
-        var solutionSnapshotProvider = new LspSolutionSnapshotProvider(serviceBroker, solutionSnapshotRegistry);
+        var solutionSnapshotProvider = new LspSolutionSnapshotProvider(serviceBroker, _solutionSnapshotRegistry);
 
         container.Proffer(
             ManagedHotReloadLanguageServiceDescriptor.Descriptor,
             (moniker, options, innerServiceBroker, cancellationToken) =>
             {
-                var service = factory.Create(serviceBroker, solutionSnapshotProvider, workspaceProvider, _sourceTextProvider);
+                var service = _factory.Create(serviceBroker, solutionSnapshotProvider, _workspaceProvider, _sourceTextProvider);
                 return new ValueTask<object?>(service);
             });
     }

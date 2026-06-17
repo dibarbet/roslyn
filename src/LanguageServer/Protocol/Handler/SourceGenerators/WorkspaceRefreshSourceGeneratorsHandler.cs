@@ -17,18 +17,24 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 /// Handles a request from the client to refresh source generators.
 /// No specific generators are refreshed; rather, all generators are refreshed in all registered workspaces.
 /// </summary>
-[ExportCSharpVisualBasicLspServiceFactory(typeof(WorkspaceRefreshSourceGeneratorsHandler)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class WorkspaceRefreshSourceGeneratorsHandlerFactory() : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new WorkspaceRefreshSourceGeneratorsHandler(lspServices.GetRequiredService<LspWorkspaceRegistrationService>());
-}
-
+[ExportCSharpVisualBasicLspService(typeof(WorkspaceRefreshSourceGeneratorsHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(MethodName)]
-internal class WorkspaceRefreshSourceGeneratorsHandler(LspWorkspaceRegistrationService workspaceRegistrationService) : ILspServiceNotificationHandler<RefreshSourceGeneratorsParams>, ILspService
+internal class WorkspaceRefreshSourceGeneratorsHandler : ILspServiceNotificationHandler<RefreshSourceGeneratorsParams>, ILspService
 {
+    private readonly LspWorkspaceRegistrationService _workspaceRegistrationService;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public WorkspaceRefreshSourceGeneratorsHandler(LspServices lspServices)
+        : this(lspServices.GetRequiredService<LspWorkspaceRegistrationService>())
+    {
+    }
+
+    public WorkspaceRefreshSourceGeneratorsHandler(LspWorkspaceRegistrationService workspaceRegistrationService)
+    {
+        _workspaceRegistrationService = workspaceRegistrationService;
+    }
+
     public const string MethodName = "workspace/_roslyn_refreshSourceGenerators";
 
     public bool MutatesSolutionState => false;
@@ -37,7 +43,7 @@ internal class WorkspaceRefreshSourceGeneratorsHandler(LspWorkspaceRegistrationS
 
     public Task HandleNotificationAsync(RefreshSourceGeneratorsParams request, RequestContext requestContext, CancellationToken cancellationToken)
     {
-        foreach (var workspace in workspaceRegistrationService.GetAllRegistrations())
+        foreach (var workspace in _workspaceRegistrationService.GetAllRegistrations())
         {
             workspace.EnqueueUpdateSourceGeneratorVersion(projectId: null, request.ForceRegeneration);
         }

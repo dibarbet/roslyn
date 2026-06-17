@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Composition;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis.Host.Mef;
@@ -14,26 +15,22 @@ using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Testing;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(RunTestsHandler)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class RunTestsHandlerFactory(ServerConfiguration serverConfiguration) : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-    {
-        var loggerFactory = lspServices.GetRequiredService<ILoggerFactory>();
-        return new RunTestsHandler(
-            new TestDiscoverer(loggerFactory),
-            new TestRunner(loggerFactory),
-            serverConfiguration);
-    }
-}
-
+[ExportCSharpVisualBasicLspService(typeof(RunTestsHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(RunTestsMethodName)]
 internal sealed class RunTestsHandler(TestDiscoverer testDiscoverer, TestRunner testRunner, ServerConfiguration serverConfiguration)
     : ILspServiceDocumentRequestHandler<RunTestsParams, RunTestsPartialResult[]>
 {
     private const string RunTestsMethodName = "textDocument/runTests";
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public RunTestsHandler(ServerConfiguration serverConfiguration, LspServices lspServices)
+        : this(
+            new TestDiscoverer(lspServices.GetRequiredService<ILoggerFactory>()),
+            new TestRunner(lspServices.GetRequiredService<ILoggerFactory>()),
+            serverConfiguration)
+    {
+    }
 
     public bool MutatesSolutionState => false;
 

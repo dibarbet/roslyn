@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Composition;
 using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
@@ -10,15 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(BinLogPathProvider)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class BinLogPathProviderFactory(IGlobalOptionService globalOptionService) : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new BinLogPathProvider(globalOptionService, lspServices.GetRequiredService<ILoggerFactory>());
-}
-
+[ExportCSharpVisualBasicLspService(typeof(BinLogPathProvider)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class BinLogPathProvider : IBinLogPathProvider, ILspService
 {
     /// <summary>
@@ -33,6 +26,13 @@ internal sealed class BinLogPathProvider : IBinLogPathProvider, ILspService
 
     private readonly IGlobalOptionService _globalOptionService;
     private readonly ILogger _logger;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public BinLogPathProvider(IGlobalOptionService globalOptionService, LspServices lspServices)
+        : this(globalOptionService, lspServices.GetRequiredService<ILoggerFactory>())
+    {
+    }
 
     public BinLogPathProvider(IGlobalOptionService globalOptionService, ILoggerFactory loggerFactory)
     {

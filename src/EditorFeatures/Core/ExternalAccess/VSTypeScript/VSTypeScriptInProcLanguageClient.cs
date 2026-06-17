@@ -27,7 +27,7 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, true)]
 internal sealed class VSTypeScriptInProcLanguageClient(
-    VSTypeScriptLspServiceProvider lspServiceProvider,
+    LspServiceProvider lspServiceProvider,
     IGlobalOptionService globalOptions,
     ILspServiceLoggerFactory lspLoggerFactory,
     ExportProvider exportProvider) : AbstractInProcLanguageClient(lspServiceProvider, globalOptions, lspLoggerFactory, exportProvider)

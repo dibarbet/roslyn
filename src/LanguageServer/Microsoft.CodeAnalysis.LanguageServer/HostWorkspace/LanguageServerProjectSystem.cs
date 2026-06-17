@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
 using System.Composition;
 using Microsoft.CodeAnalysis.Host.Mef;
@@ -18,34 +19,31 @@ using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
-/// <summary>
-/// LSP service factory that constructs the per-LSP-server <see cref="LanguageServerProjectSystem"/>.
-/// </summary>
-[ExportCSharpVisualBasicLspServiceFactory(typeof(LanguageServerProjectSystem)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class LanguageServerProjectSystemServiceFactory(
-    IGlobalOptionService globalOptionService,
-    IAsynchronousOperationListenerProvider listenerProvider,
-    ServerConfigurationFactory serverConfigurationFactory) : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new LanguageServerProjectSystem(
-            lspServices,
-            globalOptionService,
-            lspServices.GetRequiredService<ILoggerFactory>(),
-            listenerProvider,
-            serverConfigurationFactory,
-            lspServices.GetRequiredService<IBinLogPathProvider>(),
-            lspServices.GetRequiredService<DotnetCliHelper>());
-}
-
+[ExportCSharpVisualBasicLspService(typeof(LanguageServerProjectSystem)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class LanguageServerProjectSystem : LanguageServerProjectLoader, ILspService
 {
     private readonly ILogger _logger;
     private readonly ProjectFileExtensionRegistry _projectFileExtensionRegistry;
     private readonly ProjectSystemProjectFactory _hostProjectFactory;
     private readonly IClientLanguageServerManager _clientLanguageServerManager;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public LanguageServerProjectSystem(
+        IGlobalOptionService globalOptionService,
+        IAsynchronousOperationListenerProvider listenerProvider,
+        ServerConfigurationFactory serverConfigurationFactory,
+        LspServices lspServices)
+        : this(
+            lspServices,
+            globalOptionService,
+            lspServices.GetRequiredService<ILoggerFactory>(),
+            listenerProvider,
+            serverConfigurationFactory,
+            lspServices.GetRequiredService<IBinLogPathProvider>(),
+            lspServices.GetRequiredService<DotnetCliHelper>())
+    {
+    }
 
     public LanguageServerProjectSystem(
         ILspServices lspServices,

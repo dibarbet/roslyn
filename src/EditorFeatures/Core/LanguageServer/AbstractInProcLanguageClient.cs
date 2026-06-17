@@ -26,7 +26,7 @@ using StreamJsonRpc;
 namespace Microsoft.CodeAnalysis.Editor.Implementation.LanguageClient;
 
 internal abstract partial class AbstractInProcLanguageClient(
-    AbstractLspServiceProvider lspServiceProvider,
+    LspServiceProvider lspServiceProvider,
     IGlobalOptionService globalOptions,
     ILspServiceLoggerFactory lspLoggerFactory,
     ExportProvider exportProvider)
@@ -35,7 +35,7 @@ internal abstract partial class AbstractInProcLanguageClient(
     private readonly ILspServiceLoggerFactory _lspLoggerFactory = lspLoggerFactory;
     private readonly ExportProvider _exportProvider = exportProvider;
 
-    protected readonly AbstractLspServiceProvider LspServiceProvider = lspServiceProvider;
+    protected readonly LspServiceProvider LspServiceProvider = lspServiceProvider;
 
     protected readonly IGlobalOptionService GlobalOptions = globalOptions;
 

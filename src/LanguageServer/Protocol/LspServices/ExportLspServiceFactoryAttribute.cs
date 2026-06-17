@@ -14,6 +14,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer;
 /// The services created by the <see cref="ILspServiceFactory"/> are disposed of by <see cref="LspServices"/>
 /// when the LSP server instance shuts down.
 /// </summary>
+[Obsolete("Use ExportLspServiceAttribute + [Shared(ProtocolConstants.LspServerInstanceSharingBoundary)] to export the service directly instead of via an ILspServiceFactory.")]
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false), MetadataAttribute]
 internal class ExportLspServiceFactoryAttribute(
     Type serviceType, string contractName, WellKnownLspServerKinds serverKind = WellKnownLspServerKinds.Any)

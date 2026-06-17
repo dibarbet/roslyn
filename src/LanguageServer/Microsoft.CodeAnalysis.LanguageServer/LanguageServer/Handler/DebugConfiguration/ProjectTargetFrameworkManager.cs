@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Concurrent;
 using System.Composition;
 using Microsoft.CodeAnalysis.Host.Mef;
@@ -9,20 +10,18 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(ProjectTargetFrameworkManager)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class ProjectTargetFrameworkManagerFactory() : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new ProjectTargetFrameworkManager();
-}
-
 /// <summary>
 /// Keeps track of which project uses what TFM.
 /// </summary>
-internal sealed class ProjectTargetFrameworkManager() : ILspService
+[ExportCSharpVisualBasicLspService(typeof(ProjectTargetFrameworkManager)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+internal sealed class ProjectTargetFrameworkManager : ILspService
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public ProjectTargetFrameworkManager()
+    {
+    }
+
     private readonly ConcurrentDictionary<ProjectId, string?> _projectToTargetFrameworkIdentifer = new();
     public void UpdateIdentifierForProject(ProjectId projectId, string? identifier)
     {

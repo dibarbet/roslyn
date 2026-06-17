@@ -11,6 +11,7 @@ namespace Microsoft.CodeAnalysis.ExternalAccess.Xaml;
 /// <summary>
 /// Defines an easy to use subclass for <see cref="ExportLspServiceFactoryAttribute"/> with the Roslyn languages contract name.
 /// </summary>
+[Obsolete("Use " + nameof(ExportXamlLspServiceAttribute) + " instead, which exports the handler directly rather than via an ILspServiceFactory.")]
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false), MetadataAttribute]
 internal sealed class ExportXamlLspServiceFactoryAttribute : ExportLspServiceFactoryAttribute
 {

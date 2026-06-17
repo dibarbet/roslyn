@@ -2,19 +2,29 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis.ExternalAccess.Razor.Api;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Roslyn.LanguageServer.Protocol;
 using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SpellCheck;
 
+[ExportCSharpVisualBasicLspService(typeof(WorkspaceSpellCheckHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(VSInternalMethods.WorkspaceSpellCheckableRangesName)]
 internal sealed class WorkspaceSpellCheckHandler : AbstractSpellCheckHandler<VSInternalWorkspaceSpellCheckableParams, VSInternalWorkspaceSpellCheckableReport>
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public WorkspaceSpellCheckHandler()
+    {
+    }
+
     protected override VSInternalWorkspaceSpellCheckableReport CreateReport(TextDocumentIdentifier identifier, int[]? ranges, string? resultId)
         => new()
         {

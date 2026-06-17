@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Composition;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis.ErrorReporting;
@@ -15,27 +16,27 @@ using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 
-[ExportCSharpVisualBasicLspServiceFactory(typeof(AutoLoadProjectsInitializer)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class AutoLoadProjectsInitializerFactory(
-    ServerConfiguration serverConfiguration,
-    IGlobalOptionService globalOptionService) : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new AutoLoadProjectsInitializer(
-            lspServices.GetRequiredService<LanguageServerProjectSystem>(),
-            lspServices.GetRequiredService<ILoggerFactory>(),
-            serverConfiguration,
-            globalOptionService);
-}
-
+[ExportCSharpVisualBasicLspService(typeof(AutoLoadProjectsInitializer)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class AutoLoadProjectsInitializer(
     LanguageServerProjectSystem projectSystem,
     ILoggerFactory loggerFactory,
     ServerConfiguration serverConfiguration,
     IGlobalOptionService globalOptionService) : ILspService, IOnInitialized
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public AutoLoadProjectsInitializer(
+        ServerConfiguration serverConfiguration,
+        IGlobalOptionService globalOptionService,
+        LspServices lspServices)
+        : this(
+            lspServices.GetRequiredService<LanguageServerProjectSystem>(),
+            lspServices.GetRequiredService<ILoggerFactory>(),
+            serverConfiguration,
+            globalOptionService)
+    {
+    }
+
     private static readonly EnumerationOptions s_recursiveEnumerationOptions = new() { RecurseSubdirectories = true, IgnoreInaccessible = true };
     private readonly ILogger _logger = loggerFactory.CreateLogger<AutoLoadProjectsInitializer>();
 

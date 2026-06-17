@@ -1,9 +1,13 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
+using System.Composition;
+using Microsoft.CodeAnalysis.LanguageServer.Handler;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.ProjectSystem;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Microsoft.CommonLanguageServerProtocol.Framework;
@@ -20,12 +24,25 @@ namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.FileWatching;
 /// LSP clients don't always support file watching; this allows us to be flexible and use it when we can, but fall back
 /// to something else if we can't.
 /// </remarks>
+[ExportCSharpVisualBasicLspService(typeof(DelegatingFileChangeWatcher)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class DelegatingFileChangeWatcher(
     ILspServices lspServices,
     ILoggerFactory loggerFactory,
     IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
     : IFileChangeWatcher, ILspService
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public DelegatingFileChangeWatcher(
+        IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
+        LspServices lspServices)
+        : this(
+            lspServices,
+            lspServices.GetRequiredService<ILoggerFactory>(),
+            asynchronousOperationListenerProvider)
+    {
+    }
+
     /// <summary>
     /// Share a single default file change watcher across all server instances to ensure they respect the platform limits and consolidate.
     /// As servers are created and disposed, they will add / remove files/directories from this shared watcher.

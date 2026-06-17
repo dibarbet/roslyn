@@ -2,21 +2,40 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Composition;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
 using LSP = Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.SemanticTokens;
 
+[ExportCSharpVisualBasicLspService(typeof(SemanticTokensRangeHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [Method(Methods.TextDocumentSemanticTokensRangeName)]
-internal sealed class SemanticTokensRangeHandler(
-    IGlobalOptionService globalOptions,
-    SemanticTokensRefreshQueue semanticTokensRefreshQueue) : ILspServiceDocumentRequestHandler<SemanticTokensRangeParams, LSP.SemanticTokens>
+internal sealed class SemanticTokensRangeHandler : ILspServiceDocumentRequestHandler<SemanticTokensRangeParams, LSP.SemanticTokens>
 {
-    private readonly IGlobalOptionService _globalOptions = globalOptions;
-    private readonly SemanticTokensRefreshQueue _semanticTokenRefreshQueue = semanticTokensRefreshQueue;
+    private readonly IGlobalOptionService _globalOptions;
+    private readonly SemanticTokensRefreshQueue _semanticTokenRefreshQueue;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public SemanticTokensRangeHandler(
+        IGlobalOptionService globalOptions,
+        LspServices lspServices)
+        : this(globalOptions, lspServices.GetRequiredService<SemanticTokensRefreshQueue>())
+    {
+    }
+
+    public SemanticTokensRangeHandler(
+        IGlobalOptionService globalOptions,
+        SemanticTokensRefreshQueue semanticTokensRefreshQueue)
+    {
+        _globalOptions = globalOptions;
+        _semanticTokenRefreshQueue = semanticTokensRefreshQueue;
+    }
 
     public bool MutatesSolutionState => false;
     public bool RequiresLSPSolution => true;

@@ -16,12 +16,12 @@ namespace Microsoft.CodeAnalysis.LanguageServer;
 [Export(typeof(CSharpVisualBasicLanguageServerFactory)), Shared]
 internal sealed class CSharpVisualBasicLanguageServerFactory
 {
-    private readonly AbstractLspServiceProvider _lspServiceProvider;
+    private readonly LspServiceProvider _lspServiceProvider;
 
     [ImportingConstructor]
     [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
     public CSharpVisualBasicLanguageServerFactory(
-        CSharpVisualBasicLspServiceProvider lspServiceProvider)
+        LspServiceProvider lspServiceProvider)
     {
         _lspServiceProvider = lspServiceProvider;
     }

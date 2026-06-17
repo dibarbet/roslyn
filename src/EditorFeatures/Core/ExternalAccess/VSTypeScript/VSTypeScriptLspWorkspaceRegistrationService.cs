@@ -9,8 +9,11 @@ using Microsoft.CodeAnalysis.LanguageServer;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.VSTypeScript;
 
-[ExportLspServiceFactory(typeof(LspWorkspaceRegistrationService), ProtocolConstants.TypeScriptLanguageContract), Shared]
+/// <summary>
+/// The TypeScript-contract per-server export of <see cref="LspWorkspaceRegistrationService"/>.
+/// </summary>
+[ExportLspService(typeof(LspWorkspaceRegistrationService), ProtocolConstants.TypeScriptLanguageContract), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class VSTypeScriptLspWorkspaceRegistrationServiceFactory(LspWorkspaceRegistrationEventListener eventListener)
-    : LspWorkspaceRegistrationServiceFactory(eventListener);
+internal sealed class VSTypeScriptLspWorkspaceRegistrationService(LspWorkspaceRegistrationEventListener eventListener)
+    : LspWorkspaceRegistrationService(eventListener);

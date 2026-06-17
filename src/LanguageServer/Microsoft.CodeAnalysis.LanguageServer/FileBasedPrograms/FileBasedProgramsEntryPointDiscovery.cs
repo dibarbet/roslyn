@@ -1,7 +1,8 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Buffers;
 using System.Collections.Immutable;
 using System.Composition;
@@ -27,21 +28,24 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms;
 
-[Shared]
-[ExportLspServiceFactory(typeof(FileBasedProgramsEntryPointDiscovery), ProtocolConstants.RoslynLspLanguagesContract)]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class FileBasedProgramsEntryPointDiscoveryFactory(IGlobalOptionService globalOptionService, IAsynchronousOperationListenerProvider listenerProvider) : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-    {
-        return new FileBasedProgramsEntryPointDiscovery(globalOptionService, listenerProvider.GetListener(FeatureAttribute.Workspace), lspServices.GetRequiredService<ILoggerFactory>(), lspServices);
-    }
-}
-
+[ExportLspService(typeof(FileBasedProgramsEntryPointDiscovery), ProtocolConstants.RoslynLspLanguagesContract), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed partial class FileBasedProgramsEntryPointDiscovery(
     IGlobalOptionService globalOptionService, IAsynchronousOperationListener listener, ILoggerFactory loggerFactory, LspServices lspServices) : ILspService, IOnInitialized
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public FileBasedProgramsEntryPointDiscovery(
+        IGlobalOptionService globalOptionService,
+        IAsynchronousOperationListenerProvider listenerProvider,
+        LspServices lspServices)
+        : this(
+            globalOptionService,
+            listenerProvider.GetListener(FeatureAttribute.Workspace),
+            lspServices.GetRequiredService<ILoggerFactory>(),
+            lspServices)
+    {
+    }
+
     private static readonly StringComparer s_pathComparer = StringComparer.OrdinalIgnoreCase;
 
     /// <summary>Directories which are ignored per convention.</summary>

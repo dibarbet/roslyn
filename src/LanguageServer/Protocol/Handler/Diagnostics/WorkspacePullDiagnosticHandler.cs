@@ -2,10 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
+using System.Composition;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.DiagnosticSources;
 using Microsoft.CodeAnalysis.Options;
 using Roslyn.LanguageServer.Protocol;
@@ -14,7 +17,7 @@ using Roslyn.Utilities;
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics;
 
 [Method(VSInternalMethods.WorkspacePullDiagnosticName)]
-internal sealed partial class WorkspacePullDiagnosticHandler(
+internal partial class WorkspacePullDiagnosticHandler(
     LspWorkspaceManager workspaceManager,
     LspWorkspaceRegistrationService registrationService,
     IDiagnosticSourceManager diagnosticSourceManager,
@@ -64,3 +67,21 @@ internal sealed partial class WorkspacePullDiagnosticHandler(
 
     internal override TestAccessor GetTestAccessor() => new(this);
 }
+
+/// <summary>
+/// The Roslyn-contract per-server export of <see cref="WorkspacePullDiagnosticHandler"/>.
+/// </summary>
+[ExportCSharpVisualBasicLspService(typeof(WorkspacePullDiagnosticHandler)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+[method: ImportingConstructor]
+[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+internal sealed class RoslynWorkspacePullDiagnosticHandler(
+    IDiagnosticSourceManager diagnosticSourceManager,
+    IDiagnosticsRefresher diagnosticsRefresher,
+    IGlobalOptionService globalOptions,
+    LspServices lspServices)
+    : WorkspacePullDiagnosticHandler(
+        lspServices.GetRequiredService<LspWorkspaceManager>(),
+        lspServices.GetRequiredService<LspWorkspaceRegistrationService>(),
+        diagnosticSourceManager,
+        diagnosticsRefresher,
+        globalOptions);

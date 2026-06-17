@@ -1,9 +1,54 @@
 # Replacing `ILspServiceFactory` with `ExportFactory<T>` + a MEF sharing boundary
 
-> **Status:** design proposal / feasibility analysis.
+> **Status:** implemented (mechanism + bulk migration). See [Implementation status](#implementation-status).
 > **Question:** Can we remove the `ILspServiceFactory` concept and replace it with "normal-ish" MEF
 > exports, using (1) `ExportFactory<T>` for per-LSP-server instances and (2) a MEF sharing boundary
 > (scope) so per-server services share one set of instances?
+
+## Implementation status
+
+The sharing-boundary mechanism is implemented and validated end-to-end in the real Roslyn/VS-MEF
+composition (standalone server and VS in-proc clients, both contracts):
+
+- **Scope root.** `LspServices` is now `[Export, Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]`.
+  It `[ImportMany]`s both the Roslyn and TypeScript service lists and selects the right one at runtime
+  from the server kind seeded by `Initialize(serverKind, baseServices, scopeLifetime)`. A **single**
+  boundary is used for all contracts (per-`CreateExport()` isolation, not the boundary name, provides
+  per-server isolation), which lets every service import the one `LspServices` type without MEF
+  cardinality errors.
+- **Scope factory.** `LspServiceProvider` (global `[Shared]`) imports
+  `[SharingBoundary(...)] ExportFactory<LspServices>` and opens one scope per server in `CreateServices`,
+  seeding context via `Initialize` and disposing the scope on server shutdown (re-entrancy-guarded).
+- **Deleted plumbing.** `AbstractLspServiceProvider`, `CSharpVisualBasicLspServiceProvider`, and
+  `VSTypeScriptLspServiceProvider` are removed; `RoslynLanguageServer`, `CSharpVisualBasicLanguageServerFactory`,
+  and `AbstractInProcLanguageClient` (+ subclasses) take `LspServiceProvider`.
+- **Migrated services.** ~40 single-contract factory classes were deleted; their services are exported
+  directly via the new `ExportLspServiceAttribute` / `ExportCSharpVisualBasicLspServiceAttribute` plus
+  `[Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]`, importing `LspServices` when they need
+  per-server siblings. (Roslyn core, MS.CodeAnalysis.LanguageServer host, VisualDiagnostics, DevKit.)
+- **`ILspServiceFactory` is now `[Obsolete]`** (along with `ExportLspServiceFactoryAttribute`,
+  `ExportCSharpVisualBasicLspServiceFactoryAttribute`, and the external-access factory bases below). It is
+  still imported and invoked by `LspServices` so existing external-access partners keep working while they
+  migrate; `LspServices` and the test helpers that exercise this path suppress the resulting `CS0618`.
+- **External-access non-factory replacements were added** so partners can move off `ILspServiceFactory`:
+  - **CompilerDeveloperSdk:** new `ExportCompilerDeveloperSdkLspServiceAttribute`; `CompilerDeveloperSdkLspServices`
+    became an importable `[Shared(boundary)]` MEF part. `AbstractCompilerDeveloperSdkLspServiceFactory` /
+    `ExportCompilerDeveloperSdkLspServiceFactoryAttribute` are `[Obsolete]`.
+  - **XAML:** new `ExportXamlLspServiceAttribute`; a handler exported with it reads resolve-data via
+    `XamlRequestContext` (no injected `IResolveCachedDataService` needed). `XamlRequestHandlerFactoryBase<,>` /
+    `ExportXamlLspServiceFactoryAttribute` are `[Obsolete]`. The in-repo `OnInitializedServiceFactory` was
+    migrated to a direct `OnInitializedService` export.
+  - `InternalAPI.Unshipped.txt` updated for both external-access assemblies.
+- **Cross-contract services migrated.** The five services shared between the Roslyn and TypeScript
+  contracts (`LspWorkspaceManager`, `LspWorkspaceRegistrationService`, `RequestTelemetryLogger`,
+  `DocumentPullDiagnosticHandler`, `WorkspacePullDiagnosticHandler`) are now exported per contract via thin
+  subclasses (`Roslyn*` in Protocol, `VSTypeScript*` in EditorFeatures) — a single class can't carry two
+  `ExportLspServiceAttribute`s (`AllowMultiple = false`). `LspServices.ServerKind` was added so
+  `RequestTelemetryLogger` can read the server kind. The three Razor cohosting factories are likewise
+  migrated to direct `[ExportCSharpVisualBasicLspService, Shared(boundary)]` exports.
+
+This matches the recommendation's framing ("replace ~45 bespoke factories with one scope mechanism")
+and the S4 note that external-access compatibility is a per-consumer decision.
 
 ## Summary
 

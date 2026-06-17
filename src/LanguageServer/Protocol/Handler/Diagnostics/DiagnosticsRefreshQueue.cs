@@ -11,27 +11,27 @@ using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics;
 
+[ExportCSharpVisualBasicLspService(typeof(DiagnosticsRefreshQueue)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class DiagnosticsRefreshQueue : AbstractRefreshQueue
 {
-    [ExportCSharpVisualBasicLspServiceFactory(typeof(DiagnosticsRefreshQueue)), Shared]
-    [method: ImportingConstructor]
-    [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    internal sealed class Factory(
+    private readonly IDiagnosticsRefresher _refresher;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public DiagnosticsRefreshQueue(
         IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
         IDiagnosticsRefresher refresher,
-        FeatureProviderRefresher providerRefresher) : ILspServiceFactory
+        FeatureProviderRefresher providerRefresher,
+        LspServices lspServices)
+        : this(
+            asynchronousOperationListenerProvider,
+            lspServices.GetRequiredService<LspWorkspaceRegistrationService>(),
+            lspServices.GetRequiredService<LspWorkspaceManager>(),
+            lspServices.GetRequiredService<IClientLanguageServerManager>(),
+            providerRefresher,
+            refresher)
     {
-        public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        {
-            var notificationManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
-            var lspWorkspaceManager = lspServices.GetRequiredService<LspWorkspaceManager>();
-            var lspWorkspaceRegistrationService = lspServices.GetRequiredService<LspWorkspaceRegistrationService>();
-
-            return new DiagnosticsRefreshQueue(asynchronousOperationListenerProvider, lspWorkspaceRegistrationService, lspWorkspaceManager, notificationManager, providerRefresher, refresher);
-        }
     }
-
-    private readonly IDiagnosticsRefresher _refresher;
 
     private DiagnosticsRefreshQueue(
         IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,

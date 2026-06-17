@@ -2,6 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Composition;
+using Microsoft.CodeAnalysis.LanguageServer.Handler;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.ErrorReporting;
@@ -24,6 +28,7 @@ using Roslyn.Utilities;
 namespace Microsoft.CodeAnalysis.LanguageServer.FileBasedPrograms;
 
 /// <summary>Handles loading both miscellaneous files and file-based program projects.</summary>
+[ExportCSharpVisualBasicLspService(typeof(ILspMiscellaneousFilesWorkspaceProvider), WellKnownLspServerKinds.CSharpVisualBasicLspServer), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoader, ILspMiscellaneousFilesWorkspaceProvider
 {
     private readonly ILspServices _lspServices;
@@ -31,6 +36,26 @@ internal sealed class FileBasedProgramsProjectSystem : LanguageServerProjectLoad
     private readonly VirtualProjectXmlProvider _projectXmlProvider;
     private readonly CanonicalMiscellaneousFilesProjectProvider _canonicalProjectProvider;
     private readonly DotnetCliHelper _dotnetCliHelper;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public FileBasedProgramsProjectSystem(
+        VirtualProjectXmlProvider projectXmlProvider,
+        IGlobalOptionService globalOptionService,
+        IAsynchronousOperationListenerProvider listenerProvider,
+        ServerConfigurationFactory serverConfigurationFactory,
+        LspServices lspServices)
+        : this(
+            lspServices,
+            projectXmlProvider,
+            globalOptionService,
+            lspServices.GetRequiredService<ILoggerFactory>(),
+            listenerProvider,
+            serverConfigurationFactory,
+            lspServices.GetRequiredService<IBinLogPathProvider>(),
+            lspServices.GetRequiredService<DotnetCliHelper>())
+    {
+    }
 
     public FileBasedProgramsProjectSystem(
         ILspServices lspServices,

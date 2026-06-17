@@ -4,17 +4,21 @@
 
 using System;
 using System.Collections.Immutable;
+using System.Composition;
+using Microsoft.CodeAnalysis.Host.Mef;
+using Microsoft.CodeAnalysis.LanguageServer.Handler;
 using Microsoft.CommonLanguageServerProtocol.Framework;
 
 namespace Microsoft.CodeAnalysis.LanguageServer;
 
 /// <summary>
 /// Per-LSP-server view of the workspaces registered with the process-wide
-/// <see cref="LspWorkspaceRegistrationEventListener"/>. Created via
-/// <see cref="LspWorkspaceRegistrationServiceFactory"/> so each LSP server
-/// gets its own instance with its own subscriptions and lifetime.
+/// <see cref="LspWorkspaceRegistrationEventListener"/>. Exported per server (via the
+/// <see cref="ProtocolConstants.LspServerInstanceSharingBoundary"/> sharing boundary) by the
+/// per-contract subclasses below so each LSP server gets its own instance with its own subscriptions
+/// and lifetime.
 /// </summary>
-internal sealed class LspWorkspaceRegistrationService : ILspService, IDisposable
+internal class LspWorkspaceRegistrationService : ILspService, IDisposable
 {
     private readonly LspWorkspaceRegistrationEventListener _eventListener;
     private readonly object _gate = new();
@@ -110,4 +114,18 @@ internal sealed class LspWorkspaceRegistrationService : ILspService, IDisposable
     /// Indicates whether the LSP solution has changed in a non-tracked document context. May be raised on any thread.
     /// </summary>
     public EventHandler<WorkspaceChangeEventArgs>? LspSolutionChanged;
+}
+
+/// <summary>
+/// The Roslyn-contract per-server export of <see cref="LspWorkspaceRegistrationService"/>.
+/// </summary>
+[ExportCSharpVisualBasicLspService(typeof(LspWorkspaceRegistrationService)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
+internal sealed class RoslynLspWorkspaceRegistrationService : LspWorkspaceRegistrationService
+{
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public RoslynLspWorkspaceRegistrationService(LspWorkspaceRegistrationEventListener eventListener)
+        : base(eventListener)
+    {
+    }
 }

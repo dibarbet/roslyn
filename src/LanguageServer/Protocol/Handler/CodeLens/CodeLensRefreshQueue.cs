@@ -2,15 +2,36 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Composition;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
 using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Handler.CodeLens;
 
+[ExportCSharpVisualBasicLspService(typeof(CodeLensRefreshQueue)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class CodeLensRefreshQueue : AbstractRefreshQueue
 {
     private readonly IGlobalOptionService _globalOptionService;
+
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public CodeLensRefreshQueue(
+        IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,
+        IGlobalOptionService globalOptionService,
+        FeatureProviderRefresher providerRefresher,
+        LspServices lspServices)
+        : this(
+            asynchronousOperationListenerProvider,
+            lspServices.GetRequiredService<LspWorkspaceRegistrationService>(),
+            lspServices.GetRequiredService<LspWorkspaceManager>(),
+            lspServices.GetRequiredService<IClientLanguageServerManager>(),
+            providerRefresher,
+            globalOptionService)
+    {
+    }
 
     public CodeLensRefreshQueue(
         IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider,

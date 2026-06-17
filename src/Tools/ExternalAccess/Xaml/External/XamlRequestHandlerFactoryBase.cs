@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.LanguageServer.Handler;
 
 namespace Microsoft.CodeAnalysis.ExternalAccess.Xaml;
 
+[Obsolete("Use ExportXamlLspServiceAttribute to export the XamlRequestHandlerBase directly (use XamlRequestContext for resolve-data), instead of an ILspServiceFactory.")]
 internal abstract class XamlRequestHandlerFactoryBase<TRequest, TResponse> : ILspServiceFactory
 {
     private readonly IXamlRequestHandler<TRequest, TResponse>? _xamlRequestHandler;

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
 using System.Composition;
 using Microsoft.CodeAnalysis.BrokeredServices;
@@ -21,19 +22,18 @@ namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 /// Also creates the <see cref="ProjectInitializationHandler"/> with the actual service broker instance
 /// so it can subscribe to the remote project initialization status service.
 /// </summary>
-[ExportCSharpVisualBasicLspServiceFactory(typeof(DevKitProjectLoadingServiceContributor)), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class DevKitProjectLoadingServiceContributorFactory() : ILspServiceFactory
-{
-    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-        => new DevKitProjectLoadingServiceContributor(lspServices, lspServices.GetRequiredService<ILoggerFactory>());
-}
-
+[ExportCSharpVisualBasicLspService(typeof(DevKitProjectLoadingServiceContributor)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class DevKitProjectLoadingServiceContributor(
     LspServices lspServices,
     ILoggerFactory loggerFactory) : IServiceBrokerInitializer, ILspService
 {
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public DevKitProjectLoadingServiceContributor(LspServices lspServices)
+        : this(lspServices, lspServices.GetRequiredService<ILoggerFactory>())
+    {
+    }
+
     public ImmutableDictionary<ServiceMoniker, ServiceRegistration> ServicesToRegister => new Dictionary<ServiceMoniker, ServiceRegistration>
     {
         { WorkspaceProjectFactoryServiceDescriptor.ServiceDescriptor.Moniker, new ServiceRegistration(ServiceAudience.Local, null, allowGuestClients: false) }

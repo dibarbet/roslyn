@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Immutable;
 using System.Composition;
 using Microsoft.CodeAnalysis.BrokeredServices;
@@ -16,15 +17,17 @@ using ExportProvider = Microsoft.VisualStudio.Composition.ExportProvider;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.BrokeredServices;
 
+[ExportCSharpVisualBasicLspService(typeof(ServiceBrokerFactory)), Shared(ProtocolConstants.LspServerInstanceSharingBoundary)]
 internal sealed class ServiceBrokerFactory : ILspService
 {
-    [ExportCSharpVisualBasicLspServiceFactory(typeof(ServiceBrokerFactory)), Shared]
-    [method: ImportingConstructor]
-    [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    private class ServiceBrokerFactoryFactory(ExportProvider exportProvider) : ILspServiceFactory
+    [ImportingConstructor]
+    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+    public ServiceBrokerFactory(ExportProvider exportProvider, LspServices lspServices)
+        : this(
+            lspServices.GetRequiredServices<IServiceBrokerInitializer>(),
+            exportProvider,
+            lspServices.GetRequiredService<ILoggerFactory>())
     {
-        public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
-            => new ServiceBrokerFactory(lspServices.GetRequiredServices<IServiceBrokerInitializer>(), exportProvider, lspServices.GetRequiredService<ILoggerFactory>());
     }
 
     private readonly ExportProvider _exportProvider;

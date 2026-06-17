@@ -10,6 +10,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler;
 /// <summary>
 /// Defines an easy to use subclass for <see cref="ExportLspServiceFactoryAttribute"/> with the roslyn languages contract name.
 /// </summary>
+[Obsolete("Use ExportCSharpVisualBasicLspServiceAttribute + [Shared(ProtocolConstants.LspServerInstanceSharingBoundary)] to export the service directly instead of via an ILspServiceFactory.")]
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false), MetadataAttribute]
 internal class ExportCSharpVisualBasicLspServiceFactoryAttribute(Type type, WellKnownLspServerKinds serverKind = WellKnownLspServerKinds.Any)
     : ExportLspServiceFactoryAttribute(type, ProtocolConstants.RoslynLspLanguagesContract, serverKind);
