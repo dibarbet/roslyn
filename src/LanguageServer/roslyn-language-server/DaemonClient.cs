@@ -40,6 +40,17 @@ internal static class DaemonClient
     public static Task<DaemonConnectResult> ConnectAsync(
         ServerExecutable executable,
         IReadOnlyList<string> serverArguments)
+        => ConnectAsync(executable, serverArguments, useCliPipe: false);
+
+    public static Task<DaemonConnectResult> ConnectCliAsync(
+        ServerExecutable executable,
+        IReadOnlyList<string> serverArguments)
+        => ConnectAsync(executable, serverArguments, useCliPipe: true);
+
+    private static Task<DaemonConnectResult> ConnectAsync(
+        ServerExecutable executable,
+        IReadOnlyList<string> serverArguments,
+        bool useCliPipe)
     {
         var pipeName = GetDaemonPipeName(executable);
 
@@ -58,7 +69,8 @@ internal static class DaemonClient
                 launchedDaemon = true;
             }
 
-            var pipeClient = NamedPipeUtil.CreateClient(serverName: ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            var connectionPipeName = useCliPipe ? DaemonPipeName.GetCliPipeName(pipeName) : pipeName;
+            var pipeClient = NamedPipeUtil.CreateClient(serverName: ".", connectionPipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             try
             {
                 var connectTimeout = launchedDaemon ? s_newDaemonConnectTimeout : s_existingDaemonConnectTimeout;

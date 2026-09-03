@@ -11,6 +11,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.LanguageServer;
 using Microsoft.CodeAnalysis.LanguageServer.Logging;
+using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.LanguageServer.Services;
 using Microsoft.CodeAnalysis.LanguageServer.Telemetry;
 using Microsoft.Extensions.Logging;
@@ -192,7 +193,19 @@ static async Task<int> RunAsync(ServerConfiguration serverConfiguration, Cancell
 
     using (connectionSource as IDisposable)
     {
-        await connectionManager.RunAsync(connectionSource, exportProvider, typeRefResolver, logger, cancellationToken);
+        if (connectionSource is NamedPipeDaemonConnectionSource daemonSource)
+        {
+            await using var cliSessionManager = new CliSessionManager(
+                daemonSource, connectionManager, exportProvider, typeRefResolver, logger);
+            var cliListenerTask = daemonSource.RunCliConnectionsAsync(cliSessionManager.HandleConnectionAsync, cancellationToken);
+
+            await connectionManager.RunAsync(connectionSource, exportProvider, typeRefResolver, logger, cancellationToken);
+            await cliListenerTask;
+        }
+        else
+        {
+            await connectionManager.RunAsync(connectionSource, exportProvider, typeRefResolver, logger, cancellationToken);
+        }
     }
 
     return ServerExitCodes.Success;

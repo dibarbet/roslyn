@@ -10,6 +10,11 @@ internal static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        if (RlsCommand.IsRequested(args))
+        {
+            return await RlsCommand.RunAsync(args);
+        }
+
         // When a client needs a shared daemon it launches a second copy of this thin client as a short-lived bootstrap
         // (see DaemonClient.LaunchDaemon / DaemonBootstrap). In that mode we just launch the real daemon detached and
         // exit - we are not an editor's client, so skip normal client argument parsing and process monitoring.

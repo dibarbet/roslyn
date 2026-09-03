@@ -89,4 +89,10 @@ internal static class DaemonPipeName
     /// </summary>
     public static string GetClientMutexName(string pipeName)
         => $"{GlobalMutexPrefix}{pipeName}.client";
+
+    /// <summary>
+    /// Name of the sibling pipe used by short-lived CLI clients.
+    /// </summary>
+    public static string GetCliPipeName(string pipeName)
+        => $"{pipeName}.cli";
 }
