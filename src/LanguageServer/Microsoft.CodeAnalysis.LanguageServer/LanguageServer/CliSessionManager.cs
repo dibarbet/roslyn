@@ -10,7 +10,6 @@ using Microsoft.CodeAnalysis.LanguageServer.Daemon;
 using Microsoft.CodeAnalysis.LanguageServer.HostWorkspace;
 using Microsoft.CommonLanguageServerProtocol.Framework;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.Composition;
 using Nerdbank.Streams;
 using StreamJsonRpc;
 using LSP = Roslyn.LanguageServer.Protocol;
@@ -32,10 +31,8 @@ internal sealed class CliSessionManager : IAsyncDisposable
 
     private readonly object _gate = new();
     private readonly Dictionary<string, SessionEntry> _sessions;
-    private readonly NamedPipeDaemonConnectionSource _connectionSource;
-    private readonly LanguageServerConnectionManager _connectionManager;
-    private readonly ExportProvider _exportProvider;
-    private readonly AbstractTypeRefResolver _typeRefResolver;
+    private readonly NamedPipeDaemonConnectionSource _daemonConnectionSource;
+    private readonly InProcessLanguageServerConnectionSource _inProcessConnectionSource;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _lifetimeSource = new();
     private readonly Task _evictionTask;
@@ -43,16 +40,12 @@ internal sealed class CliSessionManager : IAsyncDisposable
     private bool _disposed;
 
     public CliSessionManager(
-        NamedPipeDaemonConnectionSource connectionSource,
-        LanguageServerConnectionManager connectionManager,
-        ExportProvider exportProvider,
-        AbstractTypeRefResolver typeRefResolver,
+        NamedPipeDaemonConnectionSource daemonConnectionSource,
+        InProcessLanguageServerConnectionSource inProcessConnectionSource,
         ILogger logger)
     {
-        _connectionSource = connectionSource;
-        _connectionManager = connectionManager;
-        _exportProvider = exportProvider;
-        _typeRefResolver = typeRefResolver;
+        _daemonConnectionSource = daemonConnectionSource;
+        _inProcessConnectionSource = inProcessConnectionSource;
         _logger = logger;
         _sessions = new Dictionary<string, SessionEntry>(
             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -194,11 +187,8 @@ internal sealed class CliSessionManager : IAsyncDisposable
                         () => CliSession.CreateAsync(
                             sessionRoot,
                             progressHub,
-                            _connectionSource,
-                            _connectionManager,
-                            _exportProvider,
-                            _typeRefResolver,
-                            _logger,
+                            _daemonConnectionSource,
+                            _inProcessConnectionSource,
                             _lifetimeSource.Token),
                         LazyThreadSafetyMode.ExecutionAndPublication));
                 _sessions.Add(sessionRoot, entry);
@@ -486,19 +476,17 @@ internal sealed class CliSessionManager : IAsyncDisposable
 
         private readonly string _sessionRoot;
         private readonly JsonRpc _clientRpc;
-        private readonly LanguageServerConnection _connection;
+        private readonly Task _connectionCompletion;
         private readonly CliSessionLog _sessionLog;
         private readonly VirtualClientTarget _virtualClientTarget;
 
-        private LanguageServerHost? _server;
-        private Task? _serverExitTask;
         private int _disposed;
 
         private CliSession(
             string sessionRoot,
             ProgressHub progressHub,
-            NamedPipeDaemonConnectionSource connectionSource,
-            ILogger logger)
+            NamedPipeDaemonConnectionSource daemonConnectionSource,
+            InProcessLanguageServerConnectionSource inProcessConnectionSource)
         {
             _sessionRoot = sessionRoot;
             _sessionLog = new CliSessionLog(sessionRoot);
@@ -516,7 +504,9 @@ internal sealed class CliSessionManager : IAsyncDisposable
 
             try
             {
-                _connection = connectionSource.CreateInProcessConnection(serverStream, serverStream, serverStream);
+                var connectionResource = daemonConnectionSource.CreateConnectionResource(serverStream);
+                _connectionCompletion = inProcessConnectionSource.EnqueueConnection(
+                    serverStream, serverStream, connectionResource);
             }
             catch
             {
@@ -529,11 +519,8 @@ internal sealed class CliSessionManager : IAsyncDisposable
         public static async Task<CliSession> CreateAsync(
             string sessionRoot,
             ProgressHub progressHub,
-            NamedPipeDaemonConnectionSource connectionSource,
-            LanguageServerConnectionManager connectionManager,
-            ExportProvider exportProvider,
-            AbstractTypeRefResolver typeRefResolver,
-            ILogger logger,
+            NamedPipeDaemonConnectionSource daemonConnectionSource,
+            InProcessLanguageServerConnectionSource inProcessConnectionSource,
             CancellationToken cancellationToken)
         {
             CliSession? session = null;
@@ -543,16 +530,8 @@ internal sealed class CliSessionManager : IAsyncDisposable
                 session = new CliSession(
                     sessionRoot,
                     progressHub,
-                    connectionSource,
-                    logger);
-                session._server = await connectionManager.StartConnectionAsync(
-                    session._connection,
-                    exportProvider,
-                    typeRefResolver,
-                    logger,
-                    isolateFaults: true,
-                    cancellationToken).ConfigureAwait(false);
-                session._serverExitTask = session._server.WaitForExitAsync();
+                    daemonConnectionSource,
+                    inProcessConnectionSource);
                 progressHub.ReportPhase("initializing");
                 await session.InitializeAsync(cancellationToken).ConfigureAwait(false);
                 progressHub.ReportPhase("ready");
@@ -617,7 +596,7 @@ internal sealed class CliSessionManager : IAsyncDisposable
         }
 
         public bool IsAlive
-            => !_clientRpc.Completion.IsCompleted && _serverExitTask is { IsCompleted: false };
+            => !_clientRpc.Completion.IsCompleted && !_connectionCompletion.IsCompleted;
 
         public async ValueTask DisposeAsync()
         {
@@ -627,9 +606,7 @@ internal sealed class CliSessionManager : IAsyncDisposable
             try
             {
                 _clientRpc.Dispose();
-
-                if (_serverExitTask is not null)
-                    await _serverExitTask.ConfigureAwait(false);
+                await _connectionCompletion.ConfigureAwait(false);
             }
             finally
             {

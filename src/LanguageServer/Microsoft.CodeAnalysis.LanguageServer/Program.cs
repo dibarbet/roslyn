@@ -140,11 +140,13 @@ static async Task<int> RunAsync(ServerConfiguration serverConfiguration, Cancell
     // exactly one connection; daemon mode accepts many and manages its own idle timeout. Both run through the same
     // connection manager loop.
     ILanguageServerConnectionSource connectionSource;
+    NamedPipeDaemonConnectionSource? daemonSource = null;
+    InProcessLanguageServerConnectionSource? inProcessConnectionSource = null;
 
     if (serverConfiguration.IsDaemon)
     {
         if (!NamedPipeDaemonConnectionSource.TryCreate(
-                serverConfiguration.ServerPipeName!, serverConfiguration.DaemonKeepAlive, logger, out var daemonSource))
+                serverConfiguration.ServerPipeName!, serverConfiguration.DaemonKeepAlive, logger, out daemonSource))
         {
             // Another daemon already owns this pipe. With the thin client holding its startup mutex through
             // the connect, this generally only happens when a '--daemon' process is started outside that
@@ -154,7 +156,8 @@ static async Task<int> RunAsync(ServerConfiguration serverConfiguration, Cancell
             return ServerExitCodes.DaemonAlreadyRunning;
         }
 
-        connectionSource = daemonSource;
+        inProcessConnectionSource = new InProcessLanguageServerConnectionSource();
+        connectionSource = new AggregateLanguageServerConnectionSource(daemonSource, inProcessConnectionSource);
     }
     else if (serverConfiguration.UseStdIo)
     {
@@ -193,10 +196,11 @@ static async Task<int> RunAsync(ServerConfiguration serverConfiguration, Cancell
 
     using (connectionSource as IDisposable)
     {
-        if (connectionSource is NamedPipeDaemonConnectionSource daemonSource)
+        if (daemonSource is not null)
         {
+            Debug.Assert(inProcessConnectionSource is not null);
             await using var cliSessionManager = new CliSessionManager(
-                daemonSource, connectionManager, exportProvider, typeRefResolver, logger);
+                daemonSource, inProcessConnectionSource, logger);
             var cliListenerTask = daemonSource.RunCliConnectionsAsync(cliSessionManager.HandleConnectionAsync, cancellationToken);
 
             await connectionManager.RunAsync(connectionSource, exportProvider, typeRefResolver, logger, cancellationToken);

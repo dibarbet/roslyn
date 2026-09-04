@@ -29,7 +29,7 @@ var csharpService = workspace.Services.GetLanguageServices(LanguageNames.CSharp)
 ### Language Server Daemon and CLI
 
 - `src/LanguageServer/DaemonConnection/` contains dependency-light protocol and pipe-name sources linked into both the thin client and server.
-- `src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/LanguageServer/` contains the shared daemon listeners and persistent CLI session hosting. Resident CLI language servers are registered as normal `LanguageServerConnectionManager` connections and end when their virtual clients are disposed.
+- `src/LanguageServer/Microsoft.CodeAnalysis.LanguageServer/LanguageServer/` contains the shared daemon listeners and persistent CLI session hosting. `InProcessLanguageServerConnectionSource` queues resident CLI servers, and `AggregateLanguageServerConnectionSource` merges them with `NamedPipeDaemonConnectionSource`, so the unchanged `LanguageServerConnectionManager` accepts and supervises both; CLI servers end when their virtual clients are disposed.
 - `src/LanguageServer/roslyn-language-server/` is the thin packaged entry point; its `rls` mode forwards arguments to the daemon's sibling `.cli` pipe, relays progress, and keeps stdout reserved for the daemon's structured command result.
 - A resident CLI server's virtual client writes `window/logMessage` notifications directly to its session log. Do not route them through the global `ILogger`, which fans messages out to every started server and would send them back to the same virtual client.
 

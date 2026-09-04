@@ -235,7 +235,7 @@ internal sealed class NamedPipeDaemonConnectionSource : ILanguageServerConnectio
         await Task.WhenAll(remainingSupervisors).ConfigureAwait(false);
     }
 
-    public LanguageServerConnection CreateInProcessConnection(Stream inputStream, Stream outputStream, IDisposable resource)
+    public IDisposable CreateConnectionResource(IDisposable resource)
     {
         if (!TryOpenConnection())
         {
@@ -243,7 +243,7 @@ internal sealed class NamedPipeDaemonConnectionSource : ILanguageServerConnectio
             throw new InvalidOperationException("The language server daemon is shutting down.");
         }
 
-        return new LanguageServerConnection(inputStream, outputStream, new ConnectionResource(resource, this));
+        return new ConnectionResource(resource, this);
     }
 
     private (CancellationToken TimeoutToken, int Generation, CancellationToken GenerationChangedToken) GetTimeoutState()
