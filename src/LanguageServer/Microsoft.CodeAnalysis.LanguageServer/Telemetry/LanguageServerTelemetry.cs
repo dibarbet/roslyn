@@ -5,6 +5,7 @@
 using System.Collections.Immutable;
 using System.Composition;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using Microsoft.CodeAnalysis.Common;
 using Microsoft.CodeAnalysis.ErrorReporting;
@@ -24,6 +25,9 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Telemetry;
 internal sealed class LanguageServerTelemetry : IDisposable
 {
     internal const string CopilotTelemetryLevelEnvironmentVariable = "COPILOT_TELEMETRY_LEVEL";
+    internal const string ServerVersionPropertyName = "serverVersion";
+    internal const string ServerPackageVersionPropertyName = "serverPackageVersion";
+    internal const string ServerPlatformPropertyName = "serverPlatform";
 
     /// <summary>
     /// Collector key used by C# Dev Kit to send language server telemetry to the VS Code cluster.
@@ -73,6 +77,8 @@ internal sealed class LanguageServerTelemetry : IDisposable
             }
         }
 
+        AddServerCommonProperties(session);
+
         if (isDefaultSession && useDevKitTelemetry)
         {
             VisualStudio.Telemetry.TelemetryService.SetDefaultSession(session);
@@ -109,6 +115,25 @@ internal sealed class LanguageServerTelemetry : IDisposable
             ? serverConfiguration.TelemetryLevel
             : Environment.GetEnvironmentVariable(CopilotTelemetryLevelEnvironmentVariable);
 
+    internal static string GetServerVersion()
+        => typeof(LanguageServerTelemetry).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? throw new InvalidOperationException("The language server assembly does not have an informational version.");
+
+    internal static string GetServerPackageVersion(string serverVersion)
+    {
+        var buildMetadataSeparator = serverVersion.IndexOf('+');
+        return buildMetadataSeparator >= 0 ? serverVersion[..buildMetadataSeparator] : serverVersion;
+    }
+
+    internal static string GetServerPlatform()
+        => OperatingSystem.IsWindows()
+            ? "windows"
+            : OperatingSystem.IsLinux()
+                ? "linux"
+                : OperatingSystem.IsMacOS()
+                    ? "macos"
+                    : "unknown";
+
     internal TelemetrySession? Session => _telemetrySession;
 
     public void Dispose()
@@ -127,6 +152,17 @@ internal sealed class LanguageServerTelemetry : IDisposable
             session.Dispose();
             _telemetrySession = null;
         }
+    }
+
+    private static void AddServerCommonProperties(TelemetrySession session)
+    {
+        var serverVersion = GetServerVersion();
+        session.AddCommonPropertyRange(new Dictionary<string, object>
+        {
+            [ServerVersionPropertyName] = serverVersion,
+            [ServerPackageVersionPropertyName] = GetServerPackageVersion(serverVersion),
+            [ServerPlatformPropertyName] = GetServerPlatform(),
+        });
     }
 
     internal static string CreateDevKitSessionSettings(string telemetryLevel, string? sessionId)
