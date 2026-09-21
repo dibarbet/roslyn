@@ -59,6 +59,14 @@ public MyService(IDependency dependency) { }
 
 - ServiceHub components live under `src/Workspaces/Remote/` and have special deployment considerations for .NET Core vs .NET Framework — keep both targets in mind when changing remote services
 
+## Language Server File Watching
+
+- `HostWorkspace/FileWatching/AggregatingFileChangeWatcher` owns the shared directory tree, consolidation, context reference counts, and exact-file filtering. `DefaultFileChangeWatcher` and `LspFileChangeWatcher` reuse it through `IDirectoryWatcherFactory` and `IDirectoryWatcher`; backend code must not duplicate context ownership.
+- `DirectoryWatchOptions` is a complete filter/recursion configuration. Group topology changes in a factory update scope. Establish parent/replacement coverage before retiring child watches, and preserve callbacks captured before consolidation.
+- `NativeDirectoryWatcherFactory` manages OS watchers and native rename conversion; its aggregate watcher is shared process-wide. `LspDirectoryWatcherFactory` is connection-local and asynchronously reconciles registrations, retaining old coverage until replacement acknowledgement. Count client watcher descriptors, not registration requests.
+- LSP keeps explicit flat watches separate from recursive watches so consolidation cannot make their delivery depend on recursive watcher exclusions. Its 64-descriptor target is soft; precision and workspace boundaries take precedence.
+- `LspDidChangeWatchedFilesHandler` is a per-connection service. Notifications are routed through desired aggregate watches and then existing logical context filters. Session teardown releases LSP watches without disposing the shared native watcher. when changing remote services
+
 ## Key Development Patterns
 
 ### TestAccessor Pattern

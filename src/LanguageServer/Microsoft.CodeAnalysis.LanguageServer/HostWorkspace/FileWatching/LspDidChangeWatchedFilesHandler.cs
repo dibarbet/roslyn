@@ -10,23 +10,27 @@ using Roslyn.LanguageServer.Protocol;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.HostWorkspace.FileWatching;
 
-[ExportCSharpVisualBasicStatelessLspService(typeof(LspDidChangeWatchedFilesHandler)), Shared]
+[ExportCSharpVisualBasicLspServiceFactory(typeof(LspDidChangeWatchedFilesHandler)), Shared]
+[method: ImportingConstructor]
+[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+internal sealed class LspDidChangeWatchedFilesHandlerFactory() : ILspServiceFactory
+{
+    public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
+        => new LspDidChangeWatchedFilesHandler();
+}
+
 [Method("workspace/didChangeWatchedFiles")]
 internal sealed class LspDidChangeWatchedFilesHandler : ILspServiceNotificationHandler<DidChangeWatchedFilesParams>
 {
-    [ImportingConstructor]
-    [Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-    public LspDidChangeWatchedFilesHandler()
-    {
-    }
-
     public bool MutatesSolutionState => false;
     public bool RequiresLSPSolution => false;
 
     async Task INotificationHandler<DidChangeWatchedFilesParams, RequestContext>.HandleNotificationAsync(DidChangeWatchedFilesParams request, RequestContext requestContext, CancellationToken cancellationToken)
     {
-        NotificationRaised?.Invoke(this, request);
+        Notify(request);
     }
+
+    internal void Notify(DidChangeWatchedFilesParams request) => NotificationRaised?.Invoke(this, request);
 
     public event EventHandler<DidChangeWatchedFilesParams>? NotificationRaised;
 }

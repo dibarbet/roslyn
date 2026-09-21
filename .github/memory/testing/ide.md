@@ -35,3 +35,14 @@ public class MyTests
   test source code.
 - Keep tests focused — avoid unnecessary intermediary assertions; use `.Single()`
   rather than asserting a count then indexing.
+
+## Language server file watchers
+
+`Microsoft.CodeAnalysis.LanguageServer.UnitTests` contains native filesystem coverage in
+`DefaultFileChangeWatcherTests`, deterministic shared-tree/factory scenarios in
+`AggregatingFileChangeWatcherTests`, and protocol registration/notification coverage in
+`LspFileChangeWatcherTests` and `LspDirectoryWatcherFactoryTests`.
+Use recording factories and gated RPC acknowledgements for replacement/lifetime races;
+await the workspace asynchronous-operation listener rather than sleeping.
+LSP notifications are asynchronous: wait for handler completion before asserting delivery,
+and account for URI path normalization (including Windows drive-letter casing).

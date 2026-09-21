@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -24,7 +24,7 @@ internal sealed class DelegatingFileChangeWatcher(
     ILspServices lspServices,
     ILoggerFactory loggerFactory,
     IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
-    : IFileChangeWatcher, ILspService
+    : IFileChangeWatcher, ILspService, IAsyncDisposable
 {
     /// <summary>
     /// Share a single default file change watcher across all server instances to ensure they respect the platform limits and consolidate.
@@ -47,6 +47,11 @@ internal sealed class DelegatingFileChangeWatcher(
 
     public IFileChangeContext CreateContext(ImmutableArray<WatchedDirectory> watchedDirectories)
         => _underlyingFileWatcher.Value.CreateContext(watchedDirectories);
+
+    public ValueTask DisposeAsync()
+        => _underlyingFileWatcher.IsValueCreated && _underlyingFileWatcher.Value is LspFileChangeWatcher watcher
+            ? watcher.DisposeAsync()
+            : ValueTask.CompletedTask;
 
     internal TestAccessor GetTestAccessor()
     {

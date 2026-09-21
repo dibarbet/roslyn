@@ -737,7 +737,7 @@ public sealed class DefaultFileChangeWatcherTests : IDisposable
         var watcher = new DefaultFileChangeWatcher();
 
         using var context = watcher.CreateContext([]);
-        var fileChangeContext = (DefaultFileChangeWatcher.FileChangeContext)context;
+        var fileChangeContext = (AggregatingFileChangeWatcher.FileChangeContext)context;
         var fileChangeTask = ListenForFileChangeAsync(fileChangeContext, filePath);
 
         // Watch and then immediately dispose
