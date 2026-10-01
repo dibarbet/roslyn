@@ -40,7 +40,6 @@ internal sealed partial class PublicWorkspacePullDiagnosticsHandler(
                 new WorkspaceFullDocumentDiagnosticReport
                 {
                     Uri = identifier.DocumentUri,
-                    ProjectContext = (identifier as VSTextDocumentIdentifier)?.ProjectContext,
                     Items = diagnostics,
                     // The documents provided by workspace reports are never open, so we return null.
                     Version = null,
@@ -57,7 +56,6 @@ internal sealed partial class PublicWorkspacePullDiagnosticsHandler(
                 new WorkspaceFullDocumentDiagnosticReport
                 {
                     Uri = identifier.DocumentUri,
-                    ProjectContext = (identifier as VSTextDocumentIdentifier)?.ProjectContext,
                     Items = [],
                     // The documents provided by workspace reports are never open, so we return null.
                     Version = null,
@@ -90,10 +88,9 @@ internal sealed partial class PublicWorkspacePullDiagnosticsHandler(
         return diagnosticsParams.PreviousResultId.SelectAsArray(id => new PreviousPullResult
         {
             PreviousResultId = id.Value,
-            TextDocument = new VSTextDocumentIdentifier
+            TextDocument = new TextDocumentIdentifier
             {
-                DocumentUri = id.Uri,
-                ProjectContext = id.ProjectContext,
+                DocumentUri = id.Uri
             }
         });
     }

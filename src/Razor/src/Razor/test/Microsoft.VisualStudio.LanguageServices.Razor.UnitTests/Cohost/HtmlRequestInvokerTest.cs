@@ -41,18 +41,18 @@ public class HtmlRequestInvokerTest(ITestOutputHelper testOutput) : VisualStudio
         var htmlDocumentUri = new Uri("file://File.razor.html", UriKind.Absolute);
         var requestValidator = (object request) =>
         {
-            var diagnosticParams = Assert.IsType<DocumentDiagnosticParams>(request);
-            Assert.Equal(htmlDocumentUri, diagnosticParams.TextDocument.DocumentUri.GetRequiredSystemUri());
+            var diagnosticParams = Assert.IsType<VSInternalDiagnosticParams>(request);
+            Assert.Equal(htmlDocumentUri, diagnosticParams.TextDocument!.DocumentUri.GetRequiredSystemUri());
         };
 
-        var diagnosticRequest = new DocumentDiagnosticParams
+        var diagnosticRequest = new VSInternalDiagnosticParams
         {
             TextDocument = new TextDocumentIdentifier { DocumentUri = document.GetURI() }
         };
 
-        await MakeHtmlRequestAsync(document, htmlDocumentUri, requestValidator, Methods.TextDocumentDiagnosticName, diagnosticRequest);
+        await MakeHtmlRequestAsync(document, htmlDocumentUri, requestValidator, VSInternalMethods.DocumentPullDiagnosticName, diagnosticRequest);
 
-        Assert.Equal(document.GetURI(), diagnosticRequest.TextDocument.DocumentUri);
+        Assert.Equal(document.GetURI(), diagnosticRequest.TextDocument!.DocumentUri);
     }
 
     [Fact]
