@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipes;
 using Microsoft.CodeAnalysis.LanguageServer.Daemon;
@@ -104,30 +105,15 @@ internal static class DaemonClient
         };
         bootstrapArguments.AddRange(serverArguments);
 
-        // Forward the bootstrap's standard error to ours so daemon startup diagnostics still reach the host, and
-        // drain its standard output and input so it cannot corrupt the editor's LSP channel in stdio mode.
-        // On Windows, mark our standard handles non-inheritable across the launch. A redirected Process.Start uses
-        // CreateProcess(bInheritHandles: true), which would otherwise leak our own standard handles - the editor's LSP
-        // stdio pipes - to the bootstrap and, transitively, to the long-lived daemon it spawns. A daemon holding those
-        // pipes keeps them from ever reaching EOF after we exit (so the editor's WaitForExit/output draining hangs) and
-        // in stdio mode corrupts the editor's LSP channel. The bootstrap applies the same protection when it launches
-        // the daemon. A no-op off Windows.
-        var process = bootstrapExecutable.StartWithStandardHandleInheritanceSuppressed(bootstrapArguments);
+        var startInfo = bootstrapExecutable.CreateStartInfo(bootstrapArguments);
+        using var nullHandle = File.OpenNullHandle();
+        startInfo.StandardInputHandle = nullHandle;
+        startInfo.StandardOutputHandle = nullHandle;
+        startInfo.RedirectStandardError = true;
+        var process = Process.Start(startInfo)!;
 
-        // The bootstrap reads nothing from its stdin; close our write end so it sees EOF if it ever does.
-        try
-        {
-            process.StandardInput.Close();
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException)
-        {
-            // The short-lived bootstrap may already have exited or closed its redirected standard-input stream.
-        }
-
-        // Drain the bootstrap's stdout so it never blocks on a full pipe, and forward its stderr onto ours (never our
-        // stdout, which carries LSP in stdio mode). Both end on their own once the bootstrap exits, shortly after it has
-        // launched the daemon. The daemon then logs to its own files.
-        _ = ProcessUtilities.ForwardStreamAsync(process.StandardOutput.BaseStream, Stream.Null, CancellationToken.None);
+        // Forward stderr onto ours, never stdout, which carries LSP in stdio mode. The stream ends when the
+        // short-lived bootstrap exits after launching the daemon.
         _ = ForwardAndDisposeStandardErrorAsync(process.StandardError.BaseStream);
         Console.Error.WriteLine($"Started language server daemon bootstrap (pid {process.Id})");
     }

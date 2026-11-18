@@ -54,25 +54,25 @@ internal static class DaemonBootstrap
         var daemonArguments = Array.ConvertAll(args, static arg => arg == BootstrapArgument ? DaemonArgument : arg);
 
         var executable = ServerExecutable.ResolveLanguageServer();
+        var startInfo = executable.CreateStartInfo(daemonArguments);
 
-        var daemonProcess = executable.StartWithStandardHandleInheritanceSuppressed(daemonArguments);
+        // On Unix, start the daemon in a new session so signals aimed at the client's terminal session or process
+        // group (SIGHUP on terminal close, Ctrl+C, kill(-pgid)) cannot reach it. On Windows, CreateNoWindow already
+        // gives the daemon its own hidden console, which isolates it from the editor's console events. StartDetached
+        // would only add DETACHED_PROCESS there and leave the daemon with no console. A console program it then starts
+        // without CreateNoWindow, including one started by an analyzer or extension, would get a visible window.
+        startInfo.StartDetached = !OperatingSystem.IsWindows();
 
-        // The daemon serves clients over its named pipe, never stdin; close our write end so it sees EOF if it reads.
-        try
-        {
-            daemonProcess.StandardInput.Close();
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException)
-        {
-        }
+        // The daemon serves clients over its pipe. Discard its unused stdin and fallback console stdout without
+        // leaving pipes that close when this bootstrap exits. Keep stderr redirected so startup failures reach the
+        // editor through the bootstrap and its parent thin client.
+        using var nullHandle = File.OpenNullHandle();
+        startInfo.StandardInputHandle = nullHandle;
+        startInfo.StandardOutputHandle = nullHandle;
+        startInfo.RedirectStandardError = true;
+        var daemonProcess = Process.Start(startInfo)!;
 
-        // While we wait below, drain the daemon's stdout (verbose trace, also written to its log files) so it can't
-        // block on a full pipe during startup, and forward its stderr to ours - which our parent thin client in turn
-        // forwards - so the daemon's startup diagnostics still reach the editor's output. Keeping these pipes attached
-        // until the daemon is ready also means it isn't writing to a closed stream while it still logs to the console
-        // during startup; once it's ready it logs to its files instead.
         using var forwardingCancellation = new CancellationTokenSource();
-        var drainStandardOutput = ProcessUtilities.CopyStreamAsync(daemonProcess.StandardOutput.BaseStream, Stream.Null, forwardingCancellation.Token);
         var forwardStandardError = ProcessUtilities.CopyStreamAsync(daemonProcess.StandardError.BaseStream, Console.OpenStandardError(), forwardingCancellation.Token);
 
         var readiness = await WaitForReadyOrExitAsync(daemonProcess, pipeName).ConfigureAwait(false);
@@ -81,7 +81,7 @@ internal static class DaemonBootstrap
         {
             // The daemon exited during startup (e.g. it failed to compose, or another daemon already owns the pipe).
             // Flush its diagnostics so the failure reason surfaces, then propagate its exit code.
-            await FlushForwardersAsync(drainStandardOutput, forwardStandardError).ConfigureAwait(false);
+            await FlushForwarderAsync(forwardStandardError).ConfigureAwait(false);
             var exitCode = readiness.ExitCode!.Value;
             Console.Error.WriteLine($"The language server daemon exited during startup with code {exitCode}.");
             daemonProcess.Dispose();
@@ -92,13 +92,14 @@ internal static class DaemonBootstrap
         {
             Console.Error.WriteLine($"Timed out waiting {ReadyTimeout} for the language server daemon to become ready; terminating it.");
             await TerminateDaemonAsync(daemonProcess).ConfigureAwait(false);
-            await FlushForwardersAsync(drainStandardOutput, forwardStandardError).ConfigureAwait(false);
+            await FlushForwarderAsync(forwardStandardError).ConfigureAwait(false);
             daemonProcess.Dispose();
             return ExitCodes.DaemonReadyTimeout;
         }
 
-        // The daemon is ready. Return immediately to orphan it; it now owns its own lifetime and logs to its files.
-        // We intentionally do not wait on the forwarders here so the orphaning isn't delayed.
+        // The daemon is ready. Return immediately to orphan it; it now owns its own lifetime, and connected clients
+        // receive subsequent logs through the LSP logger. Do not wait on the forwarder because that would delay
+        // orphaning.
         forwardingCancellation.Cancel();
         daemonProcess.Dispose();
         return ExitCodes.Success;
@@ -141,12 +142,11 @@ internal static class DaemonBootstrap
         await daemonProcess.WaitForExitAsync().ConfigureAwait(false);
     }
 
-    private static async Task FlushForwardersAsync(Task drainStandardOutput, Task forwardStandardError)
+    private static async Task FlushForwarderAsync(Task forwardStandardError)
     {
-        // The caller invokes this only after the daemon exited or was killed, so both redirected streams should reach
-        // EOF. Wait briefly for forwarding to finish, but cap the wait in case a stream fails to complete.
-        var flushed = Task.WhenAll(drainStandardOutput, forwardStandardError);
-        await Task.WhenAny(flushed, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+        // The caller invokes this only after the daemon exited or was killed, so stderr should reach EOF. Wait briefly
+        // for forwarding to finish, but cap the wait in case the stream fails to complete.
+        await Task.WhenAny(forwardStandardError, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
     }
 
     private static bool TryGetPipeName(string[] args, [NotNullWhen(true)] out string? pipeName, [NotNullWhen(false)] out string? error)

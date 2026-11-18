@@ -9,7 +9,7 @@ The roslyn repository produces components for a number of different products tha
 - Repository Source build: requires us to ship `$(NetCurrent)` and `$(NetPrevious)` in workspaces and below (presently `net10.0` and `net9.0` respectively). This is because the output of repository source build is an input to other repository source build and those could be targeting either `$(NetCurrent)` or `$(NetPrevious)`.
 - Full Source build: requires us to ship `$(NetCurrent)`
 - Visual Studio: requires us to ship `net472` for base IDE components and `$(NetVisualStudio)` (presently `net10.0`) for private runtime components.
-- Visual Studio Code: expects us to ship against the same runtime as DevKit (presently `net10.0`) to avoid two runtime downloads.
+- Visual Studio Code: expects us to ship against the same runtime as DevKit (presently `net11.0`) to avoid two runtime downloads.
 - MSBuildWorkspace: requires us to ship a process that must be usable on the lowest supported SDK (presently `net8.0`)
 - Microsoft.RoslynTools: remains compatible with the lowest runtime supported by Roslyn infrastructure automation (presently `net8.0`).
 

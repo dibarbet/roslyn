@@ -52,7 +52,11 @@ internal static class ChildServerHost
 
         childArguments.AddRange(arguments.ServerArguments);
 
-        using var process = executable.Start(childArguments);
+        var startInfo = executable.CreateStartInfo(childArguments);
+        startInfo.RedirectStandardInput = true;
+        startInfo.RedirectStandardOutput = true;
+        startInfo.RedirectStandardError = true;
+        using var process = Process.Start(startInfo)!;
         using var forwardingCancellationSource = new CancellationTokenSource();
 
         // Always bridge the server's stdio to ours; the server decides whether to use it for LSP (stdio transport)

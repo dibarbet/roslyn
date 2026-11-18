@@ -17,11 +17,11 @@
   -->
   <PropertyGroup>
     <NetRoslyn>net10.0</NetRoslyn>
-    <NetRoslynAll>net10.0</NetRoslynAll>
+    <NetRoslynAll>net10.0;net11.0</NetRoslynAll>
     <NetRoslynWindowsTests>net10.0-windows</NetRoslynWindowsTests>
     <NetVS>net10.0</NetVS>
-    <NetVSCode>net10.0</NetVSCode>
-    <NetVSShared>net10.0</NetVSShared>
+    <NetVSCode>net11.0</NetVSCode>
+    <NetVSShared>net10.0;net11.0</NetVSShared>
     <NetRoslynBuildHostNetCoreVersion>net8.0</NetRoslynBuildHostNetCoreVersion>
     <NetRoslynNext>net10.0</NetRoslynNext>
   </PropertyGroup>

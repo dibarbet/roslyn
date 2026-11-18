@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
-using Microsoft.CodeAnalysis.Shared.Utilities;
 
 namespace Microsoft.CodeAnalysis.LanguageServer.Client;
 
@@ -58,28 +57,15 @@ internal sealed class ServerExecutable
         return new ServerExecutable(appHostPath);
     }
 
-    /// <summary>Starts this executable with all standard streams redirected.</summary>
-    public Process Start(IReadOnlyList<string> arguments)
-        => Start(arguments, suppressStandardHandleInheritance: false);
-
-    /// <summary>
-    /// Starts this executable with all standard streams redirected while preventing this process's standard handles
-    /// from being inherited. Used for both stages of the daemon launch so the daemon cannot retain the editor's LSP
-    /// stdio pipes.
-    /// </summary>
-    public Process StartWithStandardHandleInheritanceSuppressed(IReadOnlyList<string> arguments)
-        => Start(arguments, suppressStandardHandleInheritance: true);
-
-    private Process Start(IReadOnlyList<string> arguments, bool suppressStandardHandleInheritance)
+    public ProcessStartInfo CreateStartInfo(IReadOnlyList<string> arguments)
     {
-        var startInfo = new ProcessStartInfo
+        var startInfo = new ProcessStartInfo(FileName, arguments)
         {
-            FileName = FileName,
             UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
             CreateNoWindow = true,
+            // Each caller supplies the child's standard handles. Do not also inherit this process's other inheritable
+            // handles, which include the editor's stdio pipes on Windows.
+            InheritedHandles = [],
         };
 
         // The bundled server is a framework-dependent apphost, which resolves the .NET runtime only via
@@ -115,24 +101,6 @@ internal sealed class ServerExecutable
                     : null;
         }
 
-        foreach (var argument in arguments)
-            startInfo.ArgumentList.Add(argument);
-
-        if (!suppressStandardHandleInheritance)
-            return StartCore();
-
-        StandardHandleInheritance.SetStandardHandlesInheritable(false);
-        try
-        {
-            return StartCore();
-        }
-        finally
-        {
-            StandardHandleInheritance.SetStandardHandlesInheritable(true);
-        }
-
-        Process StartCore()
-            => Process.Start(startInfo)
-                ?? throw new InvalidOperationException($"Failed to start '{FileName}'.");
+        return startInfo;
     }
 }

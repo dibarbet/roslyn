@@ -16,7 +16,9 @@ namespace Microsoft.CodeAnalysis.Shared.Utilities;
 /// from receiving them, while the freshly created redirection pipes (which the runtime sets up separately) are
 /// unaffected. A no-op off Windows, where redirected children don't leak the parent's standard handles.
 /// </para>
-/// TODO - Switch to ProcessStartInfo.InheritedHandles when we upgrade to .NET 11 which allows us to configure handle inheritance directly.
+/// The language server still needs this process-wide setting because some children, including the vstest testhost,
+/// are started by code that cannot set <c>ProcessStartInfo.InheritedHandles</c>. BuildHost also links this helper and
+/// targets frameworks that do not provide that property.
 /// </summary>
 internal static class StandardHandleInheritance
 {

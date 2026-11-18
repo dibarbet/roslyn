@@ -47,7 +47,6 @@
     <Compile Include="..\..\Compilers\Shared\IBuildEnvironment.cs" LinkBase="Shared" />
     <Compile Include="..\..\Compilers\Shared\RuntimeHostInfo.cs" LinkBase="Shared" />
     <Compile Include="..\..\Compilers\Shared\StandardBuildEnvironment.cs" LinkBase="Shared" />
-    <Compile Include="..\..\Workspaces\Core\Portable\Utilities\StandardHandleInheritance.cs" LinkBase="Shared" />
   </ItemGroup>
 
   <!--

@@ -87,16 +87,6 @@ static async Task<int> RunAsync(ServerConfiguration serverConfiguration, Cancell
     logger.LogInformation("  Executable path: {processPath}", Environment.ProcessPath ?? "<unknown>");
     logger.LogInformation("  Process ID: {processId}", Environment.ProcessId);
 
-    if (serverConfiguration.IsDaemon)
-    {
-        // We are the shared daemon. A short-lived bootstrap process (in the thin client) started us and then exited,
-        // orphaning us out of the editor's process tree so a teardown of that tree can't take us down. On Unix,
-        // additionally move into a new session so signals aimed at the launching client's session/process group (e.g.
-        // terminal-close SIGHUP) don't reach the shared daemon. A no-op on Windows, where leaving the editor's
-        // job/tree is handled entirely by the bootstrap orphaning us.
-        DaemonProcessDetach.DetachIntoNewSessionIfUnix(logger);
-    }
-
     if (serverConfiguration.LaunchDebugger)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

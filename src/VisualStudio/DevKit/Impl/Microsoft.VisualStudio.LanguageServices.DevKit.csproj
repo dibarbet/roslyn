@@ -50,7 +50,8 @@
     <Content Include="$(PkgMicrosoft_VisualStudio_Utilities_Internal)\lib\netstandard2.0\Microsoft.VisualStudio.Utilities.Internal.dll" Pack="true" PackagePath="content" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="$(PkgSystem_Configuration_ConfigurationManager)\lib\netstandard2.0\System.Configuration.ConfigurationManager.dll" Pack="true" PackagePath="content" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="$(PkgMicrosoft_VisualStudio_Debugger_Contracts)\lib\netstandard2.0\Microsoft.VisualStudio.Debugger.Contracts.dll" Pack="true" PackagePath="content" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="$(PkgMicrosoft_VisualStudio_HotReload_RemoteContracts)\lib\$(NetVSCode)\Microsoft.VisualStudio.HotReload.RemoteContracts.dll" Pack="true" PackagePath="content" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The package currently places its compatible assembly under the Visual Studio TFM, which remains net10.0. -->
+    <Content Include="$(PkgMicrosoft_VisualStudio_HotReload_RemoteContracts)\lib\$(NetVS)\Microsoft.VisualStudio.HotReload.RemoteContracts.dll" Pack="true" PackagePath="content" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="$(TargetPath)" Pack="true" PackagePath="content" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
